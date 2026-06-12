@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
-import { fmtLong } from "@/lib/dates";
+import { fmtLong, snapWorkday } from "@/lib/dates";
 import type { CategoryId, WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -20,17 +20,21 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<CategoryId>("creative");
   const [isMilestone, setIsMilestone] = useState(false);
+  const [includeWeekends, setIncludeWeekends] = useState(true);
 
   const add = () => {
     if (!title.trim()) return;
+    // Weekend-excluded events can't start on a weekend — land on Monday
+    const day = includeWeekends ? dayKey : snapWorkday(dayKey, 1);
     const ev: WorkbackEvent = {
       id: uid(),
       title: title.trim(),
-      startDate: dayKey,
-      endDate: dayKey,
+      startDate: day,
+      endDate: day,
       category,
       isMilestone,
       locked: false,
+      skipWeekends: includeWeekends ? undefined : true,
     };
     commit((p) => ({ ...p, events: [...p.events, ev] }));
     onCreated(ev.id);
@@ -69,15 +73,25 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
             </button>
           ))}
         </div>
-        <div className="flex items-center justify-between pt-1">
-          <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
-            <input
-              type="checkbox"
-              checked={isMilestone}
-              onChange={(e) => setIsMilestone(e.target.checked)}
-            />
-            Milestone
-          </label>
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+              <input
+                type="checkbox"
+                checked={isMilestone}
+                onChange={(e) => setIsMilestone(e.target.checked)}
+              />
+              Milestone
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+              <input
+                type="checkbox"
+                checked={includeWeekends}
+                onChange={(e) => setIncludeWeekends(e.target.checked)}
+              />
+              Include weekends
+            </label>
+          </div>
           <button
             className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85 disabled:opacity-40"
             disabled={!title.trim()}

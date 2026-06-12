@@ -1,7 +1,7 @@
 "use client";
 
 import { CATEGORIES, categoryOf } from "@/lib/categories";
-import { addDaysKey, durationDays } from "@/lib/dates";
+import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
 import { countRounds, duplicateRound } from "@/lib/workback";
 import type { CategoryId, WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
@@ -96,7 +96,7 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           <div className="mt-1 text-[11.5px] text-ink-soft">{categoryOf(event.category).label}</div>
         </div>
 
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
           <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
             <input
               type="checkbox"
@@ -112,6 +112,25 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
               onChange={(e) => update({ locked: e.target.checked })}
             />
             Lock date
+          </label>
+          <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+            <input
+              type="checkbox"
+              checked={!event.skipWeekends}
+              onChange={(e) => {
+                const skip = !e.target.checked;
+                if (!skip) {
+                  update({ skipWeekends: false });
+                  return;
+                }
+                // Snap both edges onto workdays when weekends are excluded
+                let start = snapWorkday(event.startDate, 1);
+                let end = snapWorkday(event.endDate, -1);
+                if (end < start) end = start = snapWorkday(event.startDate, 1);
+                update({ skipWeekends: true, startDate: start, endDate: end });
+              }}
+            />
+            Include weekends
           </label>
         </div>
 

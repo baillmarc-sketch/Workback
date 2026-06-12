@@ -1,6 +1,7 @@
 /* Sanity checks for the workback engine. Run: node --experimental-strip-types scripts/verify-logic.ts */
 import {
   moveEvent,
+  resizeEvent,
   compressTimeline,
   applyChanges,
   warningIds,
@@ -120,6 +121,29 @@ const base = [
   check("layout: milestone on top lane", mile.lane === 0, wl.segments.map((s) => [s.event.id, s.lane]));
   const byLaneCol = new Set(wl.segments.flatMap((s) => Array.from({ length: s.span }, (_, i) => `${s.lane}:${s.startCol + i}`)));
   check("layout: no lane collisions", byLaneCol.size === wl.segments.reduce((n, s) => n + s.span, 0));
+}
+
+// 9. Weekend-skipping events (2026-06-01 is a Monday, 2026-05-31 a Sunday)
+{
+  const wk = [ev("w", "2026-06-01", "2026-06-05", { skipWeekends: true })]; // Mon–Fri, 5 workdays
+  const fwd = moveEvent(wk, "w", 2, false)[0];
+  check("skip-weekends: +2 keeps 5 workdays over the weekend", fwd.startDate === "2026-06-03" && fwd.endDate === "2026-06-09", [fwd.startDate, fwd.endDate]);
+  const back = moveEvent(wk, "w", -1, false)[0];
+  check("skip-weekends: -1 from Monday snaps back to Friday", back.startDate === "2026-05-29" && back.endDate === "2026-06-04", [back.startDate, back.endDate]);
+
+  const resized = resizeEvent(wk, "w", "end", "2026-06-06")[0]; // Saturday → Friday
+  check("skip-weekends: resize end onto Saturday snaps to Friday", resized.endDate === "2026-06-05", resized.endDate);
+
+  // Sunday-first week containing the whole range: bar trims to Mon–Fri
+  const wl = layoutWeek(
+    [ev("w2", "2026-05-31", "2026-06-06", { skipWeekends: true })],
+    "2026-05-31",
+    "2026-06-06"
+  );
+  check("skip-weekends: segment trimmed to Mon–Fri", wl.segments.length === 1 && wl.segments[0].startCol === 1 && wl.segments[0].span === 5, wl.segments.map((s) => [s.startCol, s.span]));
+
+  const inclusive = layoutWeek([ev("w3", "2026-05-31", "2026-06-06")], "2026-05-31", "2026-06-06");
+  check("weekends included: segment spans full week", inclusive.segments[0].startCol === 0 && inclusive.segments[0].span === 7);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

@@ -1,5 +1,5 @@
 import type { WorkbackEvent } from "./types";
-import { diffDays, maxKey, minKey } from "./dates";
+import { addDaysKey, diffDays, isWeekendKey, maxKey, minKey } from "./dates";
 
 export interface Segment {
   event: WorkbackEvent;
@@ -49,8 +49,28 @@ export function layoutWeek(
   const overflow = new Map<string, WorkbackEvent[]>();
 
   for (const e of sorted) {
-    const segStart = maxKey(e.startDate, weekStart);
-    const segEnd = minKey(e.endDate, weekEnd);
+    let segStart = maxKey(e.startDate, weekStart);
+    let segEnd = minKey(e.endDate, weekEnd);
+
+    // Weekend-skipping events: trim Sat/Sun off the segment so the bar
+    // breaks around weekends (weekend days sit at the edges of a week)
+    if (e.skipWeekends) {
+      const rawStart = segStart;
+      const rawEnd = segEnd;
+      while (segStart <= segEnd && isWeekendKey(segStart)) segStart = addDaysKey(segStart, 1);
+      while (segEnd >= segStart && isWeekendKey(segEnd)) segEnd = addDaysKey(segEnd, -1);
+      if (segStart > segEnd) {
+        // No workdays this week. If the event lives entirely inside this
+        // week (legacy weekend-only data), show it untrimmed; otherwise skip.
+        if (e.startDate >= weekStart && e.endDate <= weekEnd) {
+          segStart = rawStart;
+          segEnd = rawEnd;
+        } else {
+          continue;
+        }
+      }
+    }
+
     const startCol = diffDays(weekStart, segStart);
     const span = diffDays(segStart, segEnd) + 1;
 

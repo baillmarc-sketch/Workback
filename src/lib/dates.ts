@@ -11,7 +11,7 @@ import {
   startOfWeek,
 } from "date-fns";
 
-export const WEEK_STARTS_ON = 1; // Monday — production schedules run Mon–Fri
+export const WEEK_STARTS_ON = 0; // Sunday-first, like a normal calendar
 
 export function toKey(d: Date): string {
   return format(d, "yyyy-MM-dd");
@@ -58,8 +58,40 @@ export function fmtLong(key: string): string {
   return format(fromKey(key), "EEE, MMM d, yyyy");
 }
 
+export function isWeekendKey(key: string): boolean {
+  const dow = fromKey(key).getDay();
+  return dow === 0 || dow === 6;
+}
+
+/** Move off a weekend in the given direction (no-op on a workday) */
+export function snapWorkday(key: string, dir: 1 | -1): string {
+  let k = key;
+  while (isWeekendKey(k)) k = addDaysKey(k, dir);
+  return k;
+}
+
+/** Workdays in the inclusive range */
+export function countWorkdays(startKey: string, endKey: string): number {
+  let n = 0;
+  for (let k = startKey; k <= endKey; k = addDaysKey(k, 1)) {
+    if (!isWeekendKey(k)) n++;
+  }
+  return n;
+}
+
+/** Advance `n` workdays from `startKey`, snapping forward off weekends */
+export function addWorkdaysKey(startKey: string, n: number): string {
+  let k = snapWorkday(startKey, 1);
+  let left = Math.max(n, 0);
+  while (left > 0) {
+    k = snapWorkday(addDaysKey(k, 1), 1);
+    left--;
+  }
+  return k;
+}
+
 export interface WeekGrid {
-  /** Keys of the 7 days, Monday-first */
+  /** Keys of the 7 days, Sunday-first */
   days: string[];
   start: string;
   end: string;

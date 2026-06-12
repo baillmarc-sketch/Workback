@@ -20,6 +20,9 @@ export interface WorkbackEvent {
   category: CategoryId;
   isMilestone: boolean;
   locked: boolean;
+  /** When true, the event covers workdays only — bars break around Sat/Sun
+      and shifts preserve the workday count rather than the calendar span */
+  skipWeekends?: boolean;
   /** Links the Review/Revisions pair of a review round */
   roundId?: string;
   roundRole?: "review" | "revisions";

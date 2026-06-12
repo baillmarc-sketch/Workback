@@ -16,14 +16,19 @@ npm run dev        # http://localhost:3000
 
 ## What it does
 
-**Calendar** — month grid (1, 2, or 3 months stacked), multi-day events as horizontal bars,
-rows auto-expand with event density, "+N more" overflow popovers, milestones with diamond
-markers always sorted to the top of their day.
+**Calendar** — month grid (1, 2, or 3 months stacked), Sunday-first weeks, multi-day events
+as horizontal bars, rows auto-expand with event density, "+N more" overflow popovers,
+milestones with diamond markers always sorted to the top of their day.
 
 **Events** — click an empty day to create; click an event to edit in place (title,
 description, dates, category, milestone, lock). Drag to move, drag edges to resize,
 duplicate, ⌘C/⌘V copy-paste (pastes under the cursor), Delete to remove. No save buttons —
 everything commits immediately and auto-saves to localStorage.
+
+Each event has an **Include weekends** checkbox (on by default). With weekends excluded,
+the bar breaks around Sat/Sun while spanning as many weeks as needed, edges snap to
+workdays, and moves/shifts/compressions preserve the event's *workday* count instead of
+its calendar span.
 
 **Workback logic**
 - **Shift downstream** — hold `Shift` while dragging (or arm the toolbar toggle): every

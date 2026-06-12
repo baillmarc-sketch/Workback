@@ -2,7 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { layoutWeek } from "@/lib/layout";
-import { isInMonth, todayKey } from "@/lib/dates";
+import { isInMonth, isWeekendKey, todayKey } from "@/lib/dates";
 import type { WorkbackEvent } from "@/lib/types";
 import EventBar, { LANE_HEIGHT, LANE_GAP } from "./EventBar";
 
@@ -46,8 +46,8 @@ function DayCell({
       ref={setNodeRef}
       data-day={dayKey}
       className={`relative border-r border-hairline last:border-r-0 ${
-        inMonth ? "" : "bg-paper"
-      } ${isOver ? "bg-[#f1efe9]" : ""} ${readOnly ? "" : "cursor-pointer"}`}
+        !inMonth ? "bg-paper" : isWeekendKey(dayKey) ? "bg-[#f6f5f1]" : ""
+      } ${isOver ? "!bg-[#f1efe9]" : ""} ${readOnly ? "" : "cursor-pointer"}`}
       onClick={(e) => {
         if (readOnly) return;
         onDayClick(dayKey, (e.currentTarget as HTMLElement).getBoundingClientRect());

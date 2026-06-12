@@ -1,8 +1,24 @@
-import { addDaysKey, diffDays, durationDays } from "./dates";
+import {
+  addDaysKey,
+  addWorkdaysKey,
+  countWorkdays,
+  diffDays,
+  durationDays,
+  snapWorkday,
+} from "./dates";
 import type { CategoryId, DateChange, WorkbackEvent } from "./types";
 import { uid } from "./types";
 
 function shiftEvent(e: WorkbackEvent, delta: number): WorkbackEvent {
+  if (e.skipWeekends) {
+    // Weekend-skipping events keep their workday count: snap the new start
+    // off a weekend (in the direction of travel) and rebuild the end from it.
+    const workdays = countWorkdays(e.startDate, e.endDate);
+    if (workdays > 0) {
+      const start = snapWorkday(addDaysKey(e.startDate, delta), delta < 0 ? -1 : 1);
+      return { ...e, startDate: start, endDate: addWorkdaysKey(start, workdays - 1) };
+    }
+  }
   return {
     ...e,
     startDate: addDaysKey(e.startDate, delta),
@@ -77,10 +93,12 @@ export function resizeEvent(
 ): WorkbackEvent[] {
   return events.map((e) => {
     if (e.id !== id) return e;
+    // Weekend-skipping events: edges land on workdays only
+    const day = e.skipWeekends ? snapWorkday(dayKey, edge === "start" ? 1 : -1) : dayKey;
     if (edge === "start") {
-      return { ...e, startDate: dayKey > e.endDate ? e.endDate : dayKey };
+      return { ...e, startDate: day > e.endDate ? e.endDate : day };
     }
-    return { ...e, endDate: dayKey < e.startDate ? e.startDate : dayKey };
+    return { ...e, endDate: day < e.startDate ? e.startDate : day };
   });
 }
 
@@ -134,9 +152,8 @@ export function compressTimeline(
     for (const e of unlocked) {
       if (e.startDate > anchor) continue; // events after delivery stay put
       const back = diffDays(e.startDate, anchor);
-      const newStart = addDaysKey(anchor, -Math.round(back * scale));
-      if (newStart === e.startDate) continue;
-      changes.push(change(e, newStart));
+      const c = change(e, addDaysKey(anchor, -Math.round(back * scale)));
+      if (c.newStart !== c.oldStart) changes.push(c);
     }
   } else {
     const anchor = firstStart;
@@ -146,24 +163,31 @@ export function compressTimeline(
     const scale = Math.max(span + deltaDays, 1) / span;
     for (const e of unlocked) {
       const offset = diffDays(anchor, e.startDate);
-      const newStart = addDaysKey(anchor, Math.round(offset * scale));
-      if (newStart === e.startDate) continue;
-      changes.push(change(e, newStart));
+      const c = change(e, addDaysKey(anchor, Math.round(offset * scale)));
+      if (c.newStart !== c.oldStart) changes.push(c);
     }
   }
   return changes;
 }
 
 function change(e: WorkbackEvent, newStart: string): DateChange {
-  const dur = durationDays(e.startDate, e.endDate);
+  let start = newStart;
+  let end: string;
+  const workdays = e.skipWeekends ? countWorkdays(e.startDate, e.endDate) : 0;
+  if (e.skipWeekends && workdays > 0) {
+    start = snapWorkday(newStart, newStart < e.startDate ? -1 : 1);
+    end = addWorkdaysKey(start, workdays - 1);
+  } else {
+    end = addDaysKey(start, durationDays(e.startDate, e.endDate) - 1);
+  }
   return {
     id: e.id,
     title: e.title,
     category: e.category,
     oldStart: e.startDate,
     oldEnd: e.endDate,
-    newStart,
-    newEnd: addDaysKey(newStart, dur - 1),
+    newStart: start,
+    newEnd: end,
   };
 }
 

@@ -5,7 +5,7 @@ import type { Project, WorkbackEvent } from "@/lib/types";
 import WeekRow from "./WeekRow";
 import Legend from "./Legend";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 interface MonthBlockProps {
   mKey: string;
