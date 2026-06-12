@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { deleteRemoteProject } from "@/lib/account";
 import { deleteProject, listProjects, loadProject, newProject, saveProject } from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
+import { useAuth } from "@/state/auth";
 import { useStore } from "@/state/store";
 import Modal from "./Modal";
 
 export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
   const { project, open } = useStore();
+  const { user, getToken } = useAuth();
   const [, bump] = useState(0);
   const [picking, setPicking] = useState(false);
   const projects = listProjects();
@@ -86,6 +89,12 @@ export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
                     onClick={() => {
                       if (confirm(`Delete “${s.title || "Untitled Workback"}”? This can't be undone.`)) {
                         deleteProject(s.id);
+                        if (user) {
+                          // Tombstone the remote copy so other devices don't resurrect it
+                          getToken()
+                            .then((t) => (t ? deleteRemoteProject(user.uid, t, s.id) : undefined))
+                            .catch(() => {});
+                        }
                         bump((n) => n + 1);
                       }
                     }}
@@ -96,6 +105,10 @@ export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
               </div>
             ))}
           </div>
+        )}
+
+        {user && (
+          <div className="text-[11px] text-ink-faint">Synced to {user.email}</div>
         )}
       </div>
     </Modal>

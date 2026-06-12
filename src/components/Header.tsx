@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/state/store";
+import AccountButton from "./AccountButton";
 
 export default function Header({ onOpenProjects }: { onOpenProjects: () => void }) {
   const { project, commit } = useStore();
@@ -27,12 +28,15 @@ export default function Header({ onOpenProjects }: { onOpenProjects: () => void 
             onChange={(e) => commit((p) => ({ ...p, subtitle: e.target.value }))}
           />
         </div>
-        <button
-          className="mt-1.5 shrink-0 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
-          onClick={onOpenProjects}
-        >
-          Projects
-        </button>
+        <div className="flex shrink-0 items-start gap-2">
+          <button
+            className="mt-1.5 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
+            onClick={onOpenProjects}
+          >
+            Projects
+          </button>
+          <AccountButton />
+        </div>
       </div>
 
       <button

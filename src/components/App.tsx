@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { syncAccount } from "@/lib/account";
 import { fetchShared, newShareId, publishProject, shareUrl } from "@/lib/cloud";
 import { addDaysKey, durationDays } from "@/lib/dates";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/storage";
 import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
+import { useAuth } from "@/state/auth";
 import { useStore } from "@/state/store";
 import Calendar from "./Calendar";
 import CompressDialog from "./CompressDialog";
@@ -35,6 +37,7 @@ function rectToAnchor(r: DOMRect): Anchor {
 
 export default function App() {
   const { project, open, commit, patch, undo, redo } = useStore();
+  const { user, getToken } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editAnchor, setEditAnchor] = useState<Anchor | null>(null);
   const [create, setCreate] = useState<{ dayKey: string; anchor: Anchor } | null>(null);
@@ -144,6 +147,46 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [project, open, showToast]);
+
+  // Account sync: merge the signed-in user's projects on login and when the
+  // tab regains focus (throttled), mirroring the shared-link pull pattern
+  const lastAccountSyncRef = useRef(0);
+  const projectIdRef = useRef<string | null>(null);
+  projectIdRef.current = project?.id ?? null;
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const sync = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastAccountSyncRef.current < 30_000) return;
+      lastAccountSyncRef.current = now;
+      getToken()
+        .then((token) => (token ? syncAccount(user.uid, token) : null))
+        .then((result) => {
+          if (cancelled || !result) return;
+          const current = projectIdRef.current;
+          if (current && result.pulledIds.includes(current)) {
+            const fresh = loadProject(current);
+            if (fresh) open(fresh);
+          }
+          if (result.pulledIds.length > 0) {
+            const n = result.pulledIds.length;
+            showToast(`Synced ${n} project${n === 1 ? "" : "s"} from your account`);
+          }
+        })
+        .catch(() => {});
+    };
+    sync(true);
+    const onFocus = () => sync();
+    const onVisible = () => document.visibilityState === "visible" && sync();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user, getToken, open, showToast]);
 
   // Share: publish to the cloud and hand the short link to the native share
   // sheet (text it straight from the phone). Falls back to a long

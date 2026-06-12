@@ -13,6 +13,8 @@ import {
 import type { Project } from "@/lib/types";
 import { saveProject } from "@/lib/storage";
 import { publishProject } from "@/lib/cloud";
+import { pushProject } from "@/lib/account";
+import { useAuth } from "./auth";
 
 export type SyncState = "idle" | "syncing" | "synced" | "offline";
 
@@ -85,6 +87,7 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
+  const { user, getToken } = useAuth();
   const [state, dispatch] = useReducer(reducer, {
     project: null,
     past: [],
@@ -114,15 +117,18 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
   // Auto-save: debounce writes to localStorage on every change, and push
-  // shared projects to the cloud copy (skipping states we already pushed
-  // or just pulled, so syncs don't echo)
+  // shared projects to the cloud copy and signed-in users' projects to
+  // their account (skipping states we already pushed or just pulled, so
+  // syncs don't echo)
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const lastPushedRef = useRef<string>("");
+  const lastAccountPushedRef = useRef<string>("");
   useEffect(() => {
     if (!state.project) return;
     const p = state.project;
     const t = setTimeout(() => saveProject(p), 250);
     let t2: ReturnType<typeof setTimeout> | undefined;
+    let t3: ReturnType<typeof setTimeout> | undefined;
     const stamp = `${p.id}:${p.updatedAt}`;
     if (p.shareId && lastPushedRef.current !== stamp) {
       t2 = setTimeout(() => {
@@ -135,11 +141,23 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
           .catch(() => setSyncState("offline"));
       }, 1200);
     }
+    if (user && lastAccountPushedRef.current !== stamp) {
+      const uid = user.uid;
+      t3 = setTimeout(() => {
+        getToken()
+          .then((token) => (token ? pushProject(uid, token, p) : undefined))
+          .then(() => {
+            lastAccountPushedRef.current = stamp;
+          })
+          .catch(() => {}); // next edit or focus sync retries
+      }, 1200);
+    }
     return () => {
       clearTimeout(t);
       if (t2) clearTimeout(t2);
+      if (t3) clearTimeout(t3);
     };
-  }, [state.project]);
+  }, [state.project, user, getToken]);
 
   const value = useMemo<Store>(
     () => ({

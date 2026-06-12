@@ -11,7 +11,9 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-`npm run build && npm start` for a production build.
+`npm run build` produces the static export in `out/`, deployed to Firebase Hosting by
+the GitHub Action on pushes to `main` (needs the `FIREBASE_SERVICE_ACCOUNT` repo secret).
+`npm run build:pages` rebuilds `docs/` for the legacy GitHub Pages URL.
 `npx tsx scripts/verify-logic.ts` runs sanity checks on the workback engine.
 
 ## What it does
@@ -52,10 +54,15 @@ its calendar span.
   unguessable share ID is the only access control, same model as a private link.
   If the cloud is unreachable or not configured, Share falls back to a long
   self-contained `#wb=` link (recipient gets an independent copy).
-- Cloud config (`src/lib/cloud.ts`): defaults to the eggs Firebase RTDB, which needs this
-  added to its rules in the Firebase console before short links work:
-  `"workback": { ".read": true, ".write": true }`. Any RTDB works — override per-browser
-  with `localStorage["workback:dbUrl"]` or edit the constant.
+- **Accounts (optional)**: Sign in with Google (header button) and your project list syncs
+  across devices under `/users/{uid}` in the Workback Firebase project — per-project
+  last-write-wins on login and tab focus, deletions propagate via tombstones. The app is
+  fully usable signed out (localStorage only), and shared links never require an account.
+- Cloud config (`src/lib/firebase.ts` + `src/lib/cloud.ts`): the Workback Firebase
+  project's RTDB, rules in `database.rules.json` (shared docs open, the unguessable ID is
+  the secret; user data auth-gated). Links minted before the migration are read once from
+  the legacy eggs DB and adopted into the new one. Override the DB per-browser with
+  `localStorage["workback:dbUrl"]`.
 - Share codes: project → JSON → lz-string → URL-safe text. Paste into "Load from code" (or
   open `/#wb=<code>`). Also accepts raw project JSON. Warns above ~8 KB.
 - Full project JSON export/import.

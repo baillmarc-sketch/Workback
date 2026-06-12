@@ -45,7 +45,7 @@ export function loadProject(id: string): Project | null {
   }
 }
 
-export function saveProject(project: Project): void {
+export function saveProject(project: Project, opts: { setLastOpen?: boolean } = {}): void {
   safeSet(PROJECT_PREFIX + project.id, JSON.stringify(project));
   const index = listProjects().filter((p) => p.id !== project.id);
   index.unshift({
@@ -56,7 +56,9 @@ export function saveProject(project: Project): void {
     eventCount: project.events.length,
   });
   safeSet(INDEX_KEY, JSON.stringify(index));
-  safeSet(LAST_OPEN_KEY, project.id);
+  // Background account syncs save quietly so they don't hijack which
+  // project reopens on the next visit
+  if (opts.setLastOpen !== false) safeSet(LAST_OPEN_KEY, project.id);
 }
 
 export function deleteProject(id: string): void {

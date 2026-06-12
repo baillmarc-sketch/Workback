@@ -1,12 +1,14 @@
 import type { NextConfig } from "next";
 
-// PAGES_BASE=/Workback npm run build → static export for GitHub Pages,
-// served from the repo's /docs folder at baillmarc-sketch.github.io/Workback
+// Always a static export. Plain `npm run build` → out/ for Firebase Hosting;
+// PAGES_BASE=/Workback adds the basePath for the legacy GitHub Pages deploy
+// served from /docs at baillmarc-sketch.github.io/Workback
 const base = process.env.PAGES_BASE;
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  ...(base ? { output: "export" as const, basePath: base } : {}),
+  output: "export",
+  ...(base ? { basePath: base } : {}),
   images: { unoptimized: true },
 };
 

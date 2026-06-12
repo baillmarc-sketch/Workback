@@ -1,0 +1,29 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "shared": {
+      "$shareId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'events', 'updatedAt']) && newData.child('updatedAt').isNumber()"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "projects": {
+          "$pid": {
+            ".validate": "newData.hasChildren(['id', 'events', 'updatedAt'])"
+          }
+        },
+        "deleted": {
+          "$pid": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    }
+  }
+}
