@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), Georgia, serif;
+
+  /* Near-neutral surfaces — category colors are the only saturated elements */
+  --color-paper: #fafaf8;
+  --color-surface: #ffffff;
+  --color-ink: #1c1c1a;
+  --color-ink-soft: #6f6e69;
+  --color-ink-faint: #a3a29b;
+  --color-hairline: #e8e6e1;
+  --color-hairline-strong: #d8d6cf;
+  --color-accent: #1c1c1a;
+  --color-danger: #dc2626;
+}
+
+::selection {
+  background: #1c1c1a;
+  color: #fafaf8;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+/* ---- Event bars ---- */
+.event-bar {
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+/* Shift animation: bars briefly glow after a workback operation so users can
+   see what moved. Functional, not decorative. */
+@keyframes shifted-pulse {
+  0% {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--cat-color) 70%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.event-bar.just-shifted {
+  animation: shifted-pulse 900ms ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-bar {
+    transition: none;
+  }
+  .event-bar.just-shifted {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Keyboard focus */
+:focus-visible {
+  outline: 2px solid #1c1c1a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Print / PDF export ----
+   The export IS the product: clean margins, no UI chrome, header info on
+   every page, exact category colors. */
+@page {
+  size: letter landscape;
+  margin: 10mm 12mm;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .month-block {
+    break-after: page;
+    break-inside: avoid;
+  }
+  .month-block:last-of-type {
+    break-after: auto;
+  }
+  .event-bar,
+  .cat-dot,
+  .milestone-diamond {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .calendar-scroll {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .week-row {
+    break-inside: avoid;
+  }
+}
+
+.print-only {
+  display: none;
+}
