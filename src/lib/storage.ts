@@ -93,6 +93,7 @@ export function migrate(data: unknown): Project {
     anchorMonth: p.anchorMonth ?? monthKey(new Date()),
     monthsVisible: p.monthsVisible === 2 || p.monthsVisible === 3 ? p.monthsVisible : 1,
     showLegend: p.showLegend ?? true,
+    shareId: typeof p.shareId === "string" && p.shareId ? p.shareId : undefined,
     createdAt: p.createdAt ?? Date.now(),
     updatedAt: p.updatedAt ?? Date.now(),
   };

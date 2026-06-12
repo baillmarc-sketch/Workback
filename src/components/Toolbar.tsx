@@ -9,7 +9,7 @@ interface ToolbarProps {
   onAddRound: () => void;
   onCompress: () => void;
   onShare: () => void;
-  readOnly?: boolean;
+  onShareLink: () => void;
 }
 
 const btn =
@@ -21,9 +21,9 @@ export default function Toolbar({
   onAddRound,
   onCompress,
   onShare,
-  readOnly,
+  onShareLink,
 }: ToolbarProps) {
-  const { project, patch, undo, redo, canUndo, canRedo } = useStore();
+  const { project, patch, undo, redo, canUndo, canRedo, syncState } = useStore();
   if (!project) return null;
 
   return (
@@ -78,42 +78,59 @@ export default function Toolbar({
         Legend
       </button>
 
-      {!readOnly && (
-        <>
-          <span className="mx-1 h-5 w-px bg-hairline-strong" />
-          <button
-            className={`${btn} ${downstreamMode ? "!border-ink !bg-ink !text-paper" : ""}`}
-            aria-pressed={downstreamMode}
-            title="When on (or while holding Shift during a drag), moving an event also shifts everything after it"
-            onClick={onToggleDownstream}
-          >
-            ⇉ Shift downstream
-          </button>
-          <button className={btn} onClick={onAddRound}>
-            + Review round
-          </button>
-          <button className={btn} onClick={onCompress}>
-            Compress / extend
-          </button>
-          <span className="mx-1 h-5 w-px bg-hairline-strong" />
-          <button className={btn} disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
-            ↺
-          </button>
-          <button className={btn} disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
-            ↻
-          </button>
-        </>
-      )}
+      <span className="mx-1 h-5 w-px bg-hairline-strong" />
+      <button
+        className={`${btn} ${downstreamMode ? "!border-ink !bg-ink !text-paper" : ""}`}
+        aria-pressed={downstreamMode}
+        title="When on (or while holding Shift during a drag), moving an event also shifts everything after it"
+        onClick={onToggleDownstream}
+      >
+        ⇉ Shift downstream
+      </button>
+      <button className={btn} onClick={onAddRound}>
+        + Review round
+      </button>
+      <button className={btn} onClick={onCompress}>
+        Compress / extend
+      </button>
+      <span className="mx-1 h-5 w-px bg-hairline-strong" />
+      <button className={btn} disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
+        ↺
+      </button>
+      <button className={btn} disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
+        ↻
+      </button>
 
       <span className="flex-1" />
 
-      <button className={btn} onClick={onShare}>
-        Share
+      {project.shareId && (
+        <span
+          className="hidden items-center gap-1 text-[11px] text-ink-faint sm:flex"
+          title="This calendar has a shared link — edits sync to everyone who has it"
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              syncState === "offline"
+                ? "bg-danger"
+                : syncState === "syncing"
+                  ? "bg-ink-faint"
+                  : "bg-[#10B981]"
+            }`}
+          />
+          {syncState === "offline" ? "offline" : syncState === "syncing" ? "syncing…" : "shared"}
+        </span>
+      )}
+      <button className={btn} onClick={onShare} aria-label="Sharing options" title="Sharing options">
+        ⋯
       </button>
       <button
         className="rounded-md bg-ink px-3 py-1.5 text-[12px] font-semibold text-paper hover:opacity-85"
-        onClick={() => window.print()}
+        onClick={onShareLink}
+        title="Publish and send a link anyone can open and edit"
       >
+        Share
+      </button>
+      <button className={btn} onClick={() => window.print()}>
         Export PDF
       </button>
     </div>

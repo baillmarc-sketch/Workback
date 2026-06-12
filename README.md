@@ -45,8 +45,19 @@ its calendar span.
 - **Undo** — ⌘Z / ⇧⌘Z, 20-step history, covers every destructive and multi-event action.
 
 **Sharing & output**
+- **Shared links (text someone the calendar)**: the Share button publishes the project to
+  a Firebase Realtime Database and opens the native share sheet with a short link
+  (`/#p=<id>`). Everyone who opens it edits the *same* calendar — changes push
+  automatically (debounced) and pull when the tab regains focus. Last write wins; the
+  unguessable share ID is the only access control, same model as a private link.
+  If the cloud is unreachable or not configured, Share falls back to a long
+  self-contained `#wb=` link (recipient gets an independent copy).
+- Cloud config (`src/lib/cloud.ts`): defaults to the eggs Firebase RTDB, which needs this
+  added to its rules in the Firebase console before short links work:
+  `"workback": { ".read": true, ".write": true }`. Any RTDB works — override per-browser
+  with `localStorage["workback:dbUrl"]` or edit the constant.
 - Share codes: project → JSON → lz-string → URL-safe text. Paste into "Load from code" (or
-  open `/#wb=<code>`). Warns above ~8 KB and points to JSON export instead.
+  open `/#wb=<code>`). Also accepts raw project JSON. Warns above ~8 KB.
 - Full project JSON export/import.
 - **Export PDF** via the print pipeline (print CSS, not canvas screenshots): UI chrome
   stripped, project header + legend repeated on every page, one month per landscape page,
@@ -73,5 +84,6 @@ Next.js (App Router) + React + TypeScript, Tailwind CSS, dnd-kit, date-fns, lz-s
 - `src/components/` — calendar, popovers, dialogs. Dates are `yyyy-MM-dd` strings
   throughout; all date math goes through date-fns.
 
-V1 scope: month grid only, no rich text, no auth/backend. Mobile gets a read-only view;
-editing is desktop/tablet.
+Mobile is fully editable: tap a day to add, tap an event to edit in a bottom sheet,
+long-press an event to drag it (a quick swipe still scrolls). V1 scope: month grid only,
+no rich text, no auth.

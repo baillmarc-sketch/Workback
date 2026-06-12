@@ -8,9 +8,13 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
 import type { Project } from "@/lib/types";
 import { saveProject } from "@/lib/storage";
+import { publishProject } from "@/lib/cloud";
+
+export type SyncState = "idle" | "syncing" | "synced" | "offline";
 
 const HISTORY_LIMIT = 20;
 
@@ -66,6 +70,8 @@ interface Store {
   project: Project | null;
   canUndo: boolean;
   canRedo: boolean;
+  /** Cloud sync status for projects with a shareId */
+  syncState: SyncState;
   open: (project: Project) => void;
   close: () => void;
   /** Undoable mutation — pushes onto the history stack */
@@ -107,12 +113,32 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
-  // Auto-save: debounce writes to localStorage on every change
+  // Auto-save: debounce writes to localStorage on every change, and push
+  // shared projects to the cloud copy (skipping states we already pushed
+  // or just pulled, so syncs don't echo)
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const lastPushedRef = useRef<string>("");
   useEffect(() => {
     if (!state.project) return;
     const p = state.project;
     const t = setTimeout(() => saveProject(p), 250);
-    return () => clearTimeout(t);
+    let t2: ReturnType<typeof setTimeout> | undefined;
+    const stamp = `${p.id}:${p.updatedAt}`;
+    if (p.shareId && lastPushedRef.current !== stamp) {
+      t2 = setTimeout(() => {
+        setSyncState("syncing");
+        publishProject(p)
+          .then(() => {
+            lastPushedRef.current = stamp;
+            setSyncState("synced");
+          })
+          .catch(() => setSyncState("offline"));
+      }, 1200);
+    }
+    return () => {
+      clearTimeout(t);
+      if (t2) clearTimeout(t2);
+    };
   }, [state.project]);
 
   const value = useMemo<Store>(
@@ -120,6 +146,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       project: state.project,
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
+      syncState,
       open,
       close,
       commit,
@@ -127,7 +154,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       undo,
       redo,
     }),
-    [state.project, state.past.length, state.future.length, open, close, commit, patch, undo, redo]
+    [state.project, state.past.length, state.future.length, syncState, open, close, commit, patch, undo, redo]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

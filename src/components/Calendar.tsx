@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useSensor,
   useSensors,
@@ -53,8 +54,11 @@ export default function Calendar({
   const shiftKeyRef = useRef(false);
   const shiftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Mouse drags start after 4px of travel; touch needs a 250ms hold so the
+  // page still scrolls when you swipe across the calendar
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   );
 
   // Modifier key during drag toggles downstream shift
@@ -82,9 +86,14 @@ export default function Calendar({
   function handleDragStart(e: DragStartEvent) {
     const eventId = e.active.data.current?.eventId as string;
     setDraggingId(eventId);
-    const act = e.activatorEvent as PointerEvent;
-    grabDayRef.current =
-      act && "clientX" in act ? dayKeyAtPoint(act.clientX, act.clientY) : null;
+    const act = e.activatorEvent as PointerEvent | TouchEvent;
+    let point: { x: number; y: number } | null = null;
+    if (act && "touches" in act && act.touches[0]) {
+      point = { x: act.touches[0].clientX, y: act.touches[0].clientY };
+    } else if (act && "clientX" in act) {
+      point = { x: act.clientX, y: act.clientY };
+    }
+    grabDayRef.current = point ? dayKeyAtPoint(point.x, point.y) : null;
   }
 
   function handleDragEnd(e: DragEndEvent) {

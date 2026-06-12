@@ -10,6 +10,7 @@ import {
 } from "../src/lib/workback.ts";
 import { layoutWeek } from "../src/lib/layout.ts";
 import { decodeShareCode, encodeShareCode } from "../src/lib/share.ts";
+import { migrate } from "../src/lib/storage.ts";
 import type { WorkbackEvent } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -176,6 +177,12 @@ const base = [
     threw = true;
   }
   check("share: garbage rejected", threw);
+
+  // Cloud share IDs: survive storage migration, never leak through copy-codes
+  const withShare = { ...project, shareId: "abc123def456" };
+  check("cloud: shareId survives migrate", migrate(JSON.parse(JSON.stringify(withShare))).shareId === "abc123def456");
+  check("cloud: shareId stripped from copy-codes", decodeShareCode(encodeShareCode(withShare)).shareId === undefined);
+  check("cloud: shareId stripped from pasted JSON", decodeShareCode(JSON.stringify(withShare)).shareId === undefined);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

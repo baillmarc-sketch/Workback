@@ -7,10 +7,12 @@ import { uid } from "./types";
 export const SHARE_CODE_WARN_BYTES = 8 * 1024;
 
 export function encodeShareCode(project: Project): string {
-  // Strip volatile fields so the same project always yields the same code
-  const { updatedAt, createdAt, ...rest } = project;
+  // Strip volatile fields so the same project always yields the same code,
+  // and the cloud link ID so a pasted code never hijacks someone's shared copy
+  const { updatedAt, createdAt, shareId, ...rest } = project;
   void updatedAt;
   void createdAt;
+  void shareId;
   return compressToEncodedURIComponent(JSON.stringify(rest));
 }
 
@@ -34,8 +36,10 @@ export function decodeShareCode(code: string): Project {
     throw new Error("Couldn't parse that as project JSON — check for truncation.");
   }
   const project = migrate(parsed);
-  // Imported copy gets its own identity so it never clobbers an existing project
+  // Imported copy gets its own identity so it never clobbers an existing
+  // project or someone else's shared cloud copy
   project.id = uid();
+  project.shareId = undefined;
   project.createdAt = Date.now();
   project.updatedAt = Date.now();
   return project;

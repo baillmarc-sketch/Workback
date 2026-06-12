@@ -39,6 +39,8 @@ export interface Project {
   anchorMonth: string;
   monthsVisible: 1 | 2 | 3;
   showLegend: boolean;
+  /** Set when published to the shared cloud copy — the link channel ID */
+  shareId?: string;
   createdAt: number;
   updatedAt: number;
 }

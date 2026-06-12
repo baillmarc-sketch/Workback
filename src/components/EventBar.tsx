@@ -77,6 +77,7 @@ export default function EventBar({
               : undefined,
           "--cat-color": cat.color,
           zIndex: selected ? 5 : undefined,
+          touchAction: "manipulation",
         } as React.CSSProperties
       }
       onClick={(e) => {
@@ -88,7 +89,8 @@ export default function EventBar({
       {/* Resize handles on true start/end edges only */}
       {!readOnly && !event.locked && !continuesLeft && (
         <div
-          className="absolute inset-y-0 left-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100"
+          className="absolute inset-y-0 left-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 pointer-coarse:w-5 pointer-coarse:opacity-60"
+          style={{ touchAction: "none" }}
           onPointerDown={(e) => {
             e.stopPropagation();
             onResizeStart(event.id, "start", e);
@@ -99,7 +101,8 @@ export default function EventBar({
       )}
       {!readOnly && !event.locked && !continuesRight && (
         <div
-          className="absolute inset-y-0 right-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100"
+          className="absolute inset-y-0 right-0 w-2 cursor-ew-resize opacity-0 group-hover/bar:opacity-100 pointer-coarse:w-5 pointer-coarse:opacity-60"
+          style={{ touchAction: "none" }}
           onPointerDown={(e) => {
             e.stopPropagation();
             onResizeStart(event.id, "end", e);

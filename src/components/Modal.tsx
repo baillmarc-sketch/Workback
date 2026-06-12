@@ -23,14 +23,14 @@ export default function Modal({ title, onClose, children, width = 480 }: ModalPr
 
   return createPortal(
     <div
-      className="no-print fixed inset-0 z-50 flex items-start justify-center bg-black/25 pt-[10vh]"
+      className="no-print fixed inset-0 z-50 flex items-start justify-center bg-black/25 px-3 pt-[4vh] sm:pt-[10vh]"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[78vh] w-full overflow-y-auto rounded-xl border border-hairline bg-surface shadow-2xl"
+        className="max-h-[88vh] w-full overflow-y-auto rounded-xl border border-hairline bg-surface shadow-2xl sm:max-h-[78vh]"
         style={{ maxWidth: width }}
       >
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">

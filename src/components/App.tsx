@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchShared, newShareId, publishProject, shareUrl } from "@/lib/cloud";
 import { addDaysKey, durationDays } from "@/lib/dates";
-import { decodeShareCode } from "@/lib/share";
+import { decodeShareCode, encodeShareCode } from "@/lib/share";
 import {
   lastOpenId,
   listProjects,
@@ -33,20 +34,67 @@ function rectToAnchor(r: DOMRect): Anchor {
 }
 
 export default function App() {
-  const { project, open, commit, undo, redo } = useStore();
+  const { project, open, commit, patch, undo, redo } = useStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editAnchor, setEditAnchor] = useState<Anchor | null>(null);
   const [create, setCreate] = useState<{ dayKey: string; anchor: Anchor } | null>(null);
   const [more, setMore] = useState<{ dayKey: string; events: WorkbackEvent[]; anchor: Anchor } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [downstreamMode, setDownstreamMode] = useState(false);
-  const [readOnly, setReadOnly] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const clipboardRef = useRef<WorkbackEvent | null>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Boot: share code in URL > last open project > most recent > fresh sample
+  const showToast = useCallback((msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 2800);
+  }, []);
+
+  // Boot: shared link in URL > share code in URL > last open > most recent > sample
   useEffect(() => {
+    const bootDefault = () => {
+      const last = lastOpenId();
+      const fromLast = last ? loadProject(last) : null;
+      if (fromLast) {
+        open(fromLast);
+        return;
+      }
+      const recents = listProjects();
+      const fromRecent = recents[0] ? loadProject(recents[0].id) : null;
+      if (fromRecent) {
+        open(fromRecent);
+        if (recents.length > 1) setDialog("projects");
+        return;
+      }
+      const p = sampleProject();
+      saveProject(p);
+      open(p);
+    };
+
     const hash = window.location.hash;
+    if (hash.startsWith("#p=")) {
+      // Shared cloud link: open the live copy (the hash stays in the URL so
+      // a refresh re-syncs). Keep the local version if it's newer.
+      fetchShared(decodeURIComponent(hash.slice(3)))
+        .then((remote) => {
+          if (!remote) {
+            showToast("That shared calendar no longer exists.");
+            bootDefault();
+            return;
+          }
+          const local = loadProject(remote.id);
+          const winner = local && local.updatedAt > remote.updatedAt ? local : remote;
+          saveProject(winner);
+          open(winner);
+        })
+        .catch(() => {
+          showToast("Couldn't reach the shared calendar — check your connection.");
+          bootDefault();
+        });
+      return;
+    }
     if (hash.startsWith("#wb=")) {
       try {
         const p = decodeShareCode(hash.slice(4));
@@ -58,32 +106,8 @@ export default function App() {
         // fall through to normal boot
       }
     }
-    const last = lastOpenId();
-    const fromLast = last ? loadProject(last) : null;
-    if (fromLast) {
-      open(fromLast);
-      return;
-    }
-    const recents = listProjects();
-    const fromRecent = recents[0] ? loadProject(recents[0].id) : null;
-    if (fromRecent) {
-      open(fromRecent);
-      if (recents.length > 1) setDialog("projects");
-      return;
-    }
-    const p = sampleProject();
-    saveProject(p);
-    open(p);
-  }, [open]);
-
-  // Mobile = read-only view for v1
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const apply = () => setReadOnly(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
+    bootDefault();
+  }, [open, showToast]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -92,6 +116,72 @@ export default function App() {
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
+
+  // Shared projects: pull the cloud copy when the tab regains focus, so a
+  // collaborator's edits show up when you come back to the calendar
+  useEffect(() => {
+    if (!project?.shareId) return;
+    const { shareId, updatedAt } = project;
+    let cancelled = false;
+    const pull = () => {
+      fetchShared(shareId)
+        .then((remote) => {
+          if (cancelled || !remote) return;
+          if (remote.updatedAt > updatedAt) {
+            saveProject(remote);
+            open(remote);
+            showToast("Updated with the latest shared changes");
+          }
+        })
+        .catch(() => {});
+    };
+    const onVisible = () => document.visibilityState === "visible" && pull();
+    window.addEventListener("focus", pull);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", pull);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [project, open, showToast]);
+
+  // Share: publish to the cloud and hand the short link to the native share
+  // sheet (text it straight from the phone). Falls back to a long
+  // self-contained #wb= link if the cloud isn't reachable/configured.
+  const handleShareLink = useCallback(async () => {
+    let p = project;
+    if (!p) return;
+    if (!p.shareId) {
+      const sid = newShareId();
+      patch((pp) => ({ ...pp, shareId: sid }));
+      p = { ...p, shareId: sid };
+    }
+    let url: string;
+    let note = "Link copied — text it to anyone";
+    try {
+      await publishProject(p);
+      url = shareUrl(p.shareId!);
+    } catch {
+      url = `${location.origin}${location.pathname}#wb=${encodeShareCode(p)}`;
+      note = "Cloud share unavailable — copied a full link instead";
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: p.title || "Workback", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        showToast(note);
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return; // user closed share sheet
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast(note);
+      } catch {
+        showToast("Couldn't open the share sheet — use Share options instead");
+      }
+    }
+  }, [project, patch, showToast]);
 
   const selected = project?.events.find((e) => e.id === selectedId) ?? null;
 
@@ -138,7 +228,7 @@ export default function App() {
       const t = e.target as HTMLElement;
       const typing =
         t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
-      if (typing || readOnly) return;
+      if (typing) return;
       const mod = e.metaKey || e.ctrlKey;
 
       if (mod && e.key.toLowerCase() === "z") {
@@ -181,7 +271,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [project, selectedId, editAnchor, readOnly, commit, undo, redo]);
+  }, [project, selectedId, editAnchor, commit, undo, redo]);
 
   if (!project) {
     return (
@@ -192,13 +282,7 @@ export default function App() {
   }
 
   return (
-    <div className="calendar-scroll mx-auto min-h-screen max-w-[1200px] px-4 py-6 md:px-8">
-      {readOnly && (
-        <div className="no-print mb-3 rounded-md border border-hairline bg-surface px-3 py-2 text-[12px] text-ink-soft">
-          Read-only view — open on a larger screen to edit this workback.
-        </div>
-      )}
-
+    <div className="calendar-scroll mx-auto min-h-screen max-w-[1200px] px-3 py-5 sm:px-4 sm:py-6 md:px-8">
       <Header onOpenProjects={() => setDialog("projects")} />
 
       <Toolbar
@@ -207,12 +291,12 @@ export default function App() {
         onAddRound={() => setDialog("round")}
         onCompress={() => setDialog("compress")}
         onShare={() => setDialog("share")}
-        readOnly={readOnly}
+        onShareLink={handleShareLink}
       />
 
       {project.showLegend && <Legend className="no-print mb-4 px-1" />}
 
-      {project.events.length === 0 && !readOnly && (
+      {project.events.length === 0 && (
         <div className="no-print mb-4 rounded-lg border border-dashed border-hairline-strong bg-surface px-4 py-3 text-center text-[13px] text-ink-soft">
           Click any day to add your first event. Drag bars to move them — hold{" "}
           <kbd className="rounded border border-hairline bg-paper px-1 text-[11px]">Shift</kbd>{" "}
@@ -224,21 +308,23 @@ export default function App() {
         project={project}
         selectedId={selectedId}
         downstreamMode={downstreamMode}
-        readOnly={readOnly}
         onSelectEvent={handleSelectEvent}
         onDayClick={handleDayClick}
         onMoreClick={handleMoreClick}
       />
 
-      <footer className="no-print mt-8 pb-4 text-center text-[11px] text-ink-faint">
+      <footer className="no-print mt-8 hidden pb-4 text-center text-[11px] text-ink-faint sm:block">
         Workback Builder — auto-saved locally · ⌘Z undo · ⌘C/⌘V copy events · Shift-drag shifts
         downstream
       </footer>
+      <footer className="no-print mt-8 pb-4 text-center text-[11px] text-ink-faint sm:hidden">
+        Auto-saved · tap a day to add · hold an event to drag it
+      </footer>
 
-      {selected && editAnchor && !readOnly && (
+      {selected && editAnchor && (
         <EventPopover event={selected} anchor={editAnchor} onClose={closePopovers} />
       )}
-      {create && !readOnly && (
+      {create && (
         <CreatePopover
           dayKey={create.dayKey}
           anchor={create.anchor}
@@ -256,10 +342,21 @@ export default function App() {
         />
       )}
 
-      {dialog === "share" && <ShareDialog onClose={() => setDialog(null)} />}
+      {dialog === "share" && (
+        <ShareDialog onClose={() => setDialog(null)} onShareLink={handleShareLink} />
+      )}
       {dialog === "compress" && <CompressDialog onClose={() => setDialog(null)} />}
       {dialog === "round" && <ReviewRoundDialog onClose={() => setDialog(null)} />}
       {dialog === "projects" && <ProjectsDialog onClose={() => setDialog(null)} />}
+
+      {toast && (
+        <div
+          role="status"
+          className="no-print fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-[12.5px] font-medium text-paper shadow-lg"
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

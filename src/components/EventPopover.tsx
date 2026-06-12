@@ -2,6 +2,7 @@
 
 import { CATEGORIES, categoryOf } from "@/lib/categories";
 import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
+import { isCoarsePointer } from "@/lib/device";
 import { countRounds, duplicateRound } from "@/lib/workback";
 import type { CategoryId, WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
@@ -39,7 +40,7 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           className="w-full border-none bg-transparent text-[15px] font-semibold outline-none placeholder:text-ink-faint"
           value={event.title}
           placeholder="Event title"
-          autoFocus
+          autoFocus={!isCoarsePointer()}
           onChange={(e) => update({ title: e.target.value })}
           onKeyDown={(e) => e.key === "Enter" && onClose()}
         />

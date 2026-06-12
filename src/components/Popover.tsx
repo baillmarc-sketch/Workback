@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { isNarrowViewport } from "@/lib/device";
 
 interface PopoverProps {
   /** Viewport rect to anchor against */
@@ -13,13 +14,16 @@ interface PopoverProps {
 
 /**
  * Lightweight anchored popover: fixed-position, flips to stay in the
- * viewport, closes on outside click or Escape.
+ * viewport, closes on outside click or Escape. On phone-sized screens it
+ * renders as a bottom sheet instead.
  */
 export default function Popover({ anchor, onClose, children, width = 296 }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [sheet] = useState(isNarrowViewport);
 
   useLayoutEffect(() => {
+    if (sheet) return;
     const el = ref.current;
     if (!el) return;
     const h = el.offsetHeight;
@@ -33,7 +37,7 @@ export default function Popover({ anchor, onClose, children, width = 296 }: Popo
       if (top < pad) top = Math.max(pad, window.innerHeight - h - pad);
     }
     setPos({ left, top });
-  }, [anchor, width]);
+  }, [anchor, width, sheet]);
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -58,6 +62,22 @@ export default function Popover({ anchor, onClose, children, width = 296 }: Popo
   }, [onClose]);
 
   if (typeof document === "undefined") return null;
+
+  if (sheet) {
+    return createPortal(
+      <div className="no-print fixed inset-0 z-50 bg-black/25">
+        <div
+          ref={ref}
+          role="dialog"
+          className="sheet-panel fixed inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-hairline bg-surface pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_-8px_30px_rgba(0,0,0,0.15)]"
+        >
+          <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-hairline-strong" aria-hidden />
+          {children}
+        </div>
+      </div>,
+      document.body
+    );
+  }
 
   return createPortal(
     <div

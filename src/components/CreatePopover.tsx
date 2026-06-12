@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { fmtLong, snapWorkday } from "@/lib/dates";
+import { isCoarsePointer } from "@/lib/device";
 import type { CategoryId, WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -51,7 +52,7 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
           className="w-full border-none bg-transparent text-[15px] font-semibold outline-none placeholder:text-ink-faint"
           placeholder="Event title…"
           value={title}
-          autoFocus
+          autoFocus={!isCoarsePointer()}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
