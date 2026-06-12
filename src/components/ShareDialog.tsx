@@ -85,7 +85,7 @@ export default function ShareDialog({ onClose }: { onClose: () => void }) {
           <div className="flex gap-2">
             <input
               className="min-w-0 flex-1 rounded-md border border-hairline bg-paper px-2 py-1.5 font-mono text-[11px] outline-none focus:border-ink-faint"
-              placeholder="Paste a share code…"
+              placeholder="Paste a share code or project JSON…"
               value={loadCode}
               onChange={(e) => {
                 setLoadCode(e.target.value);

@@ -9,6 +9,7 @@ import {
   duplicateRound,
 } from "../src/lib/workback.ts";
 import { layoutWeek } from "../src/lib/layout.ts";
+import { decodeShareCode, encodeShareCode } from "../src/lib/share.ts";
 import type { WorkbackEvent } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -144,6 +145,37 @@ const base = [
 
   const inclusive = layoutWeek([ev("w3", "2026-05-31", "2026-06-06")], "2026-05-31", "2026-06-06");
   check("weekends included: segment spans full week", inclusive.segments[0].startCol === 0 && inclusive.segments[0].span === 7);
+}
+
+// 10. Share codes: lz round-trip, raw JSON, and fenced JSON all load
+{
+  const project = {
+    schema: 1 as const,
+    id: "p1",
+    title: "Roundtrip",
+    subtitle: "",
+    notes: "",
+    events: [ev("a", "2026-06-01", "2026-06-03")],
+    anchorMonth: "2026-06",
+    monthsVisible: 1 as const,
+    showLegend: true,
+    createdAt: 0,
+    updatedAt: 0,
+  };
+  const viaCode = decodeShareCode(encodeShareCode(project));
+  check("share: lz code round-trips", viaCode.title === "Roundtrip" && viaCode.events.length === 1);
+  const rawJson = JSON.stringify({ title: "From GPT", events: [{ title: "Shoot", startDate: "2026-07-01", endDate: "2026-07-02", category: "production", isMilestone: true, locked: false }] });
+  const viaJson = decodeShareCode(rawJson);
+  check("share: raw JSON accepted", viaJson.title === "From GPT" && viaJson.events[0].isMilestone === true);
+  const viaFence = decodeShareCode("```json\n" + rawJson + "\n```");
+  check("share: fenced JSON accepted", viaFence.title === "From GPT");
+  let threw = false;
+  try {
+    decodeShareCode("definitely not a code");
+  } catch {
+    threw = true;
+  }
+  check("share: garbage rejected", threw);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
