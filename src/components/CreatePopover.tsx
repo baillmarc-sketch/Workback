@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CATEGORIES } from "@/lib/categories";
 import { fmtLong, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
-import type { CategoryId, WorkbackEvent } from "@/lib/types";
+import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
+import CategorySwatches from "./CategorySwatches";
 import Popover from "./Popover";
 
 interface CreatePopoverProps {
@@ -17,9 +17,10 @@ interface CreatePopoverProps {
 }
 
 export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: CreatePopoverProps) {
-  const { commit } = useStore();
+  const { project, commit } = useStore();
+  const categories = project?.categories ?? [];
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<CategoryId>("creative");
+  const [category, setCategory] = useState(categories[0]?.id ?? "");
   const [isMilestone, setIsMilestone] = useState(false);
   const [includeWeekends, setIncludeWeekends] = useState(true);
 
@@ -56,24 +57,7 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
         />
-        <div className="flex flex-wrap gap-1">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              title={c.label}
-              aria-label={c.label}
-              aria-pressed={category === c.id}
-              className="flex h-6 w-6 items-center justify-center rounded-md transition-transform hover:scale-110"
-              style={{
-                background: `color-mix(in srgb, ${c.color} 18%, white)`,
-                boxShadow: category === c.id ? `0 0 0 2px ${c.color}` : undefined,
-              }}
-              onClick={() => setCategory(c.id as CategoryId)}
-            >
-              <span className="h-3 w-3 rounded-[4px]" style={{ background: c.color }} />
-            </button>
-          ))}
-        </div>
+        <CategorySwatches categories={categories} value={category} onChange={setCategory} />
         <div className="flex items-center justify-between gap-2 pt-1">
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">

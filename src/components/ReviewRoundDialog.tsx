@@ -1,22 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import { categoryOf } from "@/lib/categories";
 import { addDaysKey, todayKey } from "@/lib/dates";
 import { countRounds, createReviewRound } from "@/lib/workback";
 import { useStore } from "@/state/store";
+import CategorySwatches from "./CategorySwatches";
 import Modal from "./Modal";
 
 const inputCls =
   "rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
+const pickerLabelCls =
+  "mb-1 block text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
 export default function ReviewRoundDialog({ onClose }: { onClose: () => void }) {
   const { project, commit } = useStore();
+  const cats = project?.categories ?? [];
   const lastEnd = project?.events.reduce(
     (m, e) => (e.endDate > m ? e.endDate : m),
     project.events[0]?.endDate ?? todayKey()
   );
   const [start, setStart] = useState(lastEnd ? addDaysKey(lastEnd, 1) : todayKey());
-  const [type, setType] = useState<"client-review" | "internal-review">("client-review");
+  // Video projects keep their classic defaults; everything else starts on the first label
+  const [reviewCat, setReviewCat] = useState(
+    () => (cats.find((c) => c.id === "client-review") ?? cats[0])?.id ?? ""
+  );
+  const [revisionsCat, setRevisionsCat] = useState(
+    () =>
+      (cats.find((c) => c.id === "post-production") ??
+        cats.find((c) => c.id === "client-review") ??
+        cats[0])?.id ?? ""
+  );
   const [reviewDays, setReviewDays] = useState(2);
   const [revisionDays, setRevisionDays] = useState(2);
 
@@ -31,23 +45,21 @@ export default function ReviewRoundDialog({ onClose }: { onClose: () => void }) 
           popover to chain rounds downstream.
         </p>
 
-        <div className="flex overflow-hidden rounded-md border border-hairline self-start">
-          {(
-            [
-              ["client-review", "Client review"],
-              ["internal-review", "Internal review"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              className={`px-3 py-1.5 text-[12.5px] font-medium ${
-                type === id ? "bg-ink text-paper" : "bg-surface text-ink-soft hover:text-ink"
-              }`}
-              onClick={() => setType(id)}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={pickerLabelCls}>Review label</label>
+            <CategorySwatches categories={cats} value={reviewCat} onChange={setReviewCat} />
+            <div className="mt-1 text-[11.5px] text-ink-soft">
+              {categoryOf(cats, reviewCat).label}
+            </div>
+          </div>
+          <div>
+            <label className={pickerLabelCls}>Revisions label</label>
+            <CategorySwatches categories={cats} value={revisionsCat} onChange={setRevisionsCat} />
+            <div className="mt-1 text-[11.5px] text-ink-soft">
+              {categoryOf(cats, revisionsCat).label}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -92,7 +104,7 @@ export default function ReviewRoundDialog({ onClose }: { onClose: () => void }) 
                 ...p,
                 events: [
                   ...p.events,
-                  ...createReviewRound(start, type, countRounds(p.events) + 1, reviewDays, revisionDays),
+                  ...createReviewRound(start, reviewCat, revisionsCat, countRounds(p.events) + 1, reviewDays, revisionDays),
                 ],
               }));
               onClose();

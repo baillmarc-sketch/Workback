@@ -63,11 +63,16 @@ its calendar span.
   stripped, project header + legend repeated on every page, one month per landscape page,
   exact category colors.
 
-## Categories
+## Labels (categories)
 
-Fixed list with one color each, used everywhere (bars, legend, exports): Creative,
-Pre-Production, Production, Post Production, VFX, Finishing, Client Review, Internal
-Review, Delivery / Launch.
+Each project carries its own editable label set, used everywhere (bars, legend,
+exports). Click a legend chip to rename, recolor (freeform color picker), or delete a
+label; "+ Add label" appends one. New projects start from a template — **Video
+production** (Creative, Pre-Production, Production, Post Production, VFX, Finishing,
+Client Review, Internal Review, Delivery / Launch), **Event / activation** (Planning,
+Vendors & Booking, Permits, Promo / Marketing, Build & Setup, Show Day, Strike / Wrap,
+Approvals), or **Blank**. Older schema-1 projects and share codes migrate automatically,
+seeded with the classic video palette.
 
 ## Stack & architecture
 

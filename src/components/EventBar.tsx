@@ -1,14 +1,16 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import { categoryOf } from "@/lib/categories";
+import { catText, categoryOf } from "@/lib/categories";
 import type { Segment } from "@/lib/layout";
+import type { ProjectCategory } from "@/lib/types";
 
 export const LANE_HEIGHT = 26;
 export const LANE_GAP = 2;
 
 interface EventBarProps {
   segment: Segment;
+  categories: ProjectCategory[];
   weekStart: string;
   topOffset: number;
   selected: boolean;
@@ -22,6 +24,7 @@ interface EventBarProps {
 
 export default function EventBar({
   segment,
+  categories,
   weekStart,
   topOffset,
   selected,
@@ -33,7 +36,7 @@ export default function EventBar({
   readOnly,
 }: EventBarProps) {
   const { event, startCol, span, continuesLeft, continuesRight, lane } = segment;
-  const cat = categoryOf(event.category);
+  const cat = categoryOf(categories, event.category);
   const { attributes, listeners, setNodeRef } = useDraggable({
     id: `${event.id}@${weekStart}`,
     data: { eventId: event.id },
@@ -44,11 +47,10 @@ export default function EventBar({
   const widthCalc = `calc(${(span / 7) * 100}% - 6px)`;
   const top = topOffset + lane * (LANE_HEIGHT + LANE_GAP);
 
-  const isDark = event.category === "delivery";
   const bg = event.isMilestone
     ? cat.color
     : `color-mix(in srgb, ${cat.color} 16%, white)`;
-  const fg = event.isMilestone ? "#fff" : cat.dark;
+  const fg = event.isMilestone ? "#fff" : catText(cat.color);
   const border = event.isMilestone ? cat.color : `color-mix(in srgb, ${cat.color} 45%, white)`;
 
   return (
@@ -67,7 +69,7 @@ export default function EventBar({
           top,
           height: LANE_HEIGHT,
           background: bg,
-          color: isDark && event.isMilestone ? "#fff" : fg,
+          color: fg,
           border: `1px solid ${border}`,
           borderRadius: continuesLeft && continuesRight ? 2 : continuesLeft ? "2px 6px 6px 2px" : continuesRight ? "6px 2px 2px 6px" : 6,
           boxShadow: selected

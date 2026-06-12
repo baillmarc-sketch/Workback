@@ -3,7 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { layoutWeek } from "@/lib/layout";
 import { isInMonth, isWeekendKey, todayKey } from "@/lib/dates";
-import type { WorkbackEvent } from "@/lib/types";
+import type { ProjectCategory, WorkbackEvent } from "@/lib/types";
 import EventBar, { LANE_HEIGHT, LANE_GAP } from "./EventBar";
 
 const DAY_HEADER = 26;
@@ -14,6 +14,7 @@ interface WeekRowProps {
   days: string[];
   monthKey: string;
   events: WorkbackEvent[];
+  categories: ProjectCategory[];
   selectedId: string | null;
   warningIds: Set<string>;
   shiftedIds: Set<string>;
@@ -74,6 +75,7 @@ export default function WeekRow({
   days,
   monthKey,
   events,
+  categories,
   selectedId,
   warningIds,
   shiftedIds,
@@ -113,6 +115,7 @@ export default function WeekRow({
         <EventBar
           key={`${seg.event.id}@${weekStart}`}
           segment={seg}
+          categories={categories}
           weekStart={weekStart}
           topOffset={DAY_HEADER}
           selected={seg.event.id === selectedId}

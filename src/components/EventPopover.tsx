@@ -1,12 +1,13 @@
 "use client";
 
-import { CATEGORIES, categoryOf } from "@/lib/categories";
+import { categoryOf } from "@/lib/categories";
 import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
 import { countRounds, duplicateRound } from "@/lib/workback";
-import type { CategoryId, WorkbackEvent } from "@/lib/types";
+import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
+import CategorySwatches from "./CategorySwatches";
 import Popover from "./Popover";
 
 interface EventPopoverProps {
@@ -20,7 +21,8 @@ const inputCls =
 const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
 export default function EventPopover({ event, anchor, onClose }: EventPopoverProps) {
-  const { commit } = useStore();
+  const { project, commit } = useStore();
+  const categories = project?.categories ?? [];
 
   const update = (patch: Partial<WorkbackEvent>) =>
     commit((p) => ({
@@ -76,25 +78,14 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
 
         <div>
           <label className={labelCls}>Category</label>
-          <div className="flex flex-wrap gap-1">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c.id}
-                title={c.label}
-                aria-label={c.label}
-                aria-pressed={event.category === c.id}
-                className="flex h-6 w-6 items-center justify-center rounded-md transition-transform hover:scale-110"
-                style={{
-                  background: `color-mix(in srgb, ${c.color} 18%, white)`,
-                  boxShadow: event.category === c.id ? `0 0 0 2px ${c.color}` : undefined,
-                }}
-                onClick={() => update({ category: c.id as CategoryId })}
-              >
-                <span className="h-3 w-3 rounded-[4px]" style={{ background: c.color }} />
-              </button>
-            ))}
+          <CategorySwatches
+            categories={categories}
+            value={event.category}
+            onChange={(id) => update({ category: id })}
+          />
+          <div className="mt-1 text-[11.5px] text-ink-soft">
+            {categoryOf(categories, event.category).label}
           </div>
-          <div className="mt-1 text-[11.5px] text-ink-soft">{categoryOf(event.category).label}</div>
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">

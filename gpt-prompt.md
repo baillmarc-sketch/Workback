@@ -51,6 +51,9 @@ complete workback as JSON for an app called Workback Builder.
 **Hard rules:**
 - `category` must be exactly one of: `creative`, `pre-production`, `production`,
   `post-production`, `vfx`, `finishing`, `client-review`, `internal-review`, `delivery`.
+  (Alternatively, for non-video projects you may add a top-level `"categories"` array of
+  `{ "id", "label", "color" }` objects — hex colors — and reference those ids instead.
+  Any unknown category id still loads; it just renders gray until recolored in the app.)
 - Dates are `YYYY-MM-DD`; `endDate` >= `startDate`; both inclusive. Single-day events
   repeat the same date in both fields.
 - The final delivery event: category `delivery`, `isMilestone: true`, `locked: true`

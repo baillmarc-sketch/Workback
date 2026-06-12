@@ -11,6 +11,7 @@ import {
 import { layoutWeek } from "../src/lib/layout.ts";
 import { decodeShareCode, encodeShareCode } from "../src/lib/share.ts";
 import { migrate } from "../src/lib/storage.ts";
+import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR } from "../src/lib/categories.ts";
 import type { WorkbackEvent } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -102,10 +103,13 @@ const base = [
 
 // 7. Review rounds: linked pair, revisions follow review immediately
 {
-  const round = createReviewRound("2026-06-01", "client-review", 1);
+  const round = createReviewRound("2026-06-01", "client-review", "post-production", 1);
   check("round: review is 2 days", round[0].startDate === "2026-06-01" && round[0].endDate === "2026-06-02");
   check("round: revisions follow for 2 days", round[1].startDate === "2026-06-03" && round[1].endDate === "2026-06-04");
   check("round: pair linked", round[0].roundId === round[1].roundId);
+  check("round: categories applied to pair", round[0].category === "client-review" && round[1].category === "post-production");
+  const custom = createReviewRound("2026-06-01", "approvals", "build", 1);
+  check("round: works with custom labels", custom[0].category === "approvals" && custom[1].category === "build");
   const dup = duplicateRound(round, round[0].roundId!, 2);
   check("dup round: placed downstream with same spacing", dup[0].startDate === "2026-06-05" && dup[1].startDate === "2026-06-07", dup.map((e) => e.startDate));
   check("dup round: renumbered", dup[0].title.includes("Round 2"));
@@ -150,19 +154,20 @@ const base = [
 
 // 10. Share codes: lz round-trip, raw JSON, and fenced JSON all load
 {
-  const project = {
-    schema: 1 as const,
+  // A schema-1 document, as produced by pre-categories builds
+  const project = migrate({
+    schema: 1,
     id: "p1",
     title: "Roundtrip",
     subtitle: "",
     notes: "",
     events: [ev("a", "2026-06-01", "2026-06-03")],
     anchorMonth: "2026-06",
-    monthsVisible: 1 as const,
+    monthsVisible: 1,
     showLegend: true,
     createdAt: 0,
     updatedAt: 0,
-  };
+  });
   const viaCode = decodeShareCode(encodeShareCode(project));
   check("share: lz code round-trips", viaCode.title === "Roundtrip" && viaCode.events.length === 1);
   const rawJson = JSON.stringify({ title: "From GPT", events: [{ title: "Shoot", startDate: "2026-07-01", endDate: "2026-07-02", category: "production", isMilestone: true, locked: false }] });
@@ -183,6 +188,46 @@ const base = [
   check("cloud: shareId survives migrate", migrate(JSON.parse(JSON.stringify(withShare))).shareId === "abc123def456");
   check("cloud: shareId stripped from copy-codes", decodeShareCode(encodeShareCode(withShare)).shareId === undefined);
   check("cloud: shareId stripped from pasted JSON", decodeShareCode(JSON.stringify(withShare)).shareId === undefined);
+}
+
+// 11. Per-project categories: migration seeding, placeholders, round-trips
+{
+  const legacy = migrate({
+    schema: 1,
+    id: "m1",
+    title: "Legacy",
+    events: [ev("a", "2026-06-01", "2026-06-02")],
+  });
+  check("migrate: schema bumped to 2", legacy.schema === 2);
+  check(
+    "migrate: schema-1 seeded with classic labels",
+    legacy.categories.length === DEFAULT_CATEGORIES.length && legacy.categories[0].id === "creative"
+  );
+
+  const orphan = migrate({
+    events: [{ title: "X", startDate: "2026-06-01", endDate: "2026-06-01", category: "totally-custom" }],
+  });
+  check(
+    "migrate: orphan category gets gray placeholder",
+    orphan.categories.some((c) => c.id === "totally-custom" && c.color === PLACEHOLDER_COLOR)
+  );
+
+  const custom = migrate({
+    schema: 2,
+    events: [],
+    categories: [
+      { id: "a", label: "A", color: "#123456" },
+      { id: "b", label: "B", color: "not-a-color" },
+      { id: "a", label: "Dup", color: "#654321" },
+    ],
+  });
+  check("migrate: custom categories kept", custom.categories[0]?.color === "#123456");
+  check("migrate: invalid color replaced", custom.categories[1]?.color === PLACEHOLDER_COLOR);
+  check("migrate: duplicate ids dropped (first wins)", custom.categories.length === 2);
+  check(
+    "share: categories ride along in codes",
+    decodeShareCode(encodeShareCode(custom)).categories.length === 2
+  );
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

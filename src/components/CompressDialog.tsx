@@ -74,7 +74,7 @@ export default function CompressDialog({ onClose }: { onClose: () => void }) {
                 >
                   <span
                     className="cat-dot h-2.5 w-2.5 shrink-0 rounded-[3px]"
-                    style={{ background: categoryOf(c.category).color }}
+                    style={{ background: categoryOf(project.categories, c.category).color }}
                   />
                   <span className="min-w-0 flex-1 truncate font-medium">{c.title}</span>
                   <span className="text-ink-faint line-through">

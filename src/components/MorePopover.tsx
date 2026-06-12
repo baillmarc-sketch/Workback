@@ -3,6 +3,7 @@
 import { categoryOf } from "@/lib/categories";
 import { fmtLong, fmtShort } from "@/lib/dates";
 import type { WorkbackEvent } from "@/lib/types";
+import { useStore } from "@/state/store";
 import Popover from "./Popover";
 
 interface MorePopoverProps {
@@ -14,6 +15,8 @@ interface MorePopoverProps {
 }
 
 export default function MorePopover({ dayKey, events, anchor, onClose, onPick }: MorePopoverProps) {
+  const { project } = useStore();
+  const categories = project?.categories ?? [];
   return (
     <Popover anchor={anchor} onClose={onClose} width={252}>
       <div className="p-2.5">
@@ -22,7 +25,7 @@ export default function MorePopover({ dayKey, events, anchor, onClose, onPick }:
         </div>
         <div className="flex flex-col gap-0.5">
           {events.map((e) => {
-            const cat = categoryOf(e.category);
+            const cat = categoryOf(categories, e.category);
             return (
               <button
                 key={e.id}

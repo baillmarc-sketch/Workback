@@ -2,28 +2,48 @@
 
 import { useState } from "react";
 import { deleteProject, listProjects, loadProject, newProject, saveProject } from "@/lib/storage";
+import { TEMPLATES } from "@/lib/templates";
 import { useStore } from "@/state/store";
 import Modal from "./Modal";
 
 export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
   const { project, open } = useStore();
   const [, bump] = useState(0);
+  const [picking, setPicking] = useState(false);
   const projects = listProjects();
 
   return (
     <Modal title="Projects" onClose={onClose} width={440}>
       <div className="flex flex-col gap-3">
-        <button
-          className="self-start rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
-          onClick={() => {
-            const p = newProject();
-            saveProject(p);
-            open(p);
-            onClose();
-          }}
-        >
-          + New project
-        </button>
+        {!picking ? (
+          <button
+            className="self-start rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+            onClick={() => setPicking(true)}
+          >
+            + New project
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
+              Start from
+            </span>
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                title={t.description}
+                className="rounded-md border border-hairline px-2.5 py-1.5 text-[12.5px] font-medium hover:bg-paper"
+                onClick={() => {
+                  const p = newProject(t.id);
+                  saveProject(p);
+                  open(p);
+                  onClose();
+                }}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         {projects.length === 0 ? (
           <div className="py-4 text-center text-[12.5px] text-ink-faint">No saved projects yet.</div>

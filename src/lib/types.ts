@@ -1,13 +1,12 @@
-export type CategoryId =
-  | "creative"
-  | "pre-production"
-  | "production"
-  | "post-production"
-  | "vfx"
-  | "finishing"
-  | "client-review"
-  | "internal-review"
-  | "delivery";
+export type CategoryId = string;
+
+/** A per-project label: events reference the id, so renames never touch events */
+export interface ProjectCategory {
+  id: string;
+  label: string;
+  /** Base color — the only saturated elements in the UI; text tones derive from it */
+  color: string;
+}
 
 export interface WorkbackEvent {
   id: string;
@@ -29,11 +28,13 @@ export interface WorkbackEvent {
 }
 
 export interface Project {
-  schema: 1;
+  schema: 2;
   id: string;
   title: string;
   subtitle: string;
   notes: string;
+  /** Editable per-project label set; rename/recolor/add/delete in the legend */
+  categories: ProjectCategory[];
   events: WorkbackEvent[];
   /** First visible month, yyyy-MM */
   anchorMonth: string;

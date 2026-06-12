@@ -1,5 +1,7 @@
-import type { Project, ProjectSummary } from "./types";
+import type { Project, ProjectCategory, ProjectSummary } from "./types";
 import { uid } from "./types";
+import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR, humanize } from "./categories";
+import { templateById, type TemplateId } from "./templates";
 import { monthKey, todayKey, addDaysKey } from "./dates";
 
 const INDEX_KEY = "workback:index";
@@ -68,28 +70,65 @@ export function lastOpenId(): string | null {
   return safeGet(LAST_OPEN_KEY);
 }
 
+const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
+
+function migrateCategories(raw: unknown, events: Project["events"]): ProjectCategory[] {
+  const seen = new Set<string>();
+  const categories: ProjectCategory[] = [];
+  if (Array.isArray(raw)) {
+    for (const c of raw as Partial<ProjectCategory>[]) {
+      if (!c || typeof c.id !== "string" || !c.id || seen.has(c.id)) continue;
+      seen.add(c.id);
+      categories.push({
+        id: c.id,
+        label: typeof c.label === "string" && c.label ? c.label : humanize(c.id),
+        color: typeof c.color === "string" && HEX_COLOR.test(c.color) ? c.color : PLACEHOLDER_COLOR,
+      });
+    }
+  }
+  // Schema-1 projects (and anything without categories) get the classic set
+  if (categories.length === 0) {
+    for (const c of DEFAULT_CATEGORIES) {
+      seen.add(c.id);
+      categories.push({ ...c });
+    }
+  }
+  // Orphaned event categories (hand-edited / LLM JSON) get gray placeholders
+  for (const e of events) {
+    if (!seen.has(e.category)) {
+      seen.add(e.category);
+      categories.push({ id: e.category, label: humanize(e.category), color: PLACEHOLDER_COLOR });
+    }
+  }
+  return categories;
+}
+
 export function migrate(data: unknown): Project {
   const p = data as Partial<Project>;
   if (!p || !Array.isArray(p.events)) throw new Error("Not a Workback project");
+  const fallbackCategory =
+    (Array.isArray(p.categories) && p.categories[0]?.id) || DEFAULT_CATEGORIES[0].id;
+  const events = p.events.map((e) => ({
+    id: e.id ?? uid(),
+    title: e.title ?? "Untitled",
+    description: e.description,
+    startDate: e.startDate,
+    endDate: e.endDate ?? e.startDate,
+    category: e.category ?? fallbackCategory,
+    isMilestone: !!e.isMilestone,
+    locked: !!e.locked,
+    skipWeekends: e.skipWeekends ? true : undefined,
+    roundId: e.roundId,
+    roundRole: e.roundRole,
+  }));
   return {
-    schema: 1,
+    schema: 2,
     id: typeof p.id === "string" ? p.id : uid(),
     title: p.title ?? "Untitled Workback",
     subtitle: p.subtitle ?? "",
     notes: p.notes ?? "",
-    events: p.events.map((e) => ({
-      id: e.id ?? uid(),
-      title: e.title ?? "Untitled",
-      description: e.description,
-      startDate: e.startDate,
-      endDate: e.endDate ?? e.startDate,
-      category: e.category ?? "creative",
-      isMilestone: !!e.isMilestone,
-      locked: !!e.locked,
-      skipWeekends: e.skipWeekends ? true : undefined,
-      roundId: e.roundId,
-      roundRole: e.roundRole,
-    })),
+    categories: migrateCategories(p.categories, events),
+    events,
     anchorMonth: p.anchorMonth ?? monthKey(new Date()),
     monthsVisible: p.monthsVisible === 2 || p.monthsVisible === 3 ? p.monthsVisible : 1,
     showLegend: p.showLegend ?? true,
@@ -99,14 +138,15 @@ export function migrate(data: unknown): Project {
   };
 }
 
-export function newProject(): Project {
+export function newProject(templateId: TemplateId = "video"): Project {
   const now = Date.now();
   return {
-    schema: 1,
+    schema: 2,
     id: uid(),
     title: "Untitled Workback",
     subtitle: "",
     notes: "",
+    categories: templateById(templateId).categories.map((c) => ({ ...c })),
     events: [],
     anchorMonth: monthKey(new Date()),
     monthsVisible: 1,

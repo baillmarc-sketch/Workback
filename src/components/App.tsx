@@ -294,7 +294,9 @@ export default function App() {
         onShareLink={handleShareLink}
       />
 
-      {project.showLegend && <Legend className="no-print mb-4 px-1" />}
+      {project.showLegend && (
+        <Legend categories={project.categories} editable className="no-print mb-4 px-1" />
+      )}
 
       {project.events.length === 0 && (
         <div className="no-print mb-4 rounded-lg border border-dashed border-hairline-strong bg-surface px-4 py-3 text-center text-[13px] text-ink-soft">

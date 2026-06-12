@@ -37,7 +37,9 @@ export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) 
           </div>
           <span className="text-[12px] text-ink-soft">{monthLabel(mKey)}</span>
         </div>
-        {project.showLegend && <Legend events={project.events} className="mt-2" />}
+        {project.showLegend && (
+          <Legend categories={project.categories} events={project.events} className="mt-2" />
+        )}
       </div>
 
       <h2 className="no-print mb-2 px-1 font-display text-[17px] font-semibold tracking-tight">
@@ -56,7 +58,14 @@ export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) 
           ))}
         </div>
         {weeks.map((w) => (
-          <WeekRow key={w.start} days={w.days} monthKey={mKey} events={project.events} {...rest} />
+          <WeekRow
+            key={w.start}
+            days={w.days}
+            monthKey={mKey}
+            events={project.events}
+            categories={project.categories}
+            {...rest}
+          />
         ))}
       </div>
     </section>

@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { addMonthsKey, diffDays } from "@/lib/dates";
 import { moveEvent, resizeEvent, warningIds as computeWarnings } from "@/lib/workback";
-import { categoryOf } from "@/lib/categories";
+import { catText, categoryOf } from "@/lib/categories";
 import type { Project, WorkbackEvent } from "@/lib/types";
 import { useStore } from "@/state/store";
 import MonthBlock from "./MonthBlock";
@@ -155,6 +155,7 @@ export default function Calendar({
   }
 
   const draggedEvent = draggingId ? project.events.find((ev) => ev.id === draggingId) : null;
+  const draggedCat = draggedEvent ? categoryOf(project.categories, draggedEvent.category) : null;
 
   return (
     <DndContext
@@ -184,15 +185,15 @@ export default function Calendar({
       </div>
 
       <DragOverlay dropAnimation={null}>
-        {draggedEvent && (
+        {draggedEvent && draggedCat && (
           <div
             className="flex h-[26px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium shadow-lg"
             style={{
               background: draggedEvent.isMilestone
-                ? categoryOf(draggedEvent.category).color
-                : `color-mix(in srgb, ${categoryOf(draggedEvent.category).color} 22%, white)`,
-              color: draggedEvent.isMilestone ? "#fff" : categoryOf(draggedEvent.category).dark,
-              border: `1px solid ${categoryOf(draggedEvent.category).color}`,
+                ? draggedCat.color
+                : `color-mix(in srgb, ${draggedCat.color} 22%, white)`,
+              color: draggedEvent.isMilestone ? "#fff" : catText(draggedCat.color),
+              border: `1px solid ${draggedCat.color}`,
             }}
           >
             <span className="truncate">{draggedEvent.title}</span>

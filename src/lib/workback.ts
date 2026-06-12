@@ -208,7 +208,8 @@ export function applyChanges(
  */
 export function createReviewRound(
   startKey: string,
-  reviewCategory: Extract<CategoryId, "client-review" | "internal-review">,
+  reviewCategory: CategoryId,
+  revisionsCategory: CategoryId,
   roundNumber: number,
   reviewDays = 2,
   revisionDays = 2
@@ -230,7 +231,7 @@ export function createReviewRound(
     title: `Revisions — Round ${roundNumber}`,
     startDate: addDaysKey(review.endDate, 1),
     endDate: addDaysKey(review.endDate, revisionDays),
-    category: "post-production",
+    category: revisionsCategory,
     isMilestone: false,
     locked: false,
     roundId,
