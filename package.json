@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:pages": "PAGES_BASE=/Workback next build && rm -rf docs && cp -r out docs && touch docs/.nojekyll",
     "start": "next start",
     "typecheck": "tsc --noEmit"
   },
