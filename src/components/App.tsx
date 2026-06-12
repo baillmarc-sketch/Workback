@@ -358,13 +358,16 @@ export default function App() {
         onMoreClick={handleMoreClick}
       />
 
-      <footer className="no-print mt-8 hidden pb-4 text-center text-[11px] text-ink-faint sm:block">
+      <footer className="no-print mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
         Workback Builder — auto-saved locally · ⌘Z undo · ⌘C/⌘V copy events · Shift-drag shifts
         downstream
       </footer>
-      <footer className="no-print mt-8 pb-4 text-center text-[11px] text-ink-faint sm:hidden">
+      <footer className="no-print mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
         Auto-saved · tap a day to add · hold an event to drag it
       </footer>
+      <div className="pb-4 text-center text-[11px] text-ink-faint">
+        ©2026. Stolen from Marc Baill.
+      </div>
 
       {selected && editAnchor && (
         <EventPopover event={selected} anchor={editAnchor} onClose={closePopovers} />
