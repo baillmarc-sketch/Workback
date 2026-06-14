@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0a1410" />
+  <title>Blackjack Basic Strategy — Flashcards</title>
+
+  <!-- =========================================================================
+       NO BUILD STEP. This single file runs by opening it in a browser.
+       Dependencies are loaded from CDNs:
+         - Tailwind (Play CDN) for utility classes, no custom config
+         - React 18 + ReactDOM 18 (UMD)
+         - Babel Standalone to transpile the inline JSX below
+       The entire app lives in the <script type="text/babel"> block at the
+       bottom and is structured as a single root component, so it can be lifted
+       into a standalone .jsx module with a default export later if desired.
+  ========================================================================== -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    html, body, #root { height: 100%; }
+    body {
+      margin: 0;
+      background: #0a1410; /* near-black felt */
+      -webkit-tap-highlight-color: transparent;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    /* Smooth 3D flip with no layout shift: faces are absolutely stacked,
+       the inner element rotates, and the card keeps a fixed footprint. */
+    .flip-card { perspective: 1400px; }
+    .flip-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.5s cubic-bezier(.2,.7,.2,1);
+      transform-style: preserve-3d;
+    }
+    .flip-inner.flipped { transform: rotateY(180deg); }
+    .flip-face {
+      position: absolute;
+      inset: 0;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .flip-back { transform: rotateY(180deg); }
+    /* Subtle felt texture via layered radial gradients */
+    .felt {
+      background:
+        radial-gradient(120% 80% at 50% -10%, rgba(34,197,94,0.10), transparent 60%),
+        radial-gradient(100% 60% at 50% 110%, rgba(16,185,129,0.08), transparent 60%),
+        #0a1410;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ===========================================================================
+   ACTION COLORS — single source of truth.
+   Used identically by flashcards, the strategy chart, and the legend so the
+   color coding is consistent everywhere. Codes: H/S/D/P/R.
+   =========================================================================== */
+const ACTIONS = {
+  H: { label: "Hit",       color: "#ef4444" }, // red
+  S: { label: "Stand",     color: "#22c55e" }, // green
+  D: { label: "Double",    color: "#3b82f6" }, // blue
+  P: { label: "Split",     color: "#a855f7" }, // purple
+  R: { label: "Surrender", color: "#f59e0b" }, // amber
+};
+// Map the first word of a card's `back` to an action code for accent coloring.
+function actionFromText(text) {
+  if (!text) return null;
+  const t = text.trim().toLowerCase();
+  if (t.startsWith("surrender")) return "R";
+  if (t.startsWith("double"))    return "D";
+  if (t.startsWith("split"))     return "P";
+  if (t.startsWith("stand"))     return "S";
+  if (t.startsWith("hit"))       return "H";
+  return null;
+}
+
+/* ===========================================================================
+   DECK — paste your generated deck JSON here (same schema as the cards below).
+   If the array is empty, the app falls back to 6 placeholder cards so it still
+   runs. The sample deck below is representative across tiers & categories;
+   replace it wholesale with your real deck when ready.
+   === DECK: paste your generated deck here ===
+   =========================================================================== */
+const DECK_INPUT = [
+  { id: "t1-hard-001", tier: 1, category: "hard-total", front: "Hard 11 vs dealer 6", back: "Double. If unavailable, Hit.", why: "Strong double; the dealer is very likely to bust.", tags: ["hard-total","double"], ruleset_dependent: false },
+  { id: "t1-pair-001", tier: 1, category: "pair", front: "Pair of 8s vs dealer 10", back: "Split.", why: "Always split 8s — a hard 16 is the worst hand in the game.", tags: ["pair","split"], ruleset_dependent: false },
+  { id: "t1-pair-002", tier: 1, category: "pair", front: "Pair of Aces vs any dealer", back: "Split.", why: "Two fresh shots at 21 beat a single soft 12.", tags: ["pair","split"], ruleset_dependent: false },
+  { id: "t2-hard-016", tier: 2, category: "hard-total", front: "Hard 16 vs dealer 10", back: "Surrender. If unavailable, Hit.", why: "Worst common spot; you lose less by giving up half.", tags: ["hard-total","surrender","high-value"], ruleset_dependent: true },
+  { id: "t2-soft-018", tier: 2, category: "soft-total", front: "Soft 18 (A,7) vs dealer 9", back: "Hit.", why: "18 isn't enough against a strong 9 — try to improve.", tags: ["soft-total","hit"], ruleset_dependent: false },
+  { id: "t2-hard-012", tier: 2, category: "hard-total", front: "Hard 12 vs dealer 4", back: "Stand.", why: "Dealer's bust chance outweighs your small bust risk.", tags: ["hard-total","stand"], ruleset_dependent: false },
+  { id: "t2-soft-017", tier: 2, category: "soft-total", front: "Soft 17 (A,6) vs dealer 5", back: "Double. If unavailable, Hit.", why: "Free double against one of the dealer's weakest cards.", tags: ["soft-total","double"], ruleset_dependent: false },
+  { id: "t3-hard-015", tier: 3, category: "hard-total", front: "Hard 15 vs dealer 10", back: "Surrender. If unavailable, Hit.", why: "Marginal hand; surrendering saves money over the long run.", tags: ["hard-total","surrender"], ruleset_dependent: true },
+  { id: "t3-pair-009", tier: 3, category: "pair", front: "Pair of 9s vs dealer 7", back: "Stand.", why: "Your 18 already beats the dealer's most likely 17.", tags: ["pair","stand"], ruleset_dependent: false },
+  { id: "t3-soft-013", tier: 3, category: "soft-total", front: "Soft 13 (A,2) vs dealer 5", back: "Double. If unavailable, Hit.", why: "Double against the dealer's weakest up-cards.", tags: ["soft-total","double"], ruleset_dependent: false },
+];
+
+// 6 placeholder cards used only if DECK_INPUT is empty — keeps the app running.
+const PLACEHOLDER_DECK = [
+  { id: "ph-1", tier: 1, category: "hard-total", front: "Hard 11 vs dealer 6", back: "Double. If unavailable, Hit.", why: "Dealer likely busts; maximize your bet.", tags: ["hard-total"], ruleset_dependent: false },
+  { id: "ph-2", tier: 1, category: "pair", front: "Pair of 8s vs dealer 9", back: "Split.", why: "Always split 8s.", tags: ["pair"], ruleset_dependent: false },
+  { id: "ph-3", tier: 2, category: "hard-total", front: "Hard 16 vs dealer 10", back: "Surrender. If unavailable, Hit.", why: "Lose less by giving up half.", tags: ["hard-total"], ruleset_dependent: true },
+  { id: "ph-4", tier: 2, category: "soft-total", front: "Soft 18 (A,7) vs dealer 9", back: "Hit.", why: "18 isn't enough vs a 9.", tags: ["soft-total"], ruleset_dependent: false },
+  { id: "ph-5", tier: 3, category: "pair", front: "Pair of 9s vs dealer 7", back: "Stand.", why: "18 beats the likely 17.", tags: ["pair"], ruleset_dependent: false },
+  { id: "ph-6", tier: 3, category: "soft-total", front: "Soft 13 (A,2) vs dealer 5", back: "Double. If unavailable, Hit.", why: "Double vs a weak dealer card.", tags: ["soft-total"], ruleset_dependent: false },
+];
+
+// Resolve the active deck (fall back to placeholders if the paste target is empty).
+const DECK = (Array.isArray(DECK_INPUT) && DECK_INPUT.length > 0) ? DECK_INPUT : PLACEHOLDER_DECK;
+
+/* ===========================================================================
+   STRATEGY CHART (Tier 2 reference) — canonical multi-deck basic strategy,
+   dealer stands on soft 17, double-after-split & late surrender allowed.
+   Read-only. Cells are colored from the shared ACTIONS map.
+   Columns are dealer up-cards: 2 3 4 5 6 7 8 9 10 A
+   =========================================================================== */
+const CHART_COLS = ["2","3","4","5","6","7","8","9","10","A"];
+const CHART = {
+  "Hard totals": [
+    ["8",  "H","H","H","H","H","H","H","H","H","H"],
+    ["9",  "H","D","D","D","D","H","H","H","H","H"],
+    ["10", "D","D","D","D","D","D","D","D","H","H"],
+    ["11", "D","D","D","D","D","D","D","D","D","H"],
+    ["12", "H","H","S","S","S","H","H","H","H","H"],
+    ["13", "S","S","S","S","S","H","H","H","H","H"],
+    ["14", "S","S","S","S","S","H","H","H","H","H"],
+    ["15", "S","S","S","S","S","H","H","H","R","H"],
+    ["16", "S","S","S","S","S","H","H","R","R","R"],
+    ["17", "S","S","S","S","S","S","S","S","S","S"],
+  ],
+  "Soft totals": [
+    ["A,2", "H","H","H","D","D","H","H","H","H","H"],
+    ["A,3", "H","H","H","D","D","H","H","H","H","H"],
+    ["A,4", "H","H","D","D","D","H","H","H","H","H"],
+    ["A,5", "H","H","D","D","D","H","H","H","H","H"],
+    ["A,6", "H","D","D","D","D","H","H","H","H","H"],
+    ["A,7", "S","D","D","D","D","S","S","H","H","H"],
+    ["A,8", "S","S","S","S","S","S","S","S","S","S"],
+    ["A,9", "S","S","S","S","S","S","S","S","S","S"],
+  ],
+  "Pairs": [
+    ["2,2",   "P","P","P","P","P","P","H","H","H","H"],
+    ["3,3",   "P","P","P","P","P","P","H","H","H","H"],
+    ["4,4",   "H","H","H","P","P","H","H","H","H","H"],
+    ["5,5",   "D","D","D","D","D","D","D","D","H","H"],
+    ["6,6",   "P","P","P","P","P","H","H","H","H","H"],
+    ["7,7",   "P","P","P","P","P","P","H","H","H","H"],
+    ["8,8",   "P","P","P","P","P","P","P","P","P","P"],
+    ["9,9",   "P","P","P","P","P","S","P","P","S","S"],
+    ["10,10", "S","S","S","S","S","S","S","S","S","S"],
+    ["A,A",   "P","P","P","P","P","P","P","P","P","P"],
+  ],
+};
+
+/* ===========================================================================
+   LEITNER SPACED REPETITION — 5 boxes.
+     - New cards start in box 1.
+     - "Got it"  -> promote one box (max 5).
+     - "Missed it" -> reset to box 1.
+     - Review cadence by box (in sessions): 1->every1, 2->every2, 3->every4,
+       4->every8, 5->every16. A card is "due" when session % cadence === 0.
+     - Mastered = box 5. Weak = box 1-2.
+   =========================================================================== */
+const MAX_BOX = 5;
+const BOX_CADENCE = { 1: 1, 2: 2, 3: 4, 4: 8, 5: 16 };
+const cadence = (box) => BOX_CADENCE[box] || 1;
+const isDue = (box, session) => (session % cadence(box)) === 0;
+const promote = (box) => Math.min(MAX_BOX, (box || 1) + 1);
+
+/* ---------------------------------------------------------------------------
+   PERSISTENCE — localStorage wrapped in try/catch. If storage is unavailable
+   (sandboxed preview, privacy mode, blocked), everything degrades to an
+   in-memory object and the app never crashes.
+   --------------------------------------------------------------------------- */
+const STORAGE_KEY = "bj-flashcards-v1";
+let memoryStore = null; // in-memory fallback
+
+function loadState() {
+  if (memoryStore) return memoryStore;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* storage blocked — fall through to defaults */ }
+  return { progress: {}, session: 1, stats: { seen: 0, correct: 0 } };
+}
+
+function saveState(state) {
+  memoryStore = state; // always keep an in-memory copy
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) { /* storage blocked — in-memory copy still holds the state */ }
+}
+
+/* ===========================================================================
+   Small UI helpers
+   =========================================================================== */
+function ActionBadge({ code, big }) {
+  const a = ACTIONS[code];
+  if (!a) return null;
+  return (
+    <span
+      className={(big ? "text-lg px-4 py-2" : "text-xs px-2 py-1") + " inline-flex items-center rounded-full font-semibold"}
+      style={{ backgroundColor: a.color, color: "#08130d" }}
+    >
+      {a.label}
+    </span>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="flex flex-wrap gap-2 justify-center">
+      {Object.entries(ACTIONS).map(([code, a]) => (
+        <span key={code} className="inline-flex items-center gap-1.5 text-[11px] text-emerald-100/80">
+          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: a.color }} />
+          {a.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Segmented({ options, value, onChange }) {
+  return (
+    <div className="inline-flex rounded-xl bg-black/30 p-1 ring-1 ring-white/10">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className={
+            "px-3 py-1.5 text-sm rounded-lg transition-colors " +
+            (value === o.value ? "bg-emerald-500 text-emerald-950 font-semibold" : "text-emerald-100/70")
+          }
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ===========================================================================
+   ROOT APP
+   =========================================================================== */
+function App() {
+  const initial = loadState();
+  const [progress, setProgress] = useState(initial.progress || {});
+  const [session] = useState(() => {
+    // Bump the session counter once per app load — drives the review cadence.
+    const next = (initial.session || 1) + 1;
+    saveState({ ...initial, session: next });
+    return next;
+  });
+  const [mode, setMode] = useState("drill"); // 'drill' | 'quiz' | 'chart'
+  const [tier, setTier] = useState("all");
+  const [category, setCategory] = useState("all");
+  const [weakOnly, setWeakOnly] = useState(false);
+
+  // Persist progress whenever it changes.
+  useEffect(() => {
+    saveState({ ...loadState(), progress, session });
+  }, [progress, session]);
+
+  const boxOf = useCallback((id) => (progress[id]?.box) || 1, [progress]);
+
+  // Record a Got it / Missed it result for a card (updates its Leitner box).
+  const mark = useCallback((id, gotIt) => {
+    setProgress((prev) => {
+      const cur = prev[id]?.box || 1;
+      const nextBox = gotIt ? promote(cur) : 1;
+      return { ...prev, [id]: { box: nextBox, lastSession: session } };
+    });
+  }, [session]);
+
+  // All categories present in the deck (for the filter dropdown).
+  const categories = useMemo(() => {
+    return Array.from(new Set(DECK.map((c) => c.category))).sort();
+  }, []);
+
+  // Active pool: apply tier/category/weak filters, then order due+weak first.
+  const pool = useMemo(() => {
+    let cards = DECK.filter((c) => {
+      if (tier !== "all" && String(c.tier) !== String(tier)) return false;
+      if (category !== "all" && c.category !== category) return false;
+      if (weakOnly && boxOf(c.id) > 2) return false;
+      return true;
+    });
+    cards = cards.slice().sort((a, b) => {
+      const da = isDue(boxOf(a.id), session) ? 0 : 1;
+      const db = isDue(boxOf(b.id), session) ? 0 : 1;
+      if (da !== db) return da - db;          // due cards first
+      return boxOf(a.id) - boxOf(b.id);        // then weakest (lowest box) first
+    });
+    return cards;
+  }, [tier, category, weakOnly, boxOf, session]);
+
+  // Mastered = box 5. Progress bar reflects the whole deck.
+  const mastered = useMemo(() => DECK.filter((c) => boxOf(c.id) === 5).length, [boxOf]);
+  const masteredPct = Math.round((mastered / DECK.length) * 100);
+
+  return (
+    <div className="felt min-h-full flex flex-col text-emerald-50">
+      {/* Header + progress bar */}
+      <header className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-base font-semibold tracking-tight">
+            ♠ Blackjack <span className="text-emerald-400">Basic Strategy</span>
+          </h1>
+          <span className="text-xs text-emerald-100/60">{mastered}/{DECK.length} mastered</span>
+        </div>
+        <div className="mt-2 h-2 rounded-full bg-black/40 overflow-hidden ring-1 ring-white/5">
+          <div className="h-full bg-gradient-to-r from-emerald-400 to-green-300 transition-all duration-500"
+               style={{ width: masteredPct + "%" }} />
+        </div>
+      </header>
+
+      {/* Mode panels */}
+      <main className="flex-1 min-h-0 px-4 pb-2 flex flex-col">
+        {mode === "drill" && (
+          <DrillMode
+            pool={pool} mark={mark} boxOf={boxOf}
+            tier={tier} setTier={setTier}
+            category={category} setCategory={setCategory}
+            categories={categories}
+            weakOnly={weakOnly} setWeakOnly={setWeakOnly}
+          />
+        )}
+        {mode === "quiz" && <QuizMode pool={pool} mark={mark} />}
+        {mode === "chart" && <ChartMode />}
+      </main>
+
+      {/* Bottom nav */}
+      <nav className="grid grid-cols-3 gap-1 px-3 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] bg-black/30 backdrop-blur ring-1 ring-white/5">
+        {[
+          { k: "drill", label: "Drill", icon: "🃏" },
+          { k: "quiz",  label: "Quiz",  icon: "⏱️" },
+          { k: "chart", label: "Chart", icon: "▦" },
+        ].map((t) => (
+          <button
+            key={t.k}
+            onClick={() => setMode(t.k)}
+            className={
+              "flex flex-col items-center gap-0.5 py-2 rounded-xl transition-colors " +
+              (mode === t.k ? "bg-emerald-500/20 text-emerald-300" : "text-emerald-100/60")
+            }
+          >
+            <span className="text-lg leading-none">{t.icon}</span>
+            <span className="text-[11px] font-medium">{t.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Footer CTA placeholder */}
+      <a href="#" className="block text-center text-[11px] text-emerald-300/70 underline underline-offset-2 py-2 bg-black/40">
+        Get the physical deck →
+      </a>
+    </div>
+  );
+}
+
+/* ===========================================================================
+   DRILL MODE — tap card to flip, then mark Got it / Missed it.
+   =========================================================================== */
+function DrillMode({ pool, mark, boxOf, tier, setTier, category, setCategory, categories, weakOnly, setWeakOnly }) {
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  // Reset position whenever the pool composition changes.
+  const poolKey = pool.map((c) => c.id).join("|");
+  useEffect(() => { setIdx(0); setFlipped(false); }, [poolKey]);
+
+  const card = pool[idx];
+
+  const next = () => {
+    setFlipped(false);
+    setIdx((i) => (pool.length ? (i + 1) % pool.length : 0));
+  };
+  const handleMark = (gotIt) => {
+    if (card) mark(card.id, gotIt);
+    next();
+  };
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Filters */}
+      <div className="flex flex-col gap-2 mb-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <Segmented
+            value={tier}
+            onChange={setTier}
+            options={[
+              { value: "all", label: "All" },
+              { value: "1", label: "T1" },
+              { value: "2", label: "T2" },
+              { value: "3", label: "T3" },
+            ]}
+          />
+          <button
+            onClick={() => setWeakOnly((w) => !w)}
+            className={
+              "px-3 py-1.5 text-sm rounded-xl ring-1 transition-colors " +
+              (weakOnly ? "bg-amber-500 text-amber-950 font-semibold ring-amber-400" : "bg-black/30 text-emerald-100/70 ring-white/10")
+            }
+          >
+            ★ Weak only
+          </button>
+        </div>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full bg-black/30 ring-1 ring-white/10 rounded-xl px-3 py-2 text-sm text-emerald-50 appearance-none"
+        >
+          <option value="all">All categories</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Card area */}
+      {!card ? (
+        <div className="flex-1 flex items-center justify-center text-center text-emerald-100/60 px-6">
+          No cards match these filters.{weakOnly ? " You've cleared your weak cards — nice." : ""}
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between text-xs text-emerald-100/60 mb-2">
+            <span>Card {idx + 1} / {pool.length}</span>
+            <span className="uppercase tracking-wide">{card.category} · Tier {card.tier} · Box {boxOf(card.id)}</span>
+          </div>
+
+          <div
+            className="flip-card flex-1 min-h-0 cursor-pointer select-none"
+            onClick={() => setFlipped((f) => !f)}
+          >
+            <div className={"flip-inner" + (flipped ? " flipped" : "")}>
+              {/* FRONT */}
+              <div className="flip-face rounded-3xl bg-emerald-50 text-emerald-950 p-6 items-center justify-center text-center shadow-2xl ring-1 ring-black/10">
+                <div className="text-xs uppercase tracking-widest text-emerald-700/70 mb-3">{card.category}</div>
+                <div className="text-3xl font-bold leading-tight">{card.front}</div>
+                {card.ruleset_dependent && (
+                  <div className="mt-4 text-[11px] text-amber-700/80">⚑ ruleset-dependent</div>
+                )}
+                <div className="mt-6 text-xs text-emerald-700/60">tap to flip</div>
+              </div>
+              {/* BACK */}
+              <div className="flip-face flip-back rounded-3xl bg-emerald-950 text-emerald-50 p-6 items-center justify-center text-center shadow-2xl ring-1 ring-emerald-400/30">
+                <div className="mb-3">
+                  <ActionBadge code={actionFromText(card.back)} big />
+                </div>
+                <div className="text-2xl font-bold leading-snug">{card.back}</div>
+                <div className="mt-4 text-sm text-emerald-200/80 leading-relaxed">{card.why}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mark buttons */}
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <button
+              onClick={() => handleMark(false)}
+              className="py-4 rounded-2xl bg-red-500/90 text-white text-lg font-semibold active:scale-95 transition-transform"
+            >
+              Missed it
+            </button>
+            <button
+              onClick={() => handleMark(true)}
+              className="py-4 rounded-2xl bg-emerald-500 text-emerald-950 text-lg font-semibold active:scale-95 transition-transform"
+            >
+              Got it
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ===========================================================================
+   TIMED QUIZ — random cards, 10s each, self-scored. End screen shows
+   accuracy and the slowest misses.
+   =========================================================================== */
+const QUIZ_SECONDS = 10;
+const QUIZ_SIZE = 12;
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function QuizMode({ pool, mark }) {
+  const [phase, setPhase] = useState("idle"); // 'idle' | 'playing' | 'done'
+  const [queue, setQueue] = useState([]);
+  const [qi, setQi] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [results, setResults] = useState([]);
+  const [timeLeft, setTimeLeft] = useState(QUIZ_SECONDS);
+  const startRef = useRef(0);
+
+  const start = () => {
+    if (!pool.length) return;
+    setQueue(shuffle(pool).slice(0, Math.min(QUIZ_SIZE, pool.length)));
+    setQi(0); setResults([]); setRevealed(false); setTimeLeft(QUIZ_SECONDS);
+    startRef.current = Date.now();
+    setPhase("playing");
+  };
+
+  const card = queue[qi];
+
+  // Advance to the next question, recording the result + time taken.
+  const answer = useCallback((gotIt) => {
+    if (!card) return;
+    const timeMs = Math.min(QUIZ_SECONDS * 1000, Date.now() - startRef.current);
+    mark(card.id, gotIt);
+    setResults((r) => [...r, { card, gotIt, timeMs }]);
+    const nextIdx = qi + 1;
+    if (nextIdx >= queue.length) {
+      setPhase("done");
+    } else {
+      setQi(nextIdx);
+      setRevealed(false);
+      setTimeLeft(QUIZ_SECONDS);
+      startRef.current = Date.now();
+    }
+  }, [card, qi, queue.length, mark]);
+
+  // Countdown timer; a timeout auto-scores the question as missed.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const t = setInterval(() => {
+      setTimeLeft((s) => {
+        if (s <= 0.1) { clearInterval(t); answer(false); return 0; }
+        return Math.max(0, s - 0.1);
+      });
+    }, 100);
+    return () => clearInterval(t);
+  }, [phase, qi, answer]);
+
+  if (phase === "idle") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center gap-5 px-6">
+        <div className="text-5xl">⏱️</div>
+        <div>
+          <div className="text-xl font-semibold">Timed Quiz</div>
+          <p className="text-sm text-emerald-100/70 mt-1">
+            {Math.min(QUIZ_SIZE, pool.length)} random cards · {QUIZ_SECONDS}s each. Flip, then score yourself before the clock runs out.
+          </p>
+        </div>
+        <button
+          onClick={start}
+          disabled={!pool.length}
+          className="px-8 py-4 rounded-2xl bg-emerald-500 text-emerald-950 text-lg font-semibold disabled:opacity-40 active:scale-95 transition-transform"
+        >
+          {pool.length ? "Start quiz" : "No cards in filter"}
+        </button>
+        <p className="text-[11px] text-emerald-100/50">Uses your current Drill filters (tier / category / weak).</p>
+      </div>
+    );
+  }
+
+  if (phase === "done") {
+    const correct = results.filter((r) => r.gotIt).length;
+    const acc = results.length ? Math.round((correct / results.length) * 100) : 0;
+    const slowestMisses = results
+      .filter((r) => !r.gotIt)
+      .sort((a, b) => b.timeMs - a.timeMs)
+      .slice(0, 5);
+    return (
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col items-center text-center gap-4 px-2 py-4">
+        <div className="text-sm uppercase tracking-widest text-emerald-100/60">Results</div>
+        <div className="text-6xl font-bold text-emerald-300">{acc}%</div>
+        <div className="text-sm text-emerald-100/70">{correct} of {results.length} correct</div>
+        <div className="w-full mt-2">
+          <div className="text-sm font-semibold text-left mb-2">Slowest misses</div>
+          {slowestMisses.length === 0 ? (
+            <div className="text-sm text-emerald-100/60 text-left">No misses — perfect run! 🎉</div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {slowestMisses.map((r, i) => (
+                <li key={i} className="flex items-center justify-between bg-black/30 rounded-xl px-3 py-2 ring-1 ring-white/5">
+                  <span className="text-sm text-left">{r.card.front}</span>
+                  <span className="text-xs text-amber-300 shrink-0 ml-3">{(r.timeMs / 1000).toFixed(1)}s</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <button
+          onClick={start}
+          className="mt-2 px-8 py-3 rounded-2xl bg-emerald-500 text-emerald-950 font-semibold active:scale-95 transition-transform"
+        >
+          Play again
+        </button>
+        <button onClick={() => setPhase("idle")} className="text-sm text-emerald-100/60 underline underline-offset-2">
+          Back
+        </button>
+      </div>
+    );
+  }
+
+  // phase === 'playing'
+  const pct = (timeLeft / QUIZ_SECONDS) * 100;
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="flex items-center justify-between text-xs text-emerald-100/60 mb-1">
+        <span>Q {qi + 1} / {queue.length}</span>
+        <span className={timeLeft <= 3 ? "text-red-400 font-semibold" : ""}>{Math.ceil(timeLeft)}s</span>
+      </div>
+      <div className="h-1.5 rounded-full bg-black/40 overflow-hidden mb-3">
+        <div
+          className="h-full transition-[width] duration-100 ease-linear"
+          style={{ width: pct + "%", backgroundColor: timeLeft <= 3 ? "#ef4444" : "#34d399" }}
+        />
+      </div>
+
+      <div
+        className="flex-1 min-h-0 rounded-3xl bg-emerald-50 text-emerald-950 p-6 flex flex-col items-center justify-center text-center shadow-2xl cursor-pointer select-none"
+        onClick={() => setRevealed(true)}
+      >
+        <div className="text-xs uppercase tracking-widest text-emerald-700/70 mb-3">{card.category}</div>
+        <div className="text-2xl font-bold leading-tight">{card.front}</div>
+        {!revealed ? (
+          <div className="mt-6 text-xs text-emerald-700/60">tap to reveal</div>
+        ) : (
+          <div className="mt-5 border-t border-emerald-900/10 pt-4">
+            <ActionBadge code={actionFromText(card.back)} big />
+            <div className="text-lg font-bold mt-2">{card.back}</div>
+            <div className="text-sm text-emerald-800/80 mt-1">{card.why}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <button
+          onClick={() => answer(false)}
+          className="py-4 rounded-2xl bg-red-500/90 text-white text-lg font-semibold active:scale-95 transition-transform"
+        >
+          Missed it
+        </button>
+        <button
+          onClick={() => answer(true)}
+          className="py-4 rounded-2xl bg-emerald-500 text-emerald-950 text-lg font-semibold active:scale-95 transition-transform"
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ===========================================================================
+   CHART MODE — read-only basic-strategy grid, color-coded from ACTIONS.
+   =========================================================================== */
+function ChartMode() {
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-5 py-2">
+      <Legend />
+      <p className="text-center text-[11px] text-emerald-100/50 -mt-2">
+        Multi-deck · dealer stands soft 17 · DAS &amp; late surrender. D = double else hit, R = surrender else hit.
+      </p>
+      {Object.entries(CHART).map(([title, rows]) => (
+        <div key={title}>
+          <div className="text-sm font-semibold mb-1.5">{title}</div>
+          <div className="overflow-x-auto no-scrollbar -mx-1 px-1">
+            <table className="border-separate border-spacing-0.5 w-full text-center text-[11px]">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 bg-[#0a1410] z-10 px-1 py-1 text-emerald-100/60 font-medium">vs</th>
+                  {CHART_COLS.map((c) => (
+                    <th key={c} className="px-1 py-1 text-emerald-100/60 font-medium w-7">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row[0]}>
+                    <td className="sticky left-0 bg-[#0a1410] z-10 px-1.5 py-1 font-semibold text-emerald-100/90 text-right">{row[0]}</td>
+                    {row.slice(1).map((code, i) => (
+                      <td
+                        key={i}
+                        className="font-bold rounded-[3px] py-1"
+                        style={{ backgroundColor: ACTIONS[code].color, color: "#08130d" }}
+                        title={ACTIONS[code].label}
+                      >
+                        {code}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ===========================================================================
+   MOUNT
+   =========================================================================== */
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
