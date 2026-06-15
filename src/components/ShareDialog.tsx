@@ -9,6 +9,7 @@ import {
   importJson,
   SHARE_CODE_WARN_BYTES,
 } from "@/lib/share";
+import { projectFromIcs } from "@/lib/ical";
 import { saveProject } from "@/lib/storage";
 import type { Project } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -31,6 +32,7 @@ export default function ShareDialog({
   const [loadCode, setLoadCode] = useState("");
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const icsRef = useRef<HTMLInputElement>(null);
 
   if (!project) return null;
 
@@ -178,6 +180,9 @@ export default function ShareDialog({
             <button className={btnCls} onClick={() => fileRef.current?.click()}>
               Import JSON…
             </button>
+            <button className={btnCls} onClick={() => icsRef.current?.click()}>
+              Import .ics…
+            </button>
             <input
               ref={fileRef}
               type="file"
@@ -194,7 +199,26 @@ export default function ShareDialog({
                 e.target.value = "";
               }}
             />
+            <input
+              ref={icsRef}
+              type="file"
+              accept=".ics,text/calendar"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                try {
+                  openImported(projectFromIcs(await f.text()));
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Couldn't read that .ics file.");
+                }
+                e.target.value = "";
+              }}
+            />
           </div>
+          <p className="mt-1.5 text-[11px] text-ink-faint">
+            Importing opens the file as a new calendar.
+          </p>
         </section>
       </div>
     </Modal>

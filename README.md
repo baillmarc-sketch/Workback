@@ -96,6 +96,9 @@ its calendar span.
     axis) with a **Download PNG** button for slides/Teams.
   - **Spreadsheet** — a **Download CSV** (Title, Start, End, Category, Time, Milestone,
     Notes) that opens in Excel/Sheets.
+  - **Calendar (.ics)** — a **Download .ics** (all-day VEVENTs, call time in the SUMMARY)
+    to import into Outlook/Google/Apple Calendar. You can also **Import .ics…** from the
+    Share menu to open an external calendar as a new workback.
 - **Print / PDF** button prints every month that actually contains events — full month,
   one per landscape page, with a large month heading — independent of the 1/2/3-month
   on-screen view. Uses the print pipeline (print CSS, not canvas screenshots): UI chrome

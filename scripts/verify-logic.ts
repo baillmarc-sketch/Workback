@@ -18,6 +18,7 @@ import { buildGantt } from "../src/lib/exportGantt.ts";
 import { describeChange } from "../src/lib/history.ts";
 import { bumpVersion } from "../src/lib/storage.ts";
 import { newShareId } from "../src/lib/cloud.ts";
+import { exportIcs, parseIcs, projectFromIcs } from "../src/lib/ical.ts";
 import type { WorkbackEvent, Project } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -394,6 +395,41 @@ const base = [
   const ids = Array.from({ length: 200 }, () => newShareId());
   check("shareId: 22 url-safe chars", ids.every((id) => /^[0-9a-zA-Z]{22}$/.test(id)), ids[0]);
   check("shareId: all unique in a large sample", new Set(ids).size === ids.length);
+}
+
+// 17. iCal export/import
+{
+  const proj: Project = migrate({
+    schema: 2,
+    title: "ICS Trip",
+    events: [
+      ev("i1", "2026-06-10", "2026-06-12", { title: "Shoot; with, chars", time: "AM" }),
+      ev("i2", "2026-06-20", "2026-06-20", { title: "Delivery", isMilestone: true }),
+    ],
+  });
+  const ics = exportIcs(proj);
+  check("ics: has calendar wrapper", ics.startsWith("BEGIN:VCALENDAR") && ics.includes("END:VCALENDAR"));
+  check("ics: DTEND is exclusive (end + 1 day)", ics.includes("DTSTART;VALUE=DATE:20260610") && ics.includes("DTEND;VALUE=DATE:20260613"));
+  check("ics: escapes special chars in summary", ics.includes("Shoot\\; with\\, chars"));
+  check("ics: time rides in summary", ics.includes("AM — Shoot"));
+
+  const parsed = parseIcs(ics);
+  check("ics: parses calendar name", parsed.title === "ICS Trip");
+  check("ics: round-trips two events", parsed.events.length === 2);
+  const shoot = parsed.events.find((e) => e.title.includes("Shoot"))!;
+  check("ics: round-trips start date", shoot.startDate === "2026-06-10");
+  check("ics: round-trips end date (exclusive handled)", shoot.endDate === "2026-06-12");
+  check("ics: unescapes special chars", shoot.title === "AM — Shoot; with, chars");
+
+  const fromIcs = projectFromIcs(ics);
+  check("ics: builds a normalized project", fromIcs.events.length === 2 && fromIcs.anchorMonth === "2026-06");
+  let threw = false;
+  try {
+    projectFromIcs("BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+  } catch {
+    threw = true;
+  }
+  check("ics: empty calendar rejected", threw);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

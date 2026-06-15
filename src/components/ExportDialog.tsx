@@ -3,11 +3,12 @@
 import { useMemo, useState } from "react";
 import { exportCsv, exportDateList, exportWeekOverview } from "@/lib/exportText";
 import { buildGantt } from "@/lib/exportGantt";
+import { exportIcs } from "@/lib/ical";
 import { downloadFile } from "@/lib/share";
 import { useStore } from "@/state/store";
 import Modal from "./Modal";
 
-type Mode = "list" | "week" | "gantt" | "sheet";
+type Mode = "list" | "week" | "gantt" | "sheet" | "ics";
 
 function safeName(title: string): string {
   return title.replace(/[^\w\- ]+/g, "").trim() || "workback";
@@ -22,6 +23,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
   const week = useMemo(() => (project ? exportWeekOverview(project) : { plain: "", html: "" }), [project]);
   const gantt = useMemo(() => (project ? buildGantt(project) : null), [project]);
   const csv = useMemo(() => (project ? exportCsv(project) : ""), [project]);
+  const ics = useMemo(() => (project ? exportIcs(project) : ""), [project]);
 
   if (!project) return null;
   const text = mode === "list" ? list : week;
@@ -79,6 +81,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
     ["week", "Week overview"],
     ["gantt", "Gantt"],
     ["sheet", "Spreadsheet"],
+    ["ics", "Calendar (.ics)"],
   ];
 
   return (
@@ -148,6 +151,25 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
                 Download CSV
               </button>
               <span className="text-[11.5px] text-ink-faint">Opens in Excel or Google Sheets.</span>
+            </div>
+          </>
+        )}
+
+        {mode === "ics" && (
+          <>
+            <div className="max-h-[50vh] overflow-auto rounded-md border border-hairline bg-paper p-3 font-mono text-[11.5px] leading-relaxed select-text whitespace-pre">
+              {ics}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+                onClick={() => downloadFile(`${safeName(project.title)}.ics`, ics, "text/calendar")}
+              >
+                Download .ics
+              </button>
+              <span className="text-[11.5px] text-ink-faint">
+                Import into Outlook, Google, or Apple Calendar. (Import an .ics from the Share menu.)
+              </span>
             </div>
           </>
         )}
