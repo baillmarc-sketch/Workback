@@ -8,6 +8,9 @@ const INDEX_KEY = "workback:index";
 const PROJECT_PREFIX = "workback:project:";
 const LAST_OPEN_KEY = "workback:lastOpen";
 const LAST_CATEGORY_PREFIX = "workback:lastCategory:";
+// Mirrors history.ts PREFIX — kept literal to avoid an import cycle. Used only
+// to reclaim space if a project save hits quota (project data wins).
+const HISTORY_PREFIX = "workback:history:";
 
 function safeGet(key: string): string | null {
   try {
@@ -17,12 +20,17 @@ function safeGet(key: string): string | null {
   }
 }
 
-function safeSet(key: string, value: string): void {
+function trySet(key: string, value: string): boolean {
   try {
     localStorage.setItem(key, value);
+    return true;
   } catch {
-    // quota exceeded / private mode — nothing useful to do
+    return false;
   }
+}
+
+function safeSet(key: string, value: string): void {
+  trySet(key, value);
 }
 
 export function listProjects(): ProjectSummary[] {
@@ -47,7 +55,16 @@ export function loadProject(id: string): Project | null {
 }
 
 export function saveProject(project: Project, opts: { setLastOpen?: boolean } = {}): void {
-  safeSet(PROJECT_PREFIX + project.id, JSON.stringify(project));
+  const key = PROJECT_PREFIX + project.id;
+  const data = JSON.stringify(project);
+  if (!trySet(key, data)) {
+    // Out of space: history snapshots are the largest, most disposable thing —
+    // drop this project's history so the project itself never fails to save.
+    try {
+      localStorage.removeItem(HISTORY_PREFIX + project.id);
+    } catch {}
+    trySet(key, data);
+  }
   const index = listProjects().filter((p) => p.id !== project.id);
   index.unshift({
     id: project.id,
