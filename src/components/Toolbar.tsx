@@ -89,13 +89,13 @@ export default function Toolbar({
         title="When on (or while holding Shift during a drag), moving an event also shifts everything after it"
         onClick={onToggleDownstream}
       >
-        ⇉ Shift downstream
+        ⇉ Shift
       </button>
-      <button className={btn} onClick={onAddRound}>
-        + Review round
+      <button className={btn} onClick={onAddRound} title="Add a linked review + revisions round">
+        + Round
       </button>
-      <button className={btn} onClick={onCompress}>
-        Compress / extend
+      <button className={btn} onClick={onCompress} title="Compress or extend the whole timeline">
+        Compress
       </button>
       <span className="mx-1 h-5 w-px bg-hairline-strong" />
       <button className={btn} disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
