@@ -23,10 +23,21 @@ export function dbUrl(): string {
   }
 }
 
+const ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"; // 62
+
+/** ~131-bit, bias-free, URL-safe share ID. Unguessable: the link is the only
+    access control on a shared doc, so this is the security boundary. */
 export function newShareId(): string {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => (b % 36).toString(36)).join("");
+  const out: string[] = [];
+  const limit = 256 - (256 % ID_ALPHABET.length); // reject above this to avoid modulo bias
+  while (out.length < 22) {
+    const buf = new Uint8Array(22 - out.length);
+    crypto.getRandomValues(buf);
+    for (const b of buf) {
+      if (b < limit) out.push(ID_ALPHABET[b % ID_ALPHABET.length]);
+    }
+  }
+  return out.join("");
 }
 
 export async function publishProject(project: Project): Promise<void> {
@@ -37,6 +48,14 @@ export async function publishProject(project: Project): Promise<void> {
     body: JSON.stringify(project),
   });
   if (!res.ok) throw new Error(`Publish failed (${res.status})`);
+}
+
+/** Delete a shared doc from the cloud — used to revoke a link (reset link). */
+export async function unpublishProject(shareId: string): Promise<void> {
+  const res = await fetch(`${dbUrl()}/${ROOT}/${encodeURIComponent(shareId)}.json`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Unpublish failed (${res.status})`);
 }
 
 /** RTDB drops empty arrays, so a zero-event project comes back without `events` */

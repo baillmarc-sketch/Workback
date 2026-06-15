@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncAccount } from "@/lib/account";
-import { fetchShared, newShareId, publishProject, shareUrl } from "@/lib/cloud";
+import { fetchShared, newShareId, publishProject, shareUrl, unpublishProject } from "@/lib/cloud";
 import { addDaysKey, addMonthsKey, durationDays, snapWorkday, todayKey } from "@/lib/dates";
 import { heartbeat, leave, readOthers } from "@/lib/presence";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
@@ -239,6 +239,23 @@ export default function App() {
     copyShareUrl();
   }, [copyShareUrl]);
 
+  // Reset link: revoke the current link (delete the cloud node) and mint a new
+  // one. Old links stop working; the project stays backed up under the new id.
+  const handleResetLink = useCallback(async () => {
+    const p = project;
+    if (!p?.shareId) return;
+    const old = p.shareId;
+    const sid = newShareId();
+    patch((pp) => ({ ...pp, shareId: sid }));
+    try {
+      await unpublishProject(old);
+    } catch {}
+    try {
+      await publishProject({ ...p, shareId: sid });
+    } catch {}
+    showToast("Link reset — old links no longer work");
+  }, [project, patch, showToast]);
+
   // Live presence on shared projects: heartbeat + poll for other open tabs
   useEffect(() => {
     const shareId = project?.shareId;
@@ -247,7 +264,9 @@ export default function App() {
       return;
     }
     const sid = sessionIdRef.current;
-    const name = user?.email || "Someone";
+    // Only a first name goes into the shared doc — never the email (anyone with
+    // the link can read presence)
+    const name = (user?.name || "").trim().split(/\s+/)[0] || "A collaborator";
     let cancelled = false;
     const tick = async () => {
       await heartbeat(shareId, sid, name);
@@ -521,7 +540,11 @@ export default function App() {
       )}
 
       {dialog === "share" && (
-        <ShareDialog onClose={() => setDialog(null)} onShareLink={copyShareUrl} />
+        <ShareDialog
+          onClose={() => setDialog(null)}
+          onShareLink={copyShareUrl}
+          onResetLink={handleResetLink}
+        />
       )}
       {dialog === "compress" && <CompressDialog onClose={() => setDialog(null)} />}
       {dialog === "round" && <ReviewRoundDialog onClose={() => setDialog(null)} />}

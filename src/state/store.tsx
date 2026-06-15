@@ -13,7 +13,7 @@ import {
 import type { Project } from "@/lib/types";
 import { saveProject } from "@/lib/storage";
 import { describeChange, pushHistory } from "@/lib/history";
-import { publishProject } from "@/lib/cloud";
+import { newShareId, publishProject } from "@/lib/cloud";
 import { pushProject } from "@/lib/account";
 import { useAuth } from "./auth";
 
@@ -105,7 +105,14 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const commit = useCallback((up: (p: Project) => Project) => {
     const cur = stateRef.current.project;
     if (!cur) return;
-    const next = { ...up(cur), updatedAt: Date.now() };
+    let next = { ...up(cur), updatedAt: Date.now() };
+    // Auto-provision an online backup + ready link the first time a project
+    // has real content, so work survives a crash/power loss and a share link
+    // already exists before you click Share. The unguessable ID is the access
+    // control; "Reset link" can revoke it.
+    if (!next.shareId && next.events.length > 0) {
+      next = { ...next, shareId: newShareId() };
+    }
     dispatch({ type: "commit", project: next });
     // Persistent, browsable history (survives reload) — best-effort
     try {
@@ -121,6 +128,24 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
+
+  // Flush the latest state to localStorage the instant the tab is hidden or
+  // closed, so the 250ms autosave debounce can't drop the last edit.
+  useEffect(() => {
+    const flush = () => {
+      const p = stateRef.current.project;
+      if (p) saveProject(p, { setLastOpen: false });
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   // Auto-save: debounce writes to localStorage on every change, and push
   // shared projects to the cloud copy and signed-in users' projects to

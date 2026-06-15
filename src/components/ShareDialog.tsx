@@ -20,9 +20,11 @@ const btnCls =
 export default function ShareDialog({
   onClose,
   onShareLink,
+  onResetLink,
 }: {
   onClose: () => void;
   onShareLink: () => void;
+  onResetLink: () => void;
 }) {
   const { project, open } = useStore();
   const [copied, setCopied] = useState(false);
@@ -68,6 +70,22 @@ export default function ShareDialog({
               />
             )}
           </div>
+          {project.shareId && (
+            <button
+              className="mt-2 text-[11.5px] font-medium text-ink-faint hover:text-danger"
+              onClick={() => {
+                if (
+                  confirm(
+                    "Reset the link? Anyone using the current link will lose access. A new link will be created and this calendar stays backed up under it."
+                  )
+                ) {
+                  onResetLink();
+                }
+              }}
+            >
+              Reset link (revoke current link)
+            </button>
+          )}
         </section>
 
         <section className="border-t border-hairline pt-4">

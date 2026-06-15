@@ -17,6 +17,7 @@ import { exportDateList, exportWeekOverview, exportCsv } from "../src/lib/export
 import { buildGantt } from "../src/lib/exportGantt.ts";
 import { describeChange } from "../src/lib/history.ts";
 import { bumpVersion } from "../src/lib/storage.ts";
+import { newShareId } from "../src/lib/cloud.ts";
 import type { WorkbackEvent, Project } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -386,6 +387,13 @@ const base = [
   check("version: double digits", bumpVersion("Run v9") === "Run v10");
   check("version: none → null", bumpVersion("No version here") === null);
   check("version: ignores v inside words", bumpVersion("Review deck") === null);
+}
+
+// 16. Share ID strength (unguessable links)
+{
+  const ids = Array.from({ length: 200 }, () => newShareId());
+  check("shareId: 22 url-safe chars", ids.every((id) => /^[0-9a-zA-Z]{22}$/.test(id)), ids[0]);
+  check("shareId: all unique in a large sample", new Set(ids).size === ids.length);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

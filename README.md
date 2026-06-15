@@ -57,16 +57,23 @@ its calendar span.
 - **New-event color** defaults to the category you last used, with an instant label tag
   under the swatches (no slow hover tooltip).
 - **Live presence** — on a shared calendar, a banner shows when other people have it open
-  and are editing right now (lightweight heartbeat; no rules change required).
+  and are editing right now (lightweight heartbeat; identifies people by first name only —
+  never email — and needs no rules change).
 
 **Sharing & output**
-- **Shared links**: the **Share** button publishes the project to a Firebase Realtime
-  Database, copies a short link (`/#p=<id>`) to the clipboard, and opens the sharing menu
-  (no native share sheet). Everyone who opens it edits the *same* calendar — changes push
-  automatically (debounced) and pull when the tab regains focus. Last write wins; the
-  unguessable share ID is the only access control, same model as a private link.
-  If the cloud is unreachable or not configured, it falls back to a long self-contained
-  `#wb=` link (recipient gets an independent copy).
+- **Automatic online backup**: as soon as a project has content, it's backed up to the
+  cloud under an unguessable link, so work survives a crash or power loss and a share link
+  already exists before you press Share. The tab also flushes the latest state to
+  localStorage on hide/close so the autosave debounce can't drop the last edit.
+- **Shared links**: the **Share** button copies the short link (`/#p=<id>`) to the
+  clipboard and opens the sharing menu (no native share sheet). Everyone who opens it edits
+  the *same* calendar — changes push automatically (debounced) and pull when the tab
+  regains focus. Last write wins; the unguessable share ID (~131-bit, bias-free) is the
+  only access control, same model as a "anyone with the link" Drive file. If the cloud is
+  unreachable, it falls back to a long self-contained `#wb=` link.
+- **Reset link** (in the Share menu) revokes the current link — it deletes the cloud node
+  and mints a new id, so old links stop working while the project stays backed up under the
+  new one.
 - **Accounts (optional)**: Sign in with Google (header button) and your project list syncs
   across devices under `/users/{uid}` in the Workback Firebase project — per-project
   last-write-wins on login and tab focus, deletions propagate via tombstones. The app is
