@@ -83,15 +83,41 @@ export function setLastCategoryId(projectId: string, categoryId: string): void {
   safeSet(LAST_CATEGORY_PREFIX + projectId, categoryId);
 }
 
-/** Clone a saved project into an independent copy (new id, fresh share state). */
+/** Bump the last "vN" token in a string, e.g. "Launch v2" → "Launch v3"
+    (case of the v is preserved). Returns null when there's nothing to bump. */
+export function bumpVersion(text: string): string | null {
+  const re = /\bv(\d+)/gi;
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) last = m;
+  if (!last) return null;
+  const n = parseInt(last[1], 10) + 1;
+  const start = last.index;
+  return text.slice(0, start) + text[start] + n + text.slice(start + last[0].length);
+}
+
+/** Clone a saved project into an independent copy. Versioning is automatic:
+    an existing "vN" in the title (or, failing that, the subtitle) is bumped by
+    one; otherwise the title gets a "v2" (the original being the implied v1). */
 export function duplicateProject(id: string): Project | null {
   const src = loadProject(id);
   if (!src) return null;
   const now = Date.now();
+  let title = src.title || "Untitled Workback";
+  let subtitle = src.subtitle;
+  const bumpedTitle = bumpVersion(title);
+  if (bumpedTitle !== null) {
+    title = bumpedTitle;
+  } else {
+    const bumpedSub = bumpVersion(subtitle);
+    if (bumpedSub !== null) subtitle = bumpedSub;
+    else title = `${title} v2`;
+  }
   const copy: Project = {
     ...src,
     id: uid(),
-    title: `${src.title || "Untitled Workback"} (copy)`,
+    title,
+    subtitle,
     shareId: undefined,
     createdAt: now,
     updatedAt: now,

@@ -16,6 +16,7 @@ import { parseTimeMinutes, compareSameDay } from "../src/lib/eventTime.ts";
 import { exportDateList, exportWeekOverview, exportCsv } from "../src/lib/exportText.ts";
 import { buildGantt } from "../src/lib/exportGantt.ts";
 import { describeChange } from "../src/lib/history.ts";
+import { bumpVersion } from "../src/lib/storage.ts";
 import type { WorkbackEvent, Project } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -376,6 +377,15 @@ const base = [
   check("history: describes edit", describeChange(a, renamed).startsWith("Edited"));
   const titled = { ...a, title: "New Title" };
   check("history: describes project details", describeChange(a, titled) === "Edited project details");
+}
+
+// 15. Duplicate versioning
+{
+  check("version: bumps title vN", bumpVersion("Launch v2") === "Launch v3");
+  check("version: preserves uppercase V and tail", bumpVersion("Project V3 final") === "Project V4 final");
+  check("version: double digits", bumpVersion("Run v9") === "Run v10");
+  check("version: none → null", bumpVersion("No version here") === null);
+  check("version: ignores v inside words", bumpVersion("Review deck") === null);
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);
