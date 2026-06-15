@@ -216,21 +216,39 @@ export function newProject(templateId: TemplateId = "video"): Project {
   };
 }
 
-/** A small starter project so first launch isn't a blank wall. */
+/** A fuller starter project that shows off the app at a glance: call times,
+    stacked same-day events, two linked client-review rounds, a PPM, generous
+    edit/production lead, weekend-skipping blocks, and a locked delivery. */
 export function sampleProject(): Project {
   const p = newProject();
   p.title = "Sample Campaign";
-  p.subtitle = "Client x Brand / Workback v1";
-  const d0 = todayKey();
-  const day = (n: number) => addDaysKey(d0, n);
+  p.subtitle = "Acme x Brand · Workback v1";
+  const start = addDaysKey(todayKey(), -7);
+  const day = (n: number) => addDaysKey(start, n);
+  const r1 = uid();
+  const r2 = uid();
   p.events = [
-    { id: uid(), title: "Creative Development", startDate: day(0), endDate: day(4), category: "creative", isMilestone: false, locked: false },
-    { id: uid(), title: "Pre-Pro & Casting", startDate: day(5), endDate: day(9), category: "pre-production", isMilestone: false, locked: false },
-    { id: uid(), title: "Shoot Day", startDate: day(10), endDate: day(11), category: "production", isMilestone: true, locked: false },
-    { id: uid(), title: "Offline Edit", startDate: day(12), endDate: day(17), category: "post-production", isMilestone: false, locked: false, skipWeekends: true },
-    { id: uid(), title: "Client Review — Round 1", startDate: day(18), endDate: day(19), category: "client-review", isMilestone: false, locked: false },
-    { id: uid(), title: "Finishing & Mix", startDate: day(20), endDate: day(23), category: "finishing", isMilestone: false, locked: false },
-    { id: uid(), title: "Delivery", startDate: day(25), endDate: day(25), category: "delivery", isMilestone: true, locked: true },
+    { id: uid(), title: "Creative Kickoff", startDate: day(0), endDate: day(0), category: "creative", isMilestone: true, locked: false, time: "AM" },
+    { id: uid(), title: "Creative Development", startDate: day(1), endDate: day(8), category: "creative", isMilestone: false, locked: false },
+    { id: uid(), title: "Internal Creative Review", startDate: day(9), endDate: day(9), category: "internal-review", isMilestone: false, locked: false, time: "AM" },
+    { id: uid(), title: "Creative Lock", startDate: day(9), endDate: day(9), category: "internal-review", isMilestone: false, locked: false, time: "EOD" },
+    { id: uid(), title: "Pre-Pro & Casting", startDate: day(10), endDate: day(18), category: "pre-production", isMilestone: false, locked: false, skipWeekends: true },
+    { id: uid(), title: "Location Scout", startDate: day(12), endDate: day(12), category: "pre-production", isMilestone: false, locked: false, time: "1:00 PM" },
+    { id: uid(), title: "PPM — Pre-Production Meeting", startDate: day(17), endDate: day(17), category: "pre-production", isMilestone: true, locked: false, time: "AM" },
+    { id: uid(), title: "Call Sheet Out", startDate: day(20), endDate: day(20), category: "production", isMilestone: false, locked: false, time: "EOD" },
+    { id: uid(), title: "Crew Call", startDate: day(21), endDate: day(21), category: "production", isMilestone: false, locked: false, time: "AM" },
+    { id: uid(), title: "Shoot Days", startDate: day(21), endDate: day(22), category: "production", isMilestone: false, locked: false },
+    { id: uid(), title: "Production Wrap", startDate: day(22), endDate: day(22), category: "production", isMilestone: true, locked: false, time: "EOD" },
+    { id: uid(), title: "Offline Edit", startDate: day(25), endDate: day(39), category: "post-production", isMilestone: false, locked: false, skipWeekends: true },
+    { id: uid(), title: "Client Review — Round 1", startDate: day(40), endDate: day(41), category: "client-review", isMilestone: false, locked: false, time: "AM", roundId: r1, roundRole: "review" },
+    { id: uid(), title: "Revisions — Round 1", startDate: day(42), endDate: day(43), category: "post-production", isMilestone: false, locked: false, roundId: r1, roundRole: "revisions" },
+    { id: uid(), title: "Client Review — Round 2", startDate: day(44), endDate: day(45), category: "client-review", isMilestone: false, locked: false, time: "AM", roundId: r2, roundRole: "review" },
+    { id: uid(), title: "Revisions — Round 2", startDate: day(46), endDate: day(47), category: "post-production", isMilestone: false, locked: false, roundId: r2, roundRole: "revisions" },
+    { id: uid(), title: "VFX / Online", startDate: day(48), endDate: day(52), category: "vfx", isMilestone: false, locked: false, skipWeekends: true },
+    { id: uid(), title: "Color Grade", startDate: day(50), endDate: day(52), category: "finishing", isMilestone: false, locked: false },
+    { id: uid(), title: "Audio Mix", startDate: day(53), endDate: day(54), category: "finishing", isMilestone: false, locked: false },
+    { id: uid(), title: "Final Client Approval", startDate: day(55), endDate: day(55), category: "client-review", isMilestone: true, locked: false, time: "AM" },
+    { id: uid(), title: "Delivery", startDate: day(57), endDate: day(57), category: "delivery", isMilestone: true, locked: true, time: "EOD" },
   ];
   return p;
 }

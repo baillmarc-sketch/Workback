@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncAccount } from "@/lib/account";
 import { fetchShared, newShareId, publishProject, shareUrl } from "@/lib/cloud";
-import { addDaysKey, addMonthsKey, durationDays } from "@/lib/dates";
+import { addDaysKey, addMonthsKey, durationDays, snapWorkday, todayKey } from "@/lib/dates";
 import { heartbeat, leave, readOthers } from "@/lib/presence";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
 import {
@@ -54,6 +54,8 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
   if (!sessionIdRef.current) sessionIdRef.current = uid();
+  // The last day an event was created on, so Enter can start the next one
+  const lastCreateDayRef = useRef<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -294,8 +296,35 @@ export default function App() {
     setSelectedId(null);
     setEditAnchor(null);
     setMore(null);
+    lastCreateDayRef.current = dayKey;
     setCreate({ dayKey, anchor: rectToAnchor(rect) });
   }, []);
+
+  // Open a new-event popover anchored to a given day, bringing its month into
+  // view first if it isn't currently rendered (used by the Enter hotkey).
+  const openCreateForDay = useCallback(
+    (day: string) => {
+      const tryFocus = () => {
+        const cell = document.querySelector(`[data-day="${day}"]`);
+        if (!cell) return false;
+        setSelectedId(null);
+        setEditAnchor(null);
+        setMore(null);
+        lastCreateDayRef.current = day;
+        setCreate({ dayKey: day, anchor: rectToAnchor(cell.getBoundingClientRect()) });
+        return true;
+      };
+      if (tryFocus()) return;
+      patch((p) => ({ ...p, anchorMonth: day.slice(0, 7) }));
+      let tries = 0;
+      const retry = () => {
+        if (tryFocus() || tries++ > 5) return;
+        requestAnimationFrame(retry);
+      };
+      requestAnimationFrame(retry);
+    },
+    [patch]
+  );
 
   const handleMoreClick = useCallback(
     (dayKey: string, events: WorkbackEvent[], rect: DOMRect) => {
@@ -351,6 +380,14 @@ export default function App() {
         setSelectedId(copy.id);
         return;
       }
+      if (e.key === "Enter" && !create && !more && !editAnchor && !dialog) {
+        // Enter with nothing open starts a new event on the next workday
+        e.preventDefault();
+        const base = lastCreateDayRef.current;
+        const target = snapWorkday(base ? addDaysKey(base, 1) : todayKey(), 1);
+        openCreateForDay(target);
+        return;
+      }
       if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !editAnchor) {
         e.preventDefault();
         commit((p) => ({ ...p, events: p.events.filter((x) => x.id !== selectedId) }));
@@ -363,7 +400,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [project, selectedId, editAnchor, commit, undo, redo]);
+  }, [project, selectedId, editAnchor, create, more, dialog, openCreateForDay, commit, undo, redo]);
 
   if (!project) {
     return (

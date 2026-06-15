@@ -239,19 +239,26 @@ export default function Calendar({
 
       <DragOverlay dropAnimation={null}>
         {draggedEvent && draggedCat && (
-          <div
-            className="flex h-[26px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium shadow-lg"
-            style={{
-              background: draggedEvent.isMilestone
-                ? draggedCat.color
-                : `color-mix(in srgb, ${draggedCat.color} 22%, white)`,
-              color: draggedEvent.isMilestone ? "#fff" : catText(draggedCat.color),
-              border: `1px solid ${draggedCat.color}`,
-            }}
-          >
-            <span className="truncate">{draggedEvent.title}</span>
-            {(downstreamMode || shiftKeyRef.current) && (
-              <span className="rounded bg-black/15 px-1 text-[10px]">+ downstream</span>
+          <div className="flex flex-col items-start gap-1">
+            <div
+              className="flex h-[26px] items-center gap-1.5 rounded-md px-2 text-[12px] font-medium shadow-lg"
+              style={{
+                background: draggedEvent.isMilestone
+                  ? draggedCat.color
+                  : `color-mix(in srgb, ${draggedCat.color} 22%, white)`,
+                color: draggedEvent.isMilestone ? "#fff" : catText(draggedCat.color),
+                border: `1px solid ${draggedCat.color}`,
+              }}
+            >
+              <span className="truncate">{draggedEvent.title}</span>
+              {(downstreamMode || shiftKeyRef.current) && (
+                <span className="rounded bg-black/15 px-1 text-[10px]">+ downstream</span>
+              )}
+            </div>
+            {!(downstreamMode || shiftKeyRef.current) && (
+              <div className="whitespace-nowrap rounded bg-ink/85 px-1.5 py-0.5 text-[10px] font-medium text-paper shadow">
+                ⇧ Shift-drag to move everything downstream
+              </div>
             )}
           </div>
         )}

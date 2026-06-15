@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fmtLong, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
 import { lastCategoryId, setLastCategoryId } from "@/lib/storage";
@@ -29,46 +29,85 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
     return last && categories.some((c) => c.id === last) ? last : categories[0]?.id ?? "";
   });
   const [isMilestone, setIsMilestone] = useState(false);
-  const [includeWeekends, setIncludeWeekends] = useState(true);
+  const [includeWeekends, setIncludeWeekends] = useState(false);
   const [time, setTime] = useState<string | undefined>(undefined);
   const [showTime, setShowTime] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef(false);
+  // Latest values for the unmount-time auto-save (refs avoid stale closures)
+  const latest = useRef({ title, category, isMilestone, includeWeekends, time });
+  latest.current = { title, category, isMilestone, includeWeekends, time };
 
   const presetTime = time?.toUpperCase() === "AM" || time?.toUpperCase() === "EOD";
 
-  const add = () => {
-    if (!title.trim()) return;
-    // Weekend-excluded events can't start on a weekend — land on Monday
-    const day = includeWeekends ? dayKey : snapWorkday(dayKey, 1);
+  // Land focus straight in the title field so you can just start typing
+  useEffect(() => {
+    if (!isCoarsePointer()) {
+      const id = requestAnimationFrame(() => inputRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, []);
+
+  const commitEvent = () => {
+    const v = latest.current;
+    if (savedRef.current || !v.title.trim()) return;
+    savedRef.current = true;
+    const day = v.includeWeekends ? dayKey : snapWorkday(dayKey, 1);
     const ev: WorkbackEvent = {
       id: uid(),
-      title: title.trim(),
+      title: v.title.trim(),
       startDate: day,
       endDate: day,
-      category,
-      isMilestone,
+      category: v.category,
+      isMilestone: v.isMilestone,
       locked: false,
-      skipWeekends: includeWeekends ? undefined : true,
-      time: time?.trim() || undefined,
+      skipWeekends: v.includeWeekends ? undefined : true,
+      time: v.time?.trim() || undefined,
     };
     commit((p) => ({ ...p, events: [...p.events, ev] }));
-    if (project) setLastCategoryId(project.id, category);
+    if (project) setLastCategoryId(project.id, v.category);
     onCreated(ev.id);
+  };
+
+  // Click-out / Add / Enter: keep the event if it has a title
+  const save = () => {
+    commitEvent();
     onClose();
   };
 
+  // Escape cancels without saving. Register in capture before Popover's own
+  // Escape handler (which is added on a 0ms timeout) and stop it firing too.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        savedRef.current = true; // ensure the unmount path won't re-save
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   return (
-    <Popover anchor={anchor} onClose={onClose} width={300}>
+    <Popover anchor={anchor} onClose={save} width={344}>
       <div className="flex flex-col gap-2.5 p-3.5">
         <div className="text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
           {fmtLong(dayKey)}
         </div>
         <input
+          ref={inputRef}
           className="w-full border-none bg-transparent text-[15px] font-semibold outline-none placeholder:text-ink-faint"
           placeholder="Event title…"
           value={title}
           autoFocus={!isCoarsePointer()}
           onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && add()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              save();
+            }
+          }}
         />
         <CategorySwatches categories={categories} value={category} onChange={setCategory} />
 
@@ -135,9 +174,10 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
           <button
             className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85 disabled:opacity-40"
             disabled={!title.trim()}
-            onClick={add}
+            onClick={save}
+            title="Add event (Enter)"
           >
-            Add event
+            Add ⏎
           </button>
         </div>
       </div>
