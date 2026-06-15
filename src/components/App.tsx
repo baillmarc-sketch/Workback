@@ -29,10 +29,19 @@ import MorePopover from "./MorePopover";
 import ProjectsDialog from "./ProjectsDialog";
 import ReviewRoundDialog from "./ReviewRoundDialog";
 import ShareDialog from "./ShareDialog";
+import ShortcutsDialog from "./ShortcutsDialog";
 import Toolbar from "./Toolbar";
 
 type Anchor = { left: number; top: number; right: number; bottom: number };
-type Dialog = "share" | "compress" | "round" | "projects" | "export" | "history" | null;
+type Dialog =
+  | "share"
+  | "compress"
+  | "round"
+  | "projects"
+  | "export"
+  | "history"
+  | "shortcuts"
+  | null;
 
 function rectToAnchor(r: DOMRect): Anchor {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
@@ -380,6 +389,11 @@ export default function App() {
         setSelectedId(copy.id);
         return;
       }
+      if (e.key === "?" && !dialog) {
+        e.preventDefault();
+        setDialog("shortcuts");
+        return;
+      }
       if (e.key === "Enter" && !create && !more && !editAnchor && !dialog) {
         // Enter with nothing open starts a new event on the next workday
         e.preventDefault();
@@ -473,7 +487,10 @@ export default function App() {
 
       <footer className="no-print mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
         Workback Builder — auto-saved locally · ⌘Z undo · ⌘C/⌘V copy events · Shift-drag shifts
-        downstream
+        downstream ·{" "}
+        <button className="font-medium underline-offset-2 hover:text-ink-soft hover:underline" onClick={() => setDialog("shortcuts")}>
+          ⌘ Shortcuts
+        </button>
       </footer>
       <footer className="no-print mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
         Auto-saved · tap a day to add · hold an event to drag it
@@ -511,6 +528,7 @@ export default function App() {
       {dialog === "projects" && <ProjectsDialog onClose={() => setDialog(null)} />}
       {dialog === "export" && <ExportDialog onClose={() => setDialog(null)} />}
       {dialog === "history" && <HistoryDialog onClose={() => setDialog(null)} />}
+      {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div
