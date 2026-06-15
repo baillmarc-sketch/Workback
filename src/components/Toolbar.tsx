@@ -113,7 +113,7 @@ export default function Toolbar({
       {project.shareId && (
         <span
           className="hidden items-center gap-1 text-[11px] text-ink-faint sm:flex"
-          title="This calendar has a shared link — edits sync to everyone who has it"
+          title="This calendar is backed up online — edits sync to anyone who has the link"
         >
           <span
             className={`h-1.5 w-1.5 rounded-full ${
@@ -124,7 +124,7 @@ export default function Toolbar({
                   : "bg-[#10B981]"
             }`}
           />
-          {syncState === "offline" ? "offline" : syncState === "syncing" ? "syncing…" : "shared"}
+          {syncState === "offline" ? "offline" : syncState === "syncing" ? "syncing…" : "saved"}
         </span>
       )}
       <button
