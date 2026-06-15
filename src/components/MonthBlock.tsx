@@ -26,19 +26,20 @@ export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) 
 
   return (
     <section className="month-block">
-      {/* Print-only header: project info repeats on every exported page */}
-      <div className="print-only mb-3">
-        <div className="flex items-baseline justify-between border-b border-hairline-strong pb-2">
-          <div>
-            <span className="font-display text-[20px] font-semibold">{project.title}</span>
-            {project.subtitle && (
-              <span className="ml-3 text-[12px] text-ink-soft">{project.subtitle}</span>
-            )}
-          </div>
-          <span className="text-[12px] text-ink-soft">{monthLabel(mKey)}</span>
+      {/* Print-only header: project info repeats on every exported page, with
+          the month name as a large, unmissable heading */}
+      <div className="print-only mb-3 border-b border-hairline-strong pb-2">
+        <div className="flex items-baseline gap-3">
+          <span className="text-[12px] font-medium text-ink-soft">{project.title}</span>
+          {project.subtitle && (
+            <span className="text-[11px] text-ink-faint">{project.subtitle}</span>
+          )}
         </div>
+        <h2 className="print-month-title font-display text-[26px] font-bold leading-tight tracking-tight">
+          {monthLabel(mKey)}
+        </h2>
         {project.showLegend && (
-          <Legend categories={project.categories} events={project.events} className="mt-2" />
+          <Legend categories={project.categories} events={project.events} className="mt-1.5" />
         )}
       </div>
 

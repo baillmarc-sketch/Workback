@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncAccount } from "@/lib/account";
 import { fetchShared, newShareId, publishProject, shareUrl } from "@/lib/cloud";
-import { addDaysKey, durationDays } from "@/lib/dates";
+import { addDaysKey, addMonthsKey, durationDays } from "@/lib/dates";
+import { heartbeat, leave, readOthers } from "@/lib/presence";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
 import {
   lastOpenId,
@@ -22,6 +23,7 @@ import CreatePopover from "./CreatePopover";
 import EventPopover from "./EventPopover";
 import ExportDialog from "./ExportDialog";
 import Header from "./Header";
+import HistoryDialog from "./HistoryDialog";
 import Legend from "./Legend";
 import MorePopover from "./MorePopover";
 import ProjectsDialog from "./ProjectsDialog";
@@ -30,7 +32,7 @@ import ShareDialog from "./ShareDialog";
 import Toolbar from "./Toolbar";
 
 type Anchor = { left: number; top: number; right: number; bottom: number };
-type Dialog = "share" | "compress" | "round" | "projects" | "export" | null;
+type Dialog = "share" | "compress" | "round" | "projects" | "export" | "history" | null;
 
 function rectToAnchor(r: DOMRect): Anchor {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
@@ -46,9 +48,12 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [downstreamMode, setDownstreamMode] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [others, setOthers] = useState(0);
   const clipboardRef = useRef<WorkbackEvent | null>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionIdRef = useRef<string>("");
+  if (!sessionIdRef.current) sessionIdRef.current = uid();
 
   const showToast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -189,10 +194,10 @@ export default function App() {
     };
   }, [user, getToken, open, showToast]);
 
-  // Share: publish to the cloud and hand the short link to the native share
-  // sheet (text it straight from the phone). Falls back to a long
-  // self-contained #wb= link if the cloud isn't reachable/configured.
-  const handleShareLink = useCallback(async () => {
+  // Share: publish to the cloud and copy the short link straight to the
+  // clipboard (no native share sheet). Falls back to a long self-contained
+  // #wb= link if the cloud isn't reachable/configured.
+  const copyShareUrl = useCallback(async () => {
     let p = project;
     if (!p) return;
     if (!p.shareId) {
@@ -201,7 +206,7 @@ export default function App() {
       p = { ...p, shareId: sid };
     }
     let url: string;
-    let note = "Link copied — text it to anyone";
+    let note = "Link copied — paste it to anyone";
     try {
       await publishProject(p);
       url = shareUrl(p.shareId!);
@@ -210,22 +215,65 @@ export default function App() {
       note = "Cloud share unavailable — copied a full link instead";
     }
     try {
-      if (navigator.share) {
-        await navigator.share({ title: p.title || "Workback", url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        showToast(note);
-      }
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return; // user closed share sheet
-      try {
-        await navigator.clipboard.writeText(url);
-        showToast(note);
-      } catch {
-        showToast("Couldn't open the share sheet — use Share options instead");
-      }
+      await navigator.clipboard.writeText(url);
+      showToast(note);
+    } catch {
+      showToast("Couldn't copy automatically — grab the link in Share options");
     }
   }, [project, patch, showToast]);
+
+  // The Share button opens the sharing menu and copies the link in one go
+  const handleShare = useCallback(() => {
+    setDialog("share");
+    copyShareUrl();
+  }, [copyShareUrl]);
+
+  // Live presence on shared projects: heartbeat + poll for other open tabs
+  useEffect(() => {
+    const shareId = project?.shareId;
+    if (!shareId) {
+      setOthers(0);
+      return;
+    }
+    const sid = sessionIdRef.current;
+    const name = user?.email || "Someone";
+    let cancelled = false;
+    const tick = async () => {
+      await heartbeat(shareId, sid, name);
+      const list = await readOthers(shareId, sid);
+      if (!cancelled) setOthers(list.length);
+    };
+    tick();
+    const iv = setInterval(tick, 12_000);
+    const onBye = () => leave(shareId, sid);
+    window.addEventListener("pagehide", onBye);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      window.removeEventListener("pagehide", onBye);
+      leave(shareId, sid);
+    };
+  }, [project?.shareId, user]);
+
+  // Months that actually contain events — what Print/PDF renders (one per page)
+  const activeMonths = useMemo(() => {
+    if (!project) return [];
+    if (project.events.length === 0) return [project.anchorMonth];
+    let min = project.events[0].startDate;
+    let max = project.events[0].endDate;
+    for (const e of project.events) {
+      if (e.startDate < min) min = e.startDate;
+      if (e.endDate > max) max = e.endDate;
+    }
+    const months: string[] = [];
+    let m = min.slice(0, 7);
+    const end = max.slice(0, 7);
+    while (m <= end) {
+      months.push(m);
+      m = addMonthsKey(m, 1);
+    }
+    return months;
+  }, [project]);
 
   const selected = project?.events.find((e) => e.id === selectedId) ?? null;
 
@@ -334,10 +382,19 @@ export default function App() {
         onToggleDownstream={() => setDownstreamMode((v) => !v)}
         onAddRound={() => setDialog("round")}
         onCompress={() => setDialog("compress")}
-        onShare={() => setDialog("share")}
-        onShareLink={handleShareLink}
+        onShare={handleShare}
         onExport={() => setDialog("export")}
+        onPrint={() => window.print()}
+        onHistory={() => setDialog("history")}
       />
+
+      {others > 0 && (
+        <div className="no-print mb-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] text-ink-soft">
+          <span className="h-2 w-2 rounded-full bg-[#10B981]" />
+          {others} {others === 1 ? "other person is" : "other people are"} editing this shared
+          calendar right now.
+        </div>
+      )}
 
       {project.showLegend && (
         <Legend categories={project.categories} editable className="no-print mb-4 px-1" />
@@ -351,14 +408,31 @@ export default function App() {
         </div>
       )}
 
-      <Calendar
-        project={project}
-        selectedId={selectedId}
-        downstreamMode={downstreamMode}
-        onSelectEvent={handleSelectEvent}
-        onDayClick={handleDayClick}
-        onMoreClick={handleMoreClick}
-      />
+      <div className="no-print">
+        <Calendar
+          project={project}
+          selectedId={selectedId}
+          downstreamMode={downstreamMode}
+          onSelectEvent={handleSelectEvent}
+          onDayClick={handleDayClick}
+          onMoreClick={handleMoreClick}
+        />
+      </div>
+
+      {/* Print/PDF: every month that has events, full month, one per page —
+          independent of the 1/2/3-month on-screen view */}
+      <div className="print-only">
+        <Calendar
+          project={project}
+          selectedId={null}
+          downstreamMode={false}
+          readOnly
+          monthsOverride={activeMonths}
+          onSelectEvent={() => {}}
+          onDayClick={() => {}}
+          onMoreClick={() => {}}
+        />
+      </div>
 
       <footer className="no-print mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
         Workback Builder — auto-saved locally · ⌘Z undo · ⌘C/⌘V copy events · Shift-drag shifts
@@ -393,12 +467,13 @@ export default function App() {
       )}
 
       {dialog === "share" && (
-        <ShareDialog onClose={() => setDialog(null)} onShareLink={handleShareLink} />
+        <ShareDialog onClose={() => setDialog(null)} onShareLink={copyShareUrl} />
       )}
       {dialog === "compress" && <CompressDialog onClose={() => setDialog(null)} />}
       {dialog === "round" && <ReviewRoundDialog onClose={() => setDialog(null)} />}
       {dialog === "projects" && <ProjectsDialog onClose={() => setDialog(null)} />}
       {dialog === "export" && <ExportDialog onClose={() => setDialog(null)} />}
+      {dialog === "history" && <HistoryDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div

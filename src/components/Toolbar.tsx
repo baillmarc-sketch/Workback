@@ -9,8 +9,9 @@ interface ToolbarProps {
   onAddRound: () => void;
   onCompress: () => void;
   onShare: () => void;
-  onShareLink: () => void;
   onExport: () => void;
+  onPrint: () => void;
+  onHistory: () => void;
 }
 
 const btn =
@@ -22,8 +23,9 @@ export default function Toolbar({
   onAddRound,
   onCompress,
   onShare,
-  onShareLink,
   onExport,
+  onPrint,
+  onHistory,
 }: ToolbarProps) {
   const { project, patch, undo, redo, canUndo, canRedo, syncState } = useStore();
   if (!project) return null;
@@ -102,6 +104,9 @@ export default function Toolbar({
       <button className={btn} disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
         ↻
       </button>
+      <button className={btn} onClick={onHistory} title="Browse and restore saved history">
+        History
+      </button>
 
       <span className="flex-1" />
 
@@ -122,18 +127,18 @@ export default function Toolbar({
           {syncState === "offline" ? "offline" : syncState === "syncing" ? "syncing…" : "shared"}
         </span>
       )}
-      <button className={btn} onClick={onShare} aria-label="Sharing options" title="Sharing options">
-        ⋯
-      </button>
       <button
         className="rounded-md bg-ink px-3 py-1.5 text-[12px] font-semibold text-paper hover:opacity-85"
-        onClick={onShareLink}
-        title="Publish and send a link anyone can open and edit"
+        onClick={onShare}
+        title="Copy a shareable link and open sharing options"
       >
         Share
       </button>
-      <button className={btn} onClick={onExport}>
+      <button className={btn} onClick={onExport} title="List, week, Gantt, or spreadsheet exports">
         Export
+      </button>
+      <button className={btn} onClick={onPrint} title="Print or save as PDF (one month per page)">
+        Print / PDF
       </button>
     </div>
   );

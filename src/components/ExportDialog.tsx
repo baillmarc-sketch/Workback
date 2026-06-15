@@ -1,11 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { exportDateList, exportWeekOverview } from "@/lib/exportText";
+import { exportCsv, exportDateList, exportWeekOverview } from "@/lib/exportText";
+import { buildGantt } from "@/lib/exportGantt";
+import { downloadFile } from "@/lib/share";
 import { useStore } from "@/state/store";
 import Modal from "./Modal";
 
-type Mode = "list" | "week";
+type Mode = "list" | "week" | "gantt" | "sheet";
+
+function safeName(title: string): string {
+  return title.replace(/[^\w\- ]+/g, "").trim() || "workback";
+}
 
 export default function ExportDialog({ onClose }: { onClose: () => void }) {
   const { project } = useStore();
@@ -14,39 +20,72 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
   const list = useMemo(() => (project ? exportDateList(project) : { plain: "", html: "" }), [project]);
   const week = useMemo(() => (project ? exportWeekOverview(project) : { plain: "", html: "" }), [project]);
+  const gantt = useMemo(() => (project ? buildGantt(project) : null), [project]);
+  const csv = useMemo(() => (project ? exportCsv(project) : ""), [project]);
 
   if (!project) return null;
-  const result = mode === "list" ? list : week;
+  const text = mode === "list" ? list : week;
 
-  const handleCopy = async () => {
+  const copyText = async () => {
     try {
       if (typeof ClipboardItem !== "undefined") {
         await navigator.clipboard.write([
           new ClipboardItem({
-            "text/plain": new Blob([result.plain], { type: "text/plain" }),
-            "text/html": new Blob([result.html], { type: "text/html" }),
+            "text/plain": new Blob([text.plain], { type: "text/plain" }),
+            "text/html": new Blob([text.html], { type: "text/html" }),
           }),
         ]);
       } else {
-        await navigator.clipboard.writeText(result.plain);
+        await navigator.clipboard.writeText(text.plain);
       }
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // clipboard unavailable — preview remains select-text
+      // clipboard unavailable — preview stays select-text
     }
   };
 
+  const downloadPng = () => {
+    if (!gantt) return;
+    const scale = 2;
+    const blob = new Blob([gantt.svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = gantt.width * scale;
+      canvas.height = gantt.height * scale;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((png) => {
+          if (!png) return;
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(png);
+          a.download = `${safeName(project.title)}-gantt.png`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, "image/png");
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  };
+
+  const tabs: [Mode, string][] = [
+    ["list", "List by date"],
+    ["week", "Week overview"],
+    ["gantt", "Gantt"],
+    ["sheet", "Spreadsheet"],
+  ];
+
   return (
-    <Modal title="Export" onClose={onClose} width={560}>
+    <Modal title="Export" onClose={onClose} width={620}>
       <div className="flex flex-col gap-3">
-        <div className="flex overflow-hidden rounded-md border border-hairline self-start" role="group" aria-label="Export type">
-          {(
-            [
-              ["list", "List by date"],
-              ["week", "Week overview"],
-            ] as const
-          ).map(([m, label]) => (
+        <div className="flex flex-wrap overflow-hidden rounded-md border border-hairline self-start" role="group" aria-label="Export type">
+          {tabs.map(([m, label]) => (
             <button
               key={m}
               aria-pressed={mode === m}
@@ -60,25 +99,58 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <div
-          className="max-h-[50vh] min-h-[120px] overflow-y-auto rounded-md border border-hairline bg-paper p-3 text-[13px] leading-relaxed select-text whitespace-pre-line"
-          dangerouslySetInnerHTML={{ __html: result.html || "Nothing to export yet." }}
-        />
+        {(mode === "list" || mode === "week") && (
+          <>
+            <div
+              className="max-h-[50vh] min-h-[120px] overflow-y-auto rounded-md border border-hairline bg-paper p-3 text-[13px] leading-relaxed select-text whitespace-pre-line"
+              dangerouslySetInnerHTML={{ __html: text.html || "Nothing to export yet." }}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+                onClick={copyText}
+              >
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+              <span className="text-[11.5px] text-ink-faint">Pastes with formatting into email or Teams.</span>
+            </div>
+          </>
+        )}
 
-        <div className="flex items-center gap-2">
-          <button
-            className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
-            onClick={handleCopy}
-          >
-            {copied ? "Copied ✓" : "Copy"}
-          </button>
-          <button
-            className="rounded-md border border-hairline px-3 py-1.5 text-[12.5px] font-medium hover:bg-paper"
-            onClick={() => window.print()}
-          >
-            Print / PDF
-          </button>
-        </div>
+        {mode === "gantt" && gantt && (
+          <>
+            <div
+              className="max-h-[50vh] overflow-auto rounded-md border border-hairline bg-paper p-2"
+              dangerouslySetInnerHTML={{ __html: gantt.svg }}
+            />
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+                onClick={downloadPng}
+              >
+                Download PNG
+              </button>
+              <span className="text-[11.5px] text-ink-faint">Drop the image into slides or a Teams message.</span>
+            </div>
+          </>
+        )}
+
+        {mode === "sheet" && (
+          <>
+            <div className="max-h-[50vh] overflow-auto rounded-md border border-hairline bg-paper p-3 font-mono text-[11.5px] leading-relaxed select-text whitespace-pre">
+              {csv || "Nothing to export yet."}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+                onClick={() => downloadFile(`${safeName(project.title)}.csv`, csv, "text/csv")}
+              >
+                Download CSV
+              </button>
+              <span className="text-[11.5px] text-ink-faint">Opens in Excel or Google Sheets.</span>
+            </div>
+          </>
+        )}
       </div>
     </Modal>
   );

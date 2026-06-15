@@ -7,6 +7,7 @@ import { monthKey, todayKey, addDaysKey } from "./dates";
 const INDEX_KEY = "workback:index";
 const PROJECT_PREFIX = "workback:project:";
 const LAST_OPEN_KEY = "workback:lastOpen";
+const LAST_CATEGORY_PREFIX = "workback:lastCategory:";
 
 function safeGet(key: string): string | null {
   try {
@@ -70,6 +71,35 @@ export function deleteProject(id: string): void {
 
 export function lastOpenId(): string | null {
   return safeGet(LAST_OPEN_KEY);
+}
+
+/** Remember the last category used when creating an event, per project, so
+    new events default to the color you just used rather than the first one. */
+export function lastCategoryId(projectId: string): string | null {
+  return safeGet(LAST_CATEGORY_PREFIX + projectId);
+}
+
+export function setLastCategoryId(projectId: string, categoryId: string): void {
+  safeSet(LAST_CATEGORY_PREFIX + projectId, categoryId);
+}
+
+/** Clone a saved project into an independent copy (new id, fresh share state). */
+export function duplicateProject(id: string): Project | null {
+  const src = loadProject(id);
+  if (!src) return null;
+  const now = Date.now();
+  const copy: Project = {
+    ...src,
+    id: uid(),
+    title: `${src.title || "Untitled Workback"} (copy)`,
+    shareId: undefined,
+    createdAt: now,
+    updatedAt: now,
+    categories: src.categories.map((c) => ({ ...c })),
+    events: src.events.map((e) => ({ ...e })),
+  };
+  saveProject(copy);
+  return copy;
 }
 
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;

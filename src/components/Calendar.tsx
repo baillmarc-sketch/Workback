@@ -25,6 +25,8 @@ interface CalendarProps {
   selectedId: string | null;
   downstreamMode: boolean;
   readOnly?: boolean;
+  /** Render exactly these months instead of anchorMonth..monthsVisible (print) */
+  monthsOverride?: string[];
   onSelectEvent: (id: string, rect: DOMRect) => void;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
   onMoreClick: (dayKey: string, hidden: WorkbackEvent[], rect: DOMRect) => void;
@@ -43,6 +45,7 @@ export default function Calendar({
   selectedId,
   downstreamMode,
   readOnly,
+  monthsOverride,
   onSelectEvent,
   onDayClick,
   onMoreClick,
@@ -196,8 +199,12 @@ export default function Calendar({
 
   const warnings = computeWarnings(displayProject.events);
   const months: string[] = [];
-  for (let i = 0; i < project.monthsVisible; i++) {
-    months.push(addMonthsKey(project.anchorMonth, i));
+  if (monthsOverride) {
+    months.push(...monthsOverride);
+  } else {
+    for (let i = 0; i < project.monthsVisible; i++) {
+      months.push(addMonthsKey(project.anchorMonth, i));
+    }
   }
 
   const draggedEvent = draggingId ? project.events.find((ev) => ev.id === draggingId) : null;

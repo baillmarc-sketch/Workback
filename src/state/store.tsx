@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { Project } from "@/lib/types";
 import { saveProject } from "@/lib/storage";
+import { describeChange, pushHistory } from "@/lib/history";
 import { publishProject } from "@/lib/cloud";
 import { pushProject } from "@/lib/account";
 import { useAuth } from "./auth";
@@ -104,7 +105,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const commit = useCallback((up: (p: Project) => Project) => {
     const cur = stateRef.current.project;
     if (!cur) return;
-    dispatch({ type: "commit", project: { ...up(cur), updatedAt: Date.now() } });
+    const next = { ...up(cur), updatedAt: Date.now() };
+    dispatch({ type: "commit", project: next });
+    // Persistent, browsable history (survives reload) — best-effort
+    try {
+      pushHistory(next.id, describeChange(cur, next), next);
+    } catch {}
   }, []);
 
   const patch = useCallback((up: (p: Project) => Project) => {

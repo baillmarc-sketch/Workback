@@ -44,20 +44,29 @@ its calendar span.
   never does); without one it anchors to the project start.
 - **Review rounds** — linked Review + Revisions pairs (48-hour cycle by default, durations
   editable), with "Duplicate round" to chain rounds downstream with the same spacing.
-- **Undo** — ⌘Z / ⇧⌘Z, 20-step history, covers every destructive and multi-event action.
+- **Undo** — ⌘Z / ⇧⌘Z, 20-step in-memory stack, covers every destructive and multi-event
+  action.
+- **History** — a persistent, browsable log (the History button) with human-readable
+  entries ("Moved Shoot Day +2d", "Added Kickoff") and a Restore button on each. It's
+  saved (compressed) per project so you can keep rolling back even after a reload;
+  restoring is itself undoable.
 - **Call times** — give an event "AM", "EOD", or a specific time (e.g. "2:30 PM") via
   "+ Add time" in its popover. AM events sort first within their day, EOD last. Drag
   blocks within a day to reorder them manually — manual order always wins and is never
   snapped back to time order.
+- **New-event color** defaults to the category you last used, with an instant label tag
+  under the swatches (no slow hover tooltip).
+- **Live presence** — on a shared calendar, a banner shows when other people have it open
+  and are editing right now (lightweight heartbeat; no rules change required).
 
 **Sharing & output**
-- **Shared links (text someone the calendar)**: the Share button publishes the project to
-  a Firebase Realtime Database and opens the native share sheet with a short link
-  (`/#p=<id>`). Everyone who opens it edits the *same* calendar — changes push
+- **Shared links**: the **Share** button publishes the project to a Firebase Realtime
+  Database, copies a short link (`/#p=<id>`) to the clipboard, and opens the sharing menu
+  (no native share sheet). Everyone who opens it edits the *same* calendar — changes push
   automatically (debounced) and pull when the tab regains focus. Last write wins; the
   unguessable share ID is the only access control, same model as a private link.
-  If the cloud is unreachable or not configured, Share falls back to a long
-  self-contained `#wb=` link (recipient gets an independent copy).
+  If the cloud is unreachable or not configured, it falls back to a long self-contained
+  `#wb=` link (recipient gets an independent copy).
 - **Accounts (optional)**: Sign in with Google (header button) and your project list syncs
   across devices under `/users/{uid}` in the Workback Firebase project — per-project
   last-write-wins on login and tab focus, deletions propagate via tombstones. The app is
@@ -69,14 +78,21 @@ its calendar span.
   `localStorage["workback:dbUrl"]`.
 - Share codes: project → JSON → lz-string → URL-safe text. Paste into "Load from code" (or
   open `/#wb=<code>`). Also accepts raw project JSON. Warns above ~8 KB.
-- Full project JSON export/import.
-- **Export dialog** — "List by date" (e.g. `06/12/26 - Kickoff`, with `AM -`/`EOD -`
-  prefixes and multi-day events shown once as "(thru MM/DD)") or "Week overview"
-  (`WEEK OF 06/08/26` + one line per event). A Copy button copies formatted rich text
-  (and a plain-text fallback) so it pastes cleanly into email or Teams. Print / PDF
-  is also available from the same dialog, via the print pipeline (print CSS, not canvas
-  screenshots): UI chrome stripped, project header + legend repeated on every page, one
-  month per landscape page, exact category colors.
+- Full project JSON export/import (in the Share menu).
+- **Export** button opens a dialog with four formats:
+  - **List by date** — e.g. `06/12/26 - Kickoff`, with `AM -`/`EOD -` prefixes and
+    multi-day events shown once as "(thru MM/DD)".
+  - **Week overview** — `WEEK OF 06/08/26` + one line per event.
+    (Both copy as formatted rich text with a plain-text fallback, so they paste cleanly
+    into email or Teams.)
+  - **Gantt** — a horizontal timeline (inline SVG: one row per event, bars across a date
+    axis) with a **Download PNG** button for slides/Teams.
+  - **Spreadsheet** — a **Download CSV** (Title, Start, End, Category, Time, Milestone,
+    Notes) that opens in Excel/Sheets.
+- **Print / PDF** button prints every month that actually contains events — full month,
+  one per landscape page, with a large month heading — independent of the 1/2/3-month
+  on-screen view. Uses the print pipeline (print CSS, not canvas screenshots): UI chrome
+  stripped, project header + legend repeated on every page, exact category colors.
 
 ## Labels (categories)
 

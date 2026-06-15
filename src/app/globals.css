@@ -106,9 +106,13 @@ body {
   .month-block {
     break-after: page;
     break-inside: avoid;
+    width: 100% !important;
   }
   .month-block:last-of-type {
     break-after: auto;
+  }
+  .print-month-title {
+    color: #111 !important;
   }
   .event-bar,
   .cat-dot,

@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { deleteRemoteProject } from "@/lib/account";
-import { deleteProject, listProjects, loadProject, newProject, saveProject } from "@/lib/storage";
+import {
+  deleteProject,
+  duplicateProject,
+  listProjects,
+  loadProject,
+  newProject,
+  saveProject,
+} from "@/lib/storage";
 import { TEMPLATES } from "@/lib/templates";
 import { useAuth } from "@/state/auth";
 import { useStore } from "@/state/store";
@@ -82,6 +89,19 @@ export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
                       {new Date(s.updatedAt).toLocaleDateString()}
                     </span>
                   </div>
+                </button>
+                <button
+                  className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-paper hover:text-ink"
+                  title="Make an independent copy"
+                  onClick={() => {
+                    const p = duplicateProject(s.id);
+                    if (p) {
+                      open(p);
+                      onClose();
+                    }
+                  }}
+                >
+                  Duplicate
                 </button>
                 {s.id !== project?.id && (
                   <button

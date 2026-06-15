@@ -13,7 +13,9 @@ import { decodeShareCode, encodeShareCode } from "../src/lib/share.ts";
 import { migrate } from "../src/lib/storage.ts";
 import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR } from "../src/lib/categories.ts";
 import { parseTimeMinutes, compareSameDay } from "../src/lib/eventTime.ts";
-import { exportDateList, exportWeekOverview } from "../src/lib/exportText.ts";
+import { exportDateList, exportWeekOverview, exportCsv } from "../src/lib/exportText.ts";
+import { buildGantt } from "../src/lib/exportGantt.ts";
+import { describeChange } from "../src/lib/history.ts";
 import type { WorkbackEvent, Project } from "../src/lib/types.ts";
 
 let failures = 0;
@@ -337,6 +339,43 @@ const base = [
   check("export week: header present", week.plain.includes("WEEK OF"));
   check("export week: multi-day range line", week.plain.includes("Creative review"));
   check("export week: html has strong header", /<strong>WEEK OF/.test(week.html));
+}
+
+// 14. CSV, Gantt, and history descriptions
+{
+  const proj: Project = migrate({
+    schema: 2,
+    events: [
+      ev("c1", "2026-06-12", "2026-06-12", { title: "Kick, off", time: "AM" }),
+      ev("c2", "2026-06-14", "2026-06-17", { title: "Creative review", isMilestone: true }),
+    ],
+  });
+
+  const csv = exportCsv(proj);
+  const lines = csv.split("\r\n");
+  check("csv: header row", lines[0] === "Title,Start,End,Category,Time,Milestone,Notes");
+  check("csv: quotes fields with commas", lines[1].startsWith('"Kick, off",2026-06-12'));
+  check("csv: milestone flagged", lines[2].includes(",Yes,"));
+  check("csv: AM time column", lines[1].includes(",AM,"));
+
+  const g = buildGantt(proj);
+  check("gantt: svg root", g.svg.startsWith("<svg") && g.svg.includes("</svg>"));
+  check("gantt: positive dimensions", g.width > 0 && g.height > 0);
+  check("gantt: escapes title", g.svg.includes("Kick, off"));
+  const emptyG = buildGantt(migrate({ schema: 2, events: [] }));
+  check("gantt: empty project still renders", emptyG.svg.startsWith("<svg"));
+
+  // describeChange
+  const a = migrate({ schema: 2, events: [ev("x", "2026-06-01", "2026-06-01", { title: "Alpha" })] });
+  const added = { ...a, events: [...a.events, ev("y", "2026-06-02", "2026-06-02", { title: "Beta" })] };
+  check("history: describes add", describeChange(a, added) === "Added “Beta”");
+  check("history: describes delete", describeChange(added, a) === "Deleted “Beta”");
+  const moved = { ...a, events: [{ ...a.events[0], startDate: "2026-06-03", endDate: "2026-06-03" }] };
+  check("history: describes move", describeChange(a, moved) === "Moved “Alpha” +2d");
+  const renamed = { ...a, events: [{ ...a.events[0], title: "Renamed" }] };
+  check("history: describes edit", describeChange(a, renamed).startsWith("Edited"));
+  const titled = { ...a, title: "New Title" };
+  check("history: describes project details", describeChange(a, titled) === "Edited project details");
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

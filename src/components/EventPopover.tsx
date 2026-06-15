@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { categoryOf } from "@/lib/categories";
 import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
+import { setLastCategoryId } from "@/lib/storage";
 import { countRounds, duplicateRound } from "@/lib/workback";
 import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
@@ -126,11 +126,11 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           <CategorySwatches
             categories={categories}
             value={event.category}
-            onChange={(id) => update({ category: id })}
+            onChange={(id) => {
+              update({ category: id });
+              if (project) setLastCategoryId(project.id, id);
+            }}
           />
-          <div className="mt-1 text-[11.5px] text-ink-soft">
-            {categoryOf(categories, event.category).label}
-          </div>
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">

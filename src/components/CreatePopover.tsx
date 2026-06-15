@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { fmtLong, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
+import { lastCategoryId, setLastCategoryId } from "@/lib/storage";
 import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -20,7 +21,10 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
   const { project, commit } = useStore();
   const categories = project?.categories ?? [];
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState(categories[0]?.id ?? "");
+  const [category, setCategory] = useState(() => {
+    const last = project ? lastCategoryId(project.id) : null;
+    return last && categories.some((c) => c.id === last) ? last : categories[0]?.id ?? "";
+  });
   const [isMilestone, setIsMilestone] = useState(false);
   const [includeWeekends, setIncludeWeekends] = useState(true);
 
@@ -39,6 +43,7 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
       skipWeekends: includeWeekends ? undefined : true,
     };
     commit((p) => ({ ...p, events: [...p.events, ev] }));
+    if (project) setLastCategoryId(project.id, category);
     onCreated(ev.id);
     onClose();
   };

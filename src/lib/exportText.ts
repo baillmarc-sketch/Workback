@@ -65,7 +65,30 @@ export function exportDateList(project: Project): ExportResult {
   };
 }
 
-/** Week-of overview: one header per week with a line per event */
+function csvCell(s: string): string {
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Spreadsheet export: one row per event, opens cleanly in Excel/Sheets */
+export function exportCsv(project: Project): string {
+  const labelOf = new Map(project.categories.map((c) => [c.id, c.label]));
+  const sorted = [...project.events].sort((a, b) =>
+    a.startDate !== b.startDate ? (a.startDate < b.startDate ? -1 : 1) : compareSameDay(a, b)
+  );
+  const rows: string[][] = [["Title", "Start", "End", "Category", "Time", "Milestone", "Notes"]];
+  for (const e of sorted) {
+    rows.push([
+      e.title,
+      e.startDate,
+      e.endDate,
+      labelOf.get(e.category) ?? e.category,
+      e.time ?? "",
+      e.isMilestone ? "Yes" : "",
+      e.description ?? "",
+    ]);
+  }
+  return rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+}
 export function exportWeekOverview(project: Project): ExportResult {
   const weekGroups = new Map<string, WorkbackEvent[]>();
   for (const e of project.events) {
