@@ -86,7 +86,7 @@ export default function EventBar({
         e.stopPropagation();
         onSelect(event.id, (e.currentTarget as HTMLElement).getBoundingClientRect());
       }}
-      title={event.title}
+      title={event.time ? `${event.time} · ${event.title}` : event.title}
     >
       {/* Resize handles on true start/end edges only */}
       {!readOnly && !event.locked && !continuesLeft && (
@@ -130,7 +130,10 @@ export default function EventBar({
             <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
           </svg>
         )}
-        <span className="truncate">{event.title}</span>
+        <span className="truncate">
+          {event.time && <span className="opacity-70">{event.time} · </span>}
+          {event.title}
+        </span>
       </span>
     </div>
   );

@@ -58,6 +58,18 @@ export function fmtLong(key: string): string {
   return format(fromKey(key), "EEE, MMM d, yyyy");
 }
 
+export function fmtSlash(key: string): string {
+  return format(fromKey(key), "MM/dd/yy");
+}
+
+export function fmtSlashMD(key: string): string {
+  return format(fromKey(key), "MM/dd");
+}
+
+export function fmtDowMD(key: string): string {
+  return format(fromKey(key), "EEE MM/dd");
+}
+
 export function isWeekendKey(key: string): boolean {
   const dow = fromKey(key).getDay();
   return dow === 0 || dow === 6;

@@ -20,6 +20,7 @@ import Calendar from "./Calendar";
 import CompressDialog from "./CompressDialog";
 import CreatePopover from "./CreatePopover";
 import EventPopover from "./EventPopover";
+import ExportDialog from "./ExportDialog";
 import Header from "./Header";
 import Legend from "./Legend";
 import MorePopover from "./MorePopover";
@@ -29,7 +30,7 @@ import ShareDialog from "./ShareDialog";
 import Toolbar from "./Toolbar";
 
 type Anchor = { left: number; top: number; right: number; bottom: number };
-type Dialog = "share" | "compress" | "round" | "projects" | null;
+type Dialog = "share" | "compress" | "round" | "projects" | "export" | null;
 
 function rectToAnchor(r: DOMRect): Anchor {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
@@ -335,6 +336,7 @@ export default function App() {
         onCompress={() => setDialog("compress")}
         onShare={() => setDialog("share")}
         onShareLink={handleShareLink}
+        onExport={() => setDialog("export")}
       />
 
       {project.showLegend && (
@@ -396,6 +398,7 @@ export default function App() {
       {dialog === "compress" && <CompressDialog onClose={() => setDialog(null)} />}
       {dialog === "round" && <ReviewRoundDialog onClose={() => setDialog(null)} />}
       {dialog === "projects" && <ProjectsDialog onClose={() => setDialog(null)} />}
+      {dialog === "export" && <ExportDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div

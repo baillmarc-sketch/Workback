@@ -1,5 +1,6 @@
 import type { WorkbackEvent } from "./types";
 import { addDaysKey, diffDays, isWeekendKey, maxKey, minKey } from "./dates";
+import { inDayKey } from "./eventTime";
 
 export interface Segment {
   event: WorkbackEvent;
@@ -22,8 +23,10 @@ export interface WeekLayout {
 export const MAX_LANES = 6;
 
 /**
- * Lay out all events intersecting a week into lanes. Milestones always sort
- * to the top of their day; remaining order is start date, then longer first.
+ * Lay out all events intersecting a week into lanes. Milestones sort to the
+ * top of their day until that day is manually reordered (dayOrder set);
+ * multi-day bars keep longer-first stacking; same-day single-day events
+ * follow time bands (AM first, EOD last) unless the user reordered them.
  */
 export function layoutWeek(
   events: WorkbackEvent[],
@@ -34,12 +37,20 @@ export function layoutWeek(
     (e) => e.startDate <= weekEnd && e.endDate >= weekStart
   );
 
+  // Key tuple keeps the sort transitive: pinned milestones, then start date,
+  // then within a start date multi-day bars longer-first (negative rank)
+  // ahead of single-day events ordered by dayOrder/time (non-negative rank)
+  const pin = (e: WorkbackEvent) => (e.isMilestone && e.dayOrder == null ? 0 : 1);
+  const sameStartRank = (e: WorkbackEvent) =>
+    e.startDate !== e.endDate ? -diffDays(e.startDate, e.endDate) : inDayKey(e);
   const sorted = [...intersecting].sort((a, b) => {
-    if (a.isMilestone !== b.isMilestone) return a.isMilestone ? -1 : 1;
+    const pa = pin(a);
+    const pb = pin(b);
+    if (pa !== pb) return pa - pb;
     if (a.startDate !== b.startDate) return a.startDate < b.startDate ? -1 : 1;
-    const lenA = diffDays(a.startDate, a.endDate);
-    const lenB = diffDays(b.startDate, b.endDate);
-    if (lenA !== lenB) return lenB - lenA;
+    const ka = sameStartRank(a);
+    const kb = sameStartRank(b);
+    if (ka !== kb) return ka - kb;
     return a.id < b.id ? -1 : 1;
   });
 

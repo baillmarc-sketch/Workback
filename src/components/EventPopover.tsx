@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { categoryOf } from "@/lib/categories";
 import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
@@ -23,6 +24,7 @@ const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-
 export default function EventPopover({ event, anchor, onClose }: EventPopoverProps) {
   const { project, commit } = useStore();
   const categories = project?.categories ?? [];
+  const [showTime, setShowTime] = useState(!!event.time);
 
   const update = (patch: Partial<WorkbackEvent>) =>
     commit((p) => ({
@@ -53,6 +55,49 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           placeholder="Description (optional)"
           onChange={(e) => update({ description: e.target.value || undefined })}
         />
+
+        {!showTime ? (
+          <button
+            className="self-start text-[12px] font-medium text-ink-soft hover:text-ink"
+            onClick={() => setShowTime(true)}
+          >
+            + Add time
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            {(["AM", "EOD"] as const).map((t) => (
+              <button
+                key={t}
+                aria-pressed={event.time?.toUpperCase() === t}
+                className={`rounded-md border px-2 py-1 text-[12px] font-medium ${
+                  event.time?.toUpperCase() === t
+                    ? "border-ink bg-ink text-paper"
+                    : "border-hairline bg-paper text-ink-soft hover:text-ink"
+                }`}
+                onClick={() =>
+                  update({ time: event.time?.toUpperCase() === t ? undefined : t, dayOrder: undefined })
+                }
+              >
+                {t}
+              </button>
+            ))}
+            <input
+              className={`${inputCls} flex-1`}
+              placeholder="2:30 PM"
+              value={event.time && event.time.toUpperCase() !== "AM" && event.time.toUpperCase() !== "EOD" ? event.time : ""}
+              onChange={(e) => update({ time: e.target.value || undefined, dayOrder: undefined })}
+            />
+            {event.time && (
+              <button
+                className="text-[12px] font-medium text-ink-faint hover:text-ink"
+                aria-label="Clear time"
+                onClick={() => update({ time: undefined, dayOrder: undefined })}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <div>

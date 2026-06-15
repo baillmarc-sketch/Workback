@@ -42,7 +42,8 @@ complete workback as JSON for an app called Workback Builder.
       "category": "creative",
       "isMilestone": false,
       "locked": false,
-      "skipWeekends": false
+      "skipWeekends": false,
+      "time": "AM"
     }
   ]
 }
@@ -60,6 +61,9 @@ complete workback as JSON for an app called Workback Builder.
   (the app will then protect that date during reschedules). Lock any other immovable
   dates too (e.g. a confirmed shoot or air date).
 - Mark shoot days, launches, and other headline moments `isMilestone: true`.
+- Optional `"time"` on an event: `"AM"`, `"EOD"`, or a clock time like `"2:30 PM"`.
+  AM events sort first within their day, EOD last. Omit it if the event has no
+  particular call time.
 - Set `skipWeekends: true` on working blocks that shouldn't bill weekend days (edits,
   pre-pro, revisions). Those events must start and end on weekdays. Leave it `false`
   for shoots, reviews, and anything spanning a weekend on purpose.

@@ -25,6 +25,10 @@ export interface WorkbackEvent {
   /** Links the Review/Revisions pair of a review round */
   roundId?: string;
   roundRole?: "review" | "revisions";
+  /** Time label: "AM", "EOD", or freeform like "2:30 PM" */
+  time?: string;
+  /** Manual same-day order override (single-day events); wins over time rank */
+  dayOrder?: number;
 }
 
 export interface Project {

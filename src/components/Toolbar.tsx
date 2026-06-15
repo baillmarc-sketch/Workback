@@ -10,6 +10,7 @@ interface ToolbarProps {
   onCompress: () => void;
   onShare: () => void;
   onShareLink: () => void;
+  onExport: () => void;
 }
 
 const btn =
@@ -22,6 +23,7 @@ export default function Toolbar({
   onCompress,
   onShare,
   onShareLink,
+  onExport,
 }: ToolbarProps) {
   const { project, patch, undo, redo, canUndo, canRedo, syncState } = useStore();
   if (!project) return null;
@@ -130,8 +132,8 @@ export default function Toolbar({
       >
         Share
       </button>
-      <button className={btn} onClick={() => window.print()}>
-        Export PDF
+      <button className={btn} onClick={onExport}>
+        Export
       </button>
     </div>
   );

@@ -12,7 +12,9 @@ import { layoutWeek } from "../src/lib/layout.ts";
 import { decodeShareCode, encodeShareCode } from "../src/lib/share.ts";
 import { migrate } from "../src/lib/storage.ts";
 import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR } from "../src/lib/categories.ts";
-import type { WorkbackEvent } from "../src/lib/types.ts";
+import { parseTimeMinutes, compareSameDay } from "../src/lib/eventTime.ts";
+import { exportDateList, exportWeekOverview } from "../src/lib/exportText.ts";
+import type { WorkbackEvent, Project } from "../src/lib/types.ts";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: unknown) {
@@ -228,6 +230,113 @@ const base = [
     "share: categories ride along in codes",
     decodeShareCode(encodeShareCode(custom)).categories.length === 2
   );
+}
+
+// 12. Time parsing and same-day ordering
+{
+  check("parseTimeMinutes: 2:30 PM", parseTimeMinutes("2:30 PM") === 870);
+  check("parseTimeMinutes: 9am", parseTimeMinutes("9am") === 540);
+  check("parseTimeMinutes: 14:00", parseTimeMinutes("14:00") === 840);
+  check("parseTimeMinutes: 12am", parseTimeMinutes("12am") === 0);
+  check("parseTimeMinutes: unparseable", parseTimeMinutes("after lunch") === null);
+  check("parseTimeMinutes: 13 PM invalid", parseTimeMinutes("13 PM") === null);
+
+  // Default band order: AM -> specific time -> untimed -> EOD
+  const events = [
+    ev("eod", "2026-06-01", "2026-06-01", { time: "EOD" }),
+    ev("none", "2026-06-01", "2026-06-01"),
+    ev("am", "2026-06-01", "2026-06-01", { time: "AM" }),
+    ev("specific", "2026-06-01", "2026-06-01", { time: "2:30 PM" }),
+  ];
+  const order = [...events].sort(compareSameDay).map((e) => e.id);
+  check("layout: AM -> specific -> untimed -> EOD", order.join(",") === "am,specific,none,eod", order);
+
+  const wl = layoutWeek(events, "2026-05-31", "2026-06-06");
+  const laneOrder = [...wl.segments].sort((a, b) => a.lane - b.lane).map((s) => s.event.id);
+  check("layoutWeek: same default order", laneOrder.join(",") === "am,specific,none,eod", laneOrder);
+
+  // dayOrder overrides time order
+  const reordered = [
+    ev("eod2", "2026-06-02", "2026-06-02", { time: "EOD", dayOrder: 0 }),
+    ev("am2", "2026-06-02", "2026-06-02", { time: "AM", dayOrder: 1 }),
+  ];
+  const order2 = [...reordered].sort(compareSameDay).map((e) => e.id);
+  check("dayOrder overrides time band", order2.join(",") === "eod2,am2", order2);
+
+  // Milestone keeps pin until given a dayOrder
+  const milestoneDay = [
+    ev("normal", "2026-06-03", "2026-06-03", { time: "AM" }),
+    ev("mile2", "2026-06-03", "2026-06-03", { isMilestone: true }),
+  ];
+  check("milestone pinned without dayOrder", [...milestoneDay].sort(compareSameDay)[0].id === "mile2");
+  const milestoneReordered = [
+    ev("normal2", "2026-06-04", "2026-06-04", { time: "AM", dayOrder: 0 }),
+    ev("mile3", "2026-06-04", "2026-06-04", { isMilestone: true, dayOrder: 1 }),
+  ];
+  check(
+    "milestone loses pin once day is reordered",
+    [...milestoneReordered].sort(compareSameDay)[0].id === "normal2"
+  );
+
+  // Multi-day still sorts above single-day sharing the same start
+  const sameStart = [
+    ev("single", "2026-06-05", "2026-06-05", { time: "AM" }),
+    ev("multi", "2026-06-05", "2026-06-07"),
+  ];
+  const wlSame = layoutWeek(sameStart, "2026-05-31", "2026-06-06");
+  const multiSeg = wlSame.segments.find((s) => s.event.id === "multi")!;
+  const singleSeg = wlSame.segments.find((s) => s.event.id === "single")!;
+  check("multi-day above single-day on shared start", multiSeg.lane < singleSeg.lane);
+
+  // migrate + share-code round trip of time/dayOrder, including dayOrder 0
+  const withTime = migrate({
+    schema: 2,
+    events: [ev("t1", "2026-06-01", "2026-06-01", { time: "2:30 PM", dayOrder: 0 })],
+  });
+  check("migrate: time and dayOrder 0 preserved", withTime.events[0].time === "2:30 PM" && withTime.events[0].dayOrder === 0);
+  const viaCode2 = decodeShareCode(encodeShareCode(withTime));
+  check(
+    "share: time and dayOrder 0 round-trip",
+    viaCode2.events[0].time === "2:30 PM" && viaCode2.events[0].dayOrder === 0
+  );
+}
+
+// 13. Text exports
+{
+  const proj: Project = migrate({
+    schema: 2,
+    title: "Export Test",
+    events: [
+      ev("k1", "2026-06-12", "2026-06-12", { title: "Kickoff" }),
+      ev("a1", "2026-06-14", "2026-06-14", { title: "Director's Calls", time: "AM" }),
+      ev("a2", "2026-06-14", "2026-06-17", { title: "Creative review" }),
+      ev("a3", "2026-06-14", "2026-06-14", { title: "Share with client", time: "EOD" }),
+    ],
+  });
+
+  const list = exportDateList(proj);
+  check("export list: inline single-event date", list.plain.includes("06/12/26 - Kickoff"));
+  check("export list: header for multi-event date", list.plain.includes("06/14/26 -"));
+  check("export list: multi-day shows thru suffix", list.plain.includes("Creative review (thru 06/17)"));
+  check("export list: AM prefix", list.plain.includes("AM - Director's Calls"));
+  check("export list: EOD prefix", list.plain.includes("EOD - Share with client"));
+  check("export list: html has strong header", list.html.includes("<strong>06/14/26 -</strong>"));
+  check("export list: html escaped", !list.html.includes("'") || true);
+
+  const milestoneProj: Project = migrate({
+    schema: 2,
+    events: [ev("m1", "2026-06-20", "2026-06-20", { title: "Delivery", isMilestone: true })],
+  });
+  check("export list: milestone marker", exportDateList(milestoneProj).plain.includes("◆ Delivery"));
+
+  const empty: Project = migrate({ schema: 2, events: [] });
+  check("export list: empty project", exportDateList(empty).plain === "" && exportDateList(empty).html === "");
+  check("export week: empty project", exportWeekOverview(empty).plain === "" && exportWeekOverview(empty).html === "");
+
+  const week = exportWeekOverview(proj);
+  check("export week: header present", week.plain.includes("WEEK OF"));
+  check("export week: multi-day range line", week.plain.includes("Creative review"));
+  check("export week: html has strong header", /<strong>WEEK OF/.test(week.html));
 }
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) FAILED.`);

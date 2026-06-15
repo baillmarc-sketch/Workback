@@ -13,6 +13,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { addMonthsKey, diffDays } from "@/lib/dates";
+import { compareSameDay } from "@/lib/eventTime";
 import { moveEvent, resizeEvent, warningIds as computeWarnings } from "@/lib/workback";
 import { catText, categoryOf } from "@/lib/categories";
 import type { Project, WorkbackEvent } from "@/lib/types";
@@ -51,6 +52,7 @@ export default function Calendar({
   const [shiftedIds, setShiftedIds] = useState<Set<string>>(new Set());
   const [resizing, setResizing] = useState<{ id: string; edge: "start" | "end"; dayKey: string } | null>(null);
   const grabDayRef = useRef<string | null>(null);
+  const grabPointRef = useRef<{ x: number; y: number } | null>(null);
   const shiftKeyRef = useRef(false);
   const shiftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -94,6 +96,43 @@ export default function Calendar({
       point = { x: act.clientX, y: act.clientY };
     }
     grabDayRef.current = point ? dayKeyAtPoint(point.x, point.y) : null;
+    grabPointRef.current = point;
+  }
+
+  // Same-day reorder: drop point = grab point + drag delta. Only single-day
+  // events participate; other single-day events that day are measured via
+  // their rendered bars to find the insertion index.
+  function reorderSameDay(eventId: string, dayKey: string, dropY: number) {
+    const event = project.events.find((ev) => ev.id === eventId);
+    if (!event || event.startDate !== event.endDate) return;
+
+    const dayEvents = project.events
+      .filter((ev) => ev.startDate === dayKey && ev.endDate === dayKey)
+      .sort(compareSameDay);
+    const others = dayEvents.filter((ev) => ev.id !== eventId);
+
+    let insertIndex = others.length;
+    for (let i = 0; i < others.length; i++) {
+      const el = document.querySelector(`[data-event-id="${others[i].id}"]`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (dropY < (rect.top + rect.bottom) / 2) {
+        insertIndex = i;
+        break;
+      }
+    }
+
+    const newOrder = [...others];
+    newOrder.splice(insertIndex, 0, event);
+    if (newOrder.every((ev, i) => ev.id === dayEvents[i]?.id)) return;
+
+    commit((p) => ({
+      ...p,
+      events: p.events.map((ev) => {
+        const idx = newOrder.findIndex((o) => o.id === ev.id);
+        return idx >= 0 ? { ...ev, dayOrder: idx } : ev;
+      }),
+    }));
   }
 
   function handleDragEnd(e: DragEndEvent) {
@@ -101,8 +140,15 @@ export default function Calendar({
     setDraggingId(null);
     const overDay = e.over?.data.current?.dayKey as string | undefined;
     const fromDay = grabDayRef.current;
+    const grabPoint = grabPointRef.current;
     grabDayRef.current = null;
-    if (!overDay || !fromDay || overDay === fromDay) return;
+    grabPointRef.current = null;
+    if (!overDay || !fromDay) return;
+
+    if (overDay === fromDay) {
+      if (grabPoint) reorderSameDay(eventId, fromDay, grabPoint.y + e.delta.y);
+      return;
+    }
 
     const delta = diffDays(fromDay, overDay);
     const downstream = downstreamMode || shiftKeyRef.current;

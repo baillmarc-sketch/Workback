@@ -45,6 +45,10 @@ its calendar span.
 - **Review rounds** — linked Review + Revisions pairs (48-hour cycle by default, durations
   editable), with "Duplicate round" to chain rounds downstream with the same spacing.
 - **Undo** — ⌘Z / ⇧⌘Z, 20-step history, covers every destructive and multi-event action.
+- **Call times** — give an event "AM", "EOD", or a specific time (e.g. "2:30 PM") via
+  "+ Add time" in its popover. AM events sort first within their day, EOD last. Drag
+  blocks within a day to reorder them manually — manual order always wins and is never
+  snapped back to time order.
 
 **Sharing & output**
 - **Shared links (text someone the calendar)**: the Share button publishes the project to
@@ -66,9 +70,13 @@ its calendar span.
 - Share codes: project → JSON → lz-string → URL-safe text. Paste into "Load from code" (or
   open `/#wb=<code>`). Also accepts raw project JSON. Warns above ~8 KB.
 - Full project JSON export/import.
-- **Export PDF** via the print pipeline (print CSS, not canvas screenshots): UI chrome
-  stripped, project header + legend repeated on every page, one month per landscape page,
-  exact category colors.
+- **Export dialog** — "List by date" (e.g. `06/12/26 - Kickoff`, with `AM -`/`EOD -`
+  prefixes and multi-day events shown once as "(thru MM/DD)") or "Week overview"
+  (`WEEK OF 06/08/26` + one line per event). A Copy button copies formatted rich text
+  (and a plain-text fallback) so it pastes cleanly into email or Teams. Print / PDF
+  is also available from the same dialog, via the print pipeline (print CSS, not canvas
+  screenshots): UI chrome stripped, project header + legend repeated on every page, one
+  month per landscape page, exact category colors.
 
 ## Labels (categories)
 

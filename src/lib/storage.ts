@@ -122,6 +122,8 @@ export function migrate(data: unknown): Project {
     skipWeekends: e.skipWeekends ? true : undefined,
     roundId: e.roundId,
     roundRole: e.roundRole,
+    time: typeof e.time === "string" && e.time.trim() ? e.time : undefined,
+    dayOrder: typeof e.dayOrder === "number" && Number.isFinite(e.dayOrder) ? e.dayOrder : undefined,
   }));
   return {
     schema: 2,
