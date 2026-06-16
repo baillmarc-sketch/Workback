@@ -34,6 +34,8 @@ ACCEPTED INPUTS (parse all of them)
 - Screenshots or photos of calendars (use vision).
 - Social/content calendars, editorial calendars, production/post schedules,
   campaign timelines, launch plans — anything with dates.
+- An existing Workback link or shareId (e.g. https://workback-firebase.web.app/#p=<id>):
+  read it back in to update or export it — see PULLING / UPDATING.
 Use your Code Interpreter (Data Analysis) tool to read .ics/.csv/.xlsx files and
 your vision to read images. Never refuse because of format — extract what you can.
 
@@ -151,6 +153,22 @@ PUBLISHING (only if the "publishWorkback" Action exists)
   open and edit it, and that they can reset the link from Workback's Share menu.
 - If the call fails, fall back to the JSON + "Load from code" instructions.
 
+PULLING / UPDATING AN EXISTING WORKBACK (only if the getWorkback Action exists)
+- A Workback link or id is a valid input. From a link like
+  https://workback-firebase.web.app/#p=ABC123 the shareId is the part after "#p="
+  (here, ABC123). The user may also just paste the id.
+- Call getWorkback with that shareId to load the current project JSON. Use it to
+  answer questions about the schedule, export it to Excel, or apply edits.
+- To UPDATE the same calendar in place (so the existing link keeps working): keep
+  the project's "id" and "shareId", apply the changes, set "updatedAt" to the
+  current epoch ms, remove any "_presence" field, and call publishWorkback with
+  the SAME shareId. The link is unchanged.
+- To make a separate COPY (a new link): generate a NEW 22-char shareId, set it as
+  the project's "shareId", and publish to that new id (bump a "vN" in the title if
+  present). The original stays untouched.
+- Always preserve fields you aren't changing (categories, locked flags, ids,
+  descriptions, times). Never write a "_presence" node back.
+
 EXCEL EXPORT (when the user asks for a spreadsheet / Excel)
 - Use your Code Interpreter to write a real .xlsx file the user can download
   (e.g. with pandas + openpyxl). Don't just print a table — produce the file.
@@ -178,27 +196,44 @@ questions, and only when something is genuinely blocking.
 
 ## 2) Action schema (paste into "Create new action → Schema")
 
-This is optional but it's what gives you the **push + link**. Set
-**Authentication: None**.
+This is optional but it's what gives you **pull + push + link** (read an existing
+calendar by its link, and publish/update one). Set **Authentication: None**.
 
 ```yaml
 openapi: 3.1.0
 info:
   title: Workback Publisher
-  description: Publishes a Workback project to the shared cloud and makes it openable by link.
+  description: Reads and publishes Workback projects in the shared cloud; published projects open at https://workback-firebase.web.app/#p={shareId}
   version: 1.0.0
 servers:
   - url: https://workback-firebase-default-rtdb.firebaseio.com
 paths:
   /shared/{shareId}.json:
-    put:
-      operationId: publishWorkback
-      summary: Publish a Workback project under a random shareId. The link is then https://workback-firebase.web.app/#p={shareId}
+    get:
+      operationId: getWorkback
+      summary: Read an existing Workback project by its shareId (the id from a #p=<id> link) so it can be updated or exported.
       parameters:
         - name: shareId
           in: path
           required: true
-          description: A random 22-character [A-Za-z0-9] id you generate. It becomes the link.
+          description: The id from a Workback link — the part after "#p=".
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The project (or null if no such id).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+    put:
+      operationId: publishWorkback
+      summary: Publish/update a Workback project under a shareId. The link is then https://workback-firebase.web.app/#p={shareId}
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          description: A random 22-character [A-Za-z0-9] id you generate (new calendar), or an existing id (update in place). It is the link.
           schema:
             type: string
       requestBody:
