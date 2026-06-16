@@ -1,41 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { parseAppFromHash, type ActiveApp } from "@/lib/toolkit";
+import { isToolkitUnlocked, parseAppFromHash, type ActiveApp } from "@/lib/toolkit";
 import { ProjectProvider } from "@/state/store";
 import { EstimateProvider } from "@/state/estimateStore";
 import AppGate from "./AppGate";
 import App from "./App";
 import ToolkitHome from "./ToolkitHome";
+import ToolkitLockButton from "./ToolkitLockButton";
 import EstimatorApp from "./estimator/EstimatorApp";
 
 /**
- * Platform shell: reads the URL hash, picks the active app, and mounts ONLY
- * that app's provider so the two stores never coexist. Auth lives above this in
- * page.tsx and is shared by every app. Legacy Workback deep links (`#p=`,
- * `#wb=`) resolve to Workback via parseAppFromHash, so nothing breaks.
+ * Platform shell. Workback is the default landing; the app launcher ("home")
+ * and the Estimator sit behind a password lock (the "Locked: Toolkit" button on
+ * the Workback view). A shared estimate link (`#e=`) always opens — it carries
+ * its own unguessable share ID, so it bypasses the lock for recipients.
+ *
+ * Only the active app's provider mounts; auth lives above this in page.tsx and
+ * is shared by every app.
  */
 export default function Toolkit() {
-  // Start at "home" for a deterministic server/first render; the effect syncs
-  // to the real hash on mount (and on every hashchange) to avoid hydration drift.
-  const [active, setActive] = useState<ActiveApp>("home");
+  // Track the raw hash so we can tell a shared "#e=" link from "#app=estimator".
+  const [hash, setHash] = useState("");
+  // Bumped after a successful unlock so the shell re-reads the unlock flag.
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    const sync = () => setActive(parseAppFromHash(window.location.hash));
+    const sync = () => {
+      setHash(window.location.hash);
+      setTick((n) => n + 1);
+    };
     sync();
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
 
-  if (active === "workback") {
-    return (
-      <AppGate appId="workback">
-        <ProjectProvider>
-          <App />
-        </ProjectProvider>
-      </AppGate>
-    );
-  }
+  const requested: ActiveApp = parseAppFromHash(hash);
+  const unlocked = isToolkitUnlocked();
+  const isSharedEstimate = hash.startsWith("#e=");
+
+  // Resolve the locked routes down to Workback unless the toolkit is unlocked.
+  let active: ActiveApp = requested;
+  if (requested === "home" && !unlocked) active = "workback";
+  if (requested === "estimator" && !unlocked && !isSharedEstimate) active = "workback";
 
   if (active === "estimator") {
     return (
@@ -47,5 +54,16 @@ export default function Toolkit() {
     );
   }
 
-  return <ToolkitHome />;
+  if (active === "home") {
+    return <ToolkitHome />;
+  }
+
+  return (
+    <AppGate appId="workback">
+      <ProjectProvider>
+        <App />
+      </ProjectProvider>
+      <ToolkitLockButton />
+    </AppGate>
+  );
 }

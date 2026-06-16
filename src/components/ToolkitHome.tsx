@@ -1,6 +1,6 @@
 "use client";
 
-import { APPS, setApp } from "@/lib/toolkit";
+import { APPS, lockToolkit, setApp } from "@/lib/toolkit";
 import AccountButton from "./AccountButton";
 
 /** The platform launcher: a card per app, plus a hint that more are coming. */
@@ -40,6 +40,22 @@ export default function ToolkitHome() {
         <div className="flex items-center justify-center rounded-xl border border-dashed border-hairline p-5 text-center text-[12.5px] text-ink-faint">
           More tools coming soon
         </div>
+      </div>
+
+      <div className="mt-8 flex items-center justify-between text-[11px] text-ink-faint">
+        <button className="hover:text-ink-soft" onClick={() => setApp("workback")}>
+          ← Back to Workback
+        </button>
+        <button
+          className="hover:text-ink-soft"
+          title="Hide the toolkit again — you'll need the password to reopen it"
+          onClick={() => {
+            lockToolkit();
+            setApp("workback");
+          }}
+        >
+          🔒 Lock toolkit
+        </button>
       </div>
     </div>
   );

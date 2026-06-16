@@ -44,25 +44,60 @@ export function appInfo(id: AppId): AppInfo {
 }
 
 /**
- * Decide which app the current hash selects. Any legacy Workback token wins
- * regardless of `#app=`, so existing shared/deep links never break.
+ * Decide which app the current hash selects. Workback is the default landing
+ * (empty/unknown hash). The launcher ("home") lives behind `#app=home` and is
+ * password-gated (see the lock helpers below). Any legacy Workback token wins,
+ * so existing shared/deep links never break.
  */
 export function parseAppFromHash(hash: string): ActiveApp {
   const h = hash.startsWith("#") ? hash.slice(1) : hash;
   if (h.startsWith("p=") || h.startsWith("wb=")) return "workback";
   if (h.startsWith("e=")) return "estimator";
-  if (h === "app=workback") return "workback";
+  if (h === "app=home") return "home";
   if (h === "app=estimator") return "estimator";
-  return "home";
+  if (h === "app=workback") return "workback";
+  return "workback";
 }
 
 /** Navigate to an app (or the launcher) by setting the hash. */
 export function setApp(app: ActiveApp): void {
-  if (app === "home") {
+  if (app === "workback") {
     // Clear the hash without leaving a "#" that re-triggers routing.
     history.replaceState(null, "", location.pathname + location.search);
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     return;
   }
   location.hash = `app=${app}`;
+}
+
+// --- Toolkit lock ---
+// The launcher is hidden behind a "Locked: Toolkit" button + password. This is
+// intentional obscurity (not real security — shared estimate links carry their
+// own unguessable IDs); it just keeps the toolkit out of sight for casual
+// viewers of the Workback calendar.
+
+const UNLOCK_KEY = "toolkit:unlocked";
+const TOOLKIT_PASSWORD = "stolen";
+
+export function isToolkitUnlocked(): boolean {
+  try {
+    return localStorage.getItem(UNLOCK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Returns true and persists the unlock when the password matches. */
+export function tryUnlockToolkit(password: string): boolean {
+  if (password.trim().toLowerCase() !== TOOLKIT_PASSWORD) return false;
+  try {
+    localStorage.setItem(UNLOCK_KEY, "1");
+  } catch {}
+  return true;
+}
+
+export function lockToolkit(): void {
+  try {
+    localStorage.removeItem(UNLOCK_KEY);
+  } catch {}
 }
