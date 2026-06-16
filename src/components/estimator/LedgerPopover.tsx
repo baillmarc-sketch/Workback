@@ -47,9 +47,11 @@ function toRows(entries: LedgerEntry[]): Row[] {
  */
 export default function LedgerPopover({ lineItemId, kind, lineItemLabel, currency, anchor, onClose }: LedgerPopoverProps) {
   const { estimate, commit } = useEstimate();
-  const [rows, setRows] = useState<Row[]>(() =>
-    toRows((estimate?.ledger ?? []).filter((x) => x.lineItemId === lineItemId && x.kind === kind))
-  );
+  const [rows, setRows] = useState<Row[]>(() => {
+    const existing = toRows((estimate?.ledger ?? []).filter((x) => x.lineItemId === lineItemId && x.kind === kind));
+    // Open ready to type: an empty cell starts with one blank row focused.
+    return existing.length ? existing : [{ id: uid(), amountText: "", ref: "", vendor: "", date: "" }];
+  });
 
   const noun = kind === "po" ? "PO" : "Invoice";
 
