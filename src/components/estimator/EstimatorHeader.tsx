@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { setApp } from "@/lib/toolkit";
 import { useEstimate } from "@/state/estimateStore";
 import AccountButton from "../AccountButton";
 
@@ -12,13 +11,6 @@ export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: 
 
   return (
     <header className="no-print mb-5">
-      <button
-        className="mb-2 text-[11.5px] font-medium text-ink-faint hover:text-ink-soft"
-        onClick={() => setApp("home")}
-        title="Back to the toolkit"
-      >
-        ← Toolkit
-      </button>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <input
