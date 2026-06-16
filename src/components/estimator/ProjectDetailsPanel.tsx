@@ -20,6 +20,7 @@ export default function ProjectDetailsPanel() {
   const { estimate, commit } = useEstimate();
   const [open, setOpen] = useState(false);
   if (!estimate) return null;
+  const showSpecs = estimate.deliverablesShowSpecs !== false;
 
   // --- fields ---
   const setField = (id: string, patch: Partial<ProjectField>) =>
@@ -97,16 +98,20 @@ export default function ProjectDetailsPanel() {
               <h4 className="mb-2 text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">Deliverables</h4>
               <div className="flex gap-1.5 pb-1">
                 <span className={`${headCls} flex-1`}>Title</span>
-                <span className={`${headCls} w-16`}>Length</span>
-                <span className={`${headCls} flex-1`}>Usage</span>
+                {showSpecs && <span className={`${headCls} w-16`}>Length</span>}
+                {showSpecs && <span className={`${headCls} flex-1`}>Usage</span>}
                 <span className="w-4" />
               </div>
               <div className="flex flex-col gap-1.5">
                 {estimate.deliverables.map((d) => (
                   <div key={d.id} className="flex items-center gap-1.5">
                     <input className={`${input} min-w-0 flex-1`} value={d.title} placeholder="Title" onChange={(e) => setDeliv(d.id, { title: e.target.value })} />
-                    <input className={`${input} w-16`} value={d.length} placeholder=":30" onChange={(e) => setDeliv(d.id, { length: e.target.value })} />
-                    <input className={`${input} min-w-0 flex-1`} value={d.usage} placeholder="Usage" onChange={(e) => setDeliv(d.id, { usage: e.target.value })} />
+                    {showSpecs && (
+                      <input className={`${input} w-16`} value={d.length} placeholder=":30" onChange={(e) => setDeliv(d.id, { length: e.target.value })} />
+                    )}
+                    {showSpecs && (
+                      <input className={`${input} min-w-0 flex-1`} value={d.usage} placeholder="Usage" onChange={(e) => setDeliv(d.id, { usage: e.target.value })} />
+                    )}
                     <button className={removeBtn} title="Remove deliverable" onClick={() => removeDeliv(d.id)}>
                       ×
                     </button>

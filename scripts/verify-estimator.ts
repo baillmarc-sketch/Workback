@@ -363,7 +363,12 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("template: starts with one version column", video.columns.length === 1 && video.columns[0].role === "version");
   check("template: seeds project fields", video.fields.length > 5 && video.fields.every((f) => f.value === ""));
   check("template: seeds adjustments (Insurance etc.)", video.adjustments.some((a) => a.label === "Insurance" && a.type === "percent"));
-  check("template: seeds firm Project Archive cell ($750)", Object.values(video.cells).some((c) => c.value === 750));
+  check("template: video cells start empty", Object.keys(video.cells).length === 0);
+  check("template: video has no Digital section", !video.sections.some((s) => s.name === "Digital"));
+  check("template: no Project Archive line", !Object.values(video.lineItems).some((li) => li.label === "Project Archive"));
+  const event = newEstimate("event");
+  check("template: events hide deliverable specs", event.deliverablesShowSpecs === false);
+  check("template: video shows deliverable specs", video.deliverablesShowSpecs === true);
   const blank = newEstimate("blank");
   check("template: blank has empty sections", blank.sections.length > 0 && Object.keys(blank.lineItems).length === 0);
 
