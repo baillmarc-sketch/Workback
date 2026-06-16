@@ -32,8 +32,6 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
   // We seed once from the column and write through to the store on change.
   const [name, setName] = useState(columnProp.name);
   const [vendor, setVendor] = useState(columnProp.vendor ?? "");
-  const [markup, setMarkup] = useState(String(columnProp.markupPct ?? 0));
-  const [contingency, setContingency] = useState(String(columnProp.contingencyPct ?? 0));
   const [notes, setNotes] = useState(columnProp.notes ?? "");
   const [links, setLinks] = useState<ColumnLink[]>(columnProp.links ?? []);
 
@@ -103,37 +101,6 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
             />
           </div>
         )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelCls}>Markup %</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={markup}
-              min={0}
-              step="0.5"
-              onChange={(e) => {
-                setMarkup(e.target.value);
-                update({ markupPct: Number(e.target.value) || 0 });
-              }}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Contingency %</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={contingency}
-              min={0}
-              step="0.5"
-              onChange={(e) => {
-                setContingency(e.target.value);
-                update({ contingencyPct: Number(e.target.value) || 0 });
-              }}
-            />
-          </div>
-        </div>
 
         <div>
           <label className={labelCls}>Links</label>

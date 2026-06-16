@@ -18,8 +18,7 @@ import { evalExpr, evalOrZero } from "../src/lib/estimator/formula.ts";
 import {
   sectionSubtotal,
   columnSubtotal,
-  markupAmount,
-  contingencyAmount,
+  adjustmentAmount,
   columnTotal,
   columnDelta,
   resolveActualsSource,
@@ -101,6 +100,13 @@ function check(name: string, cond: boolean, detail?: unknown) {
     notes: "",
     assumptions: "",
     currency: "USD",
+    fields: [],
+    deliverables: [],
+    team: [],
+    adjustments: [
+      { id: "adjM", label: "Markup", type: "percent", value: 15 },
+      { id: "adjC", label: "Contingency", type: "percent", value: 10 },
+    ],
     sections: [
       { id: "s1", name: "Production", lineItemIds: [liA, liB], order: 0 },
       { id: "s2", name: "Post", lineItemIds: [liC], order: 1 },
@@ -111,29 +117,28 @@ function check(name: string, cond: boolean, detail?: unknown) {
       [liC]: { id: liC, label: "C", order: 0 },
     },
     columns: [
-      { id: colX, name: "X", role: "version", markupPct: 15, contingencyPct: 10, order: 0 },
-      { id: colBase, name: "Base", role: "version", markupPct: 0, contingencyPct: 0, order: 1 },
+      { id: colX, name: "X", role: "version", order: 0 },
+      { id: colBase, name: "Base", role: "version", order: 1 },
     ],
     cells: {
       [`${liA}:${colX}`]: { expr: "600", value: 600 },
-      [`${liB}:${colX}`]: { expr: "400", value: 400 }, // s1 subtotal 1000
+      [`${liB}:${colX}`]: { expr: "400", value: 400 }, // colX subtotal 1000
       [`${liC}:${colX}`]: { expr: "0", value: 0 },
-      [`${liA}:${colBase}`]: { expr: "500", value: 500 },
-      [`${liB}:${colBase}`]: { expr: "500", value: 500 },
+      [`${liA}:${colBase}`]: { expr: "400", value: 400 },
+      [`${liB}:${colBase}`]: { expr: "400", value: 400 }, // colBase subtotal 800
     },
     baselineColumnId: colBase,
-    defaultMarkupPct: 0,
-    defaultContingencyPct: 0,
+    ledger: [],
     createdAt: 1,
     updatedAt: 1,
   };
   check("totals: section subtotal", sectionSubtotal(est, "s1", colX) === 1000);
   check("totals: section subtotal other section", sectionSubtotal(est, "s2", colX) === 0);
   check("totals: column subtotal", columnSubtotal(est, colX) === 1000);
-  check("totals: markup 15% of 1000 = 150", markupAmount(1000, 15) === 150);
-  check("totals: contingency 10% of 1000 = 100", contingencyAmount(1000, 10) === 100);
-  check("totals: column total = subtotal+markup+contingency", columnTotal(est, colX) === 1250);
-  check("totals: baseline total", columnTotal(est, colBase) === 1000);
+  check("totals: adjustment 15% of 1000 = 150", adjustmentAmount(1000, est.adjustments[0]) === 150);
+  check("totals: adjustment 10% of 1000 = 100", adjustmentAmount(1000, est.adjustments[1]) === 100);
+  check("totals: column total = subtotal + adjustments", columnTotal(est, colX) === 1250);
+  check("totals: baseline total (800 + 25%)", columnTotal(est, colBase) === 1000);
   const d = columnDelta(est, colX, colBase);
   check("totals: delta abs", d.abs === 250, d);
   check("totals: delta pct", d.pct === 25, d);
@@ -161,7 +166,9 @@ function check(name: string, cond: boolean, detail?: unknown) {
       Object.entries(est.cells).every(([k, c]) => loaded.cells[k]?.expr === c.expr && loaded.cells[k]?.value === c.value),
     loaded?.cells
   );
-  check("persist: column role + markup survive", loaded?.columns.some((c) => c.role === "vendor"));
+  check("persist: vendor column role survives", loaded?.columns.some((c) => c.role === "vendor"));
+  check("persist: adjustments survive", loaded?.adjustments.length === est.adjustments.length && loaded?.adjustments[0]?.value === est.adjustments[0]?.value);
+  check("persist: fields + deliverables survive", loaded?.fields.length === est.fields.length && loaded?.deliverables.length === est.deliverables.length);
   check(
     "persist: appears in index with counts",
     listEstimates().some(
@@ -201,7 +208,7 @@ function check(name: string, cond: boolean, detail?: unknown) {
 
 // 6. Cloud round-trip: RTDB drops empty arrays/undefined; migrate survives it
 {
-  const est = newEstimate(); // sections present but all lineItemIds empty
+  const est = newEstimate("blank"); // blank seeds no cells
   est.id = "cloud-est";
   const wire = JSON.parse(JSON.stringify(est)); // empty arrays vanish like RTDB
   const out = migrate(wire);
@@ -352,7 +359,9 @@ function check(name: string, cond: boolean, detail?: unknown) {
     video.sections.flatMap((s) => s.lineItemIds).length === Object.keys(video.lineItems).length
   );
   check("template: starts with one version column", video.columns.length === 1 && video.columns[0].role === "version");
-  check("template: cells start empty (just type numbers)", Object.keys(video.cells).length === 0);
+  check("template: seeds project fields", video.fields.length > 5 && video.fields.every((f) => f.value === ""));
+  check("template: seeds adjustments (Insurance etc.)", video.adjustments.some((a) => a.label === "Insurance" && a.type === "percent"));
+  check("template: seeds firm Project Archive cell ($750)", Object.values(video.cells).some((c) => c.value === 750));
   const blank = newEstimate("blank");
   check("template: blank has empty sections", blank.sections.length > 0 && Object.keys(blank.lineItems).length === 0);
 
