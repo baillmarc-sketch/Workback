@@ -9,6 +9,13 @@
         ".validate": "newData.hasChildren(['id', 'events', 'updatedAt']) && newData.child('updatedAt').isNumber()"
       }
     },
+    "sharedEstimates": {
+      "$shareId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber()"
+      }
+    },
     "users": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
@@ -20,6 +27,16 @@
         },
         "deleted": {
           "$pid": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "estimates": {
+          "$eid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt'])"
+          }
+        },
+        "estimatesDeleted": {
+          "$eid": {
             ".validate": "newData.isNumber()"
           }
         }
