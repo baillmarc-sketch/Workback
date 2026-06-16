@@ -132,3 +132,25 @@ body {
 .print-only {
   display: none;
 }
+
+/* ---- Client-ready estimate PDF ----
+   A named page so the estimate prints portrait (Letter) while Workback keeps
+   its landscape default. */
+@page estimate-page {
+  size: letter portrait;
+  margin: 14mm;
+}
+.estimate-print {
+  page: estimate-page;
+  color: #000;
+}
+@media print {
+  .estimate-print table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .estimate-print tr,
+  .estimate-print h2 {
+    break-inside: avoid;
+  }
+}

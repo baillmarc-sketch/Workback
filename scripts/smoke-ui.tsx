@@ -15,6 +15,7 @@ import ActualsGrid from "../src/components/estimator/ActualsGrid.tsx";
 import ProjectDetailsPanel from "../src/components/estimator/ProjectDetailsPanel.tsx";
 import EstimatorToolbar from "../src/components/estimator/EstimatorToolbar.tsx";
 import AdjustmentsDialog from "../src/components/estimator/AdjustmentsDialog.tsx";
+import EstimatePrintView, { defaultPrintConfig } from "../src/components/estimator/EstimatePrintView.tsx";
 import type { Estimate } from "../src/lib/estimator/types.ts";
 // Note: EstimatesDialog/EstimatorHeader use the Auth context and always render
 // inside AuthProvider in the app, so they're out of scope for this store-only smoke.
@@ -71,8 +72,14 @@ render(
     onAdjustments: noop,
     onShare: noop,
     onExport: noop,
+    onPrint: noop,
   })
 );
+render("EstimatePrintView · sample", sample, React.createElement(EstimatePrintView, { config: defaultPrintConfig(sample) }));
+for (const id of ["video", "event"] as const) {
+  const est = newEstimate(id);
+  render(`EstimatePrintView · ${id}`, est, React.createElement(EstimatePrintView, { config: defaultPrintConfig(est) }));
+}
 // Modal-based dialogs return null without a document — should not throw.
 render("AdjustmentsDialog · sample", sample, React.createElement(AdjustmentsDialog, { onClose: noop }));
 

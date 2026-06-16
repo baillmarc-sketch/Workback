@@ -10,12 +10,13 @@ interface ToolbarProps {
   onAdjustments: () => void;
   onShare: () => void;
   onExport: () => void;
+  onPrint: () => void;
 }
 
 const btn =
   "rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink disabled:opacity-35 disabled:hover:text-ink-soft";
 
-export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, onShare, onExport }: ToolbarProps) {
+export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, onShare, onExport, onPrint }: ToolbarProps) {
   const { estimate, commit, undo, redo, canUndo, canRedo, syncState } = useEstimate();
   if (!estimate) return null;
 
@@ -81,7 +82,7 @@ export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, on
       <button className={btn} onClick={onExport} title="Export to CSV / spreadsheet">
         Export
       </button>
-      <button className={btn} onClick={() => window.print()} title="Print or save as PDF">
+      <button className={btn} onClick={onPrint} title="Export a client-ready PDF">
         Print / PDF
       </button>
     </div>
