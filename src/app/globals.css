@@ -120,6 +120,14 @@ body {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+  /* No selection/warning rings on paper */
+  .event-bar {
+    box-shadow: none !important;
+  }
+  /* Ink-friendly mode: drop all category color */
+  .print-grayscale {
+    filter: grayscale(1) !important;
+  }
   .calendar-scroll {
     overflow: visible !important;
     height: auto !important;

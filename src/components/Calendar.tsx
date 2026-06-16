@@ -27,6 +27,8 @@ interface CalendarProps {
   readOnly?: boolean;
   /** Render exactly these months instead of anchorMonth..monthsVisible (print) */
   monthsOverride?: string[];
+  /** Print render: taller wrapped bars, and warnings are never drawn */
+  forPrint?: boolean;
   onSelectEvent: (id: string, rect: DOMRect) => void;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
   onMoreClick: (dayKey: string, hidden: WorkbackEvent[], rect: DOMRect) => void;
@@ -46,6 +48,7 @@ export default function Calendar({
   downstreamMode,
   readOnly,
   monthsOverride,
+  forPrint,
   onSelectEvent,
   onDayClick,
   onMoreClick,
@@ -197,7 +200,12 @@ export default function Calendar({
     ? { ...project, events: resizeEvent(project.events, resizing.id, resizing.edge, resizing.dayKey) }
     : project;
 
-  const warnings = computeWarnings(displayProject.events);
+  // Warnings never print; on screen, an overridden conflict is acknowledged
+  // and kept off the grid (its reason still shows in the event popover).
+  const warnings = forPrint ? new Map<string, string>() : computeWarnings(displayProject.events);
+  if (!forPrint) {
+    for (const e of displayProject.events) if (e.overrideWarning) warnings.delete(e.id);
+  }
   // date → closure label ("" when unlabeled); presence of the key = day closed
   const closures = new Map((displayProject.closures ?? []).map((c) => [c.date, c.label ?? ""]));
   const months: string[] = [];
@@ -232,6 +240,7 @@ export default function Calendar({
             shiftedIds={shiftedIds}
             draggingId={draggingId}
             readOnly={readOnly}
+            forPrint={forPrint}
             onSelectEvent={onSelectEvent}
             onResizeStart={handleResizeStart}
             onDayClick={onDayClick}

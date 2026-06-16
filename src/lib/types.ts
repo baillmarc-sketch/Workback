@@ -19,6 +19,8 @@ export interface WorkbackEvent {
   category: CategoryId;
   isMilestone: boolean;
   locked: boolean;
+  /** Dismisses this event's schedule-conflict warning until manually restored */
+  overrideWarning?: boolean;
   /** When true, the event covers workdays only — bars break around Sat/Sun
       and shifts preserve the workday count rather than the calendar span */
   skipWeekends?: boolean;
@@ -56,6 +58,9 @@ export interface Project {
   anchorMonth: string;
   monthsVisible: 1 | 2 | 3;
   showLegend: boolean;
+  /** Print/PDF options: include the notes block / render in grayscale */
+  printNotes?: boolean;
+  printGrayscale?: boolean;
   /** Set when published to the shared cloud copy — the link channel ID */
   shareId?: string;
   createdAt: number;

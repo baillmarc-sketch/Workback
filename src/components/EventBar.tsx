@@ -7,6 +7,8 @@ import type { ProjectCategory } from "@/lib/types";
 
 export const LANE_HEIGHT = 26;
 export const LANE_GAP = 2;
+/** Taller lanes in print give room for labels to wrap onto a second line */
+export const PRINT_LANE_HEIGHT = 40;
 
 interface EventBarProps {
   segment: Segment;
@@ -21,6 +23,8 @@ interface EventBarProps {
   onSelect: (eventId: string, rect: DOMRect) => void;
   onResizeStart: (eventId: string, edge: "start" | "end", e: React.PointerEvent) => void;
   readOnly?: boolean;
+  /** Print render: taller lane + labels wrap to two lines instead of truncating */
+  forPrint?: boolean;
 }
 
 export default function EventBar({
@@ -35,6 +39,7 @@ export default function EventBar({
   onSelect,
   onResizeStart,
   readOnly,
+  forPrint,
 }: EventBarProps) {
   const { event, startCol, span, continuesLeft, continuesRight, lane } = segment;
   const cat = categoryOf(categories, event.category);
@@ -44,9 +49,10 @@ export default function EventBar({
     disabled: readOnly || event.locked,
   });
 
+  const laneHeight = forPrint ? PRINT_LANE_HEIGHT : LANE_HEIGHT;
   const left = `calc(${(startCol / 7) * 100}% + 3px)`;
   const widthCalc = `calc(${(span / 7) * 100}% - 6px)`;
-  const top = topOffset + lane * (LANE_HEIGHT + LANE_GAP);
+  const top = topOffset + lane * (laneHeight + LANE_GAP);
 
   const bg = event.isMilestone
     ? cat.color
@@ -68,7 +74,7 @@ export default function EventBar({
           left,
           width: widthCalc,
           top,
-          height: LANE_HEIGHT,
+          height: laneHeight,
           background: bg,
           color: fg,
           border: `1px solid ${border}`,
@@ -135,7 +141,7 @@ export default function EventBar({
             </svg>
           </span>
         )}
-        <span className="truncate">
+        <span className={forPrint ? "line-clamp-2 leading-[1.15]" : "truncate"}>
           {event.time && <span className="opacity-70">{event.time} · </span>}
           {event.title}
         </span>

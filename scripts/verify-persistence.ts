@@ -40,7 +40,7 @@ function check(name: string, cond: boolean, detail?: unknown) {
 
 const EVENT_KEYS: (keyof WorkbackEvent)[] = [
   "id", "title", "description", "startDate", "endDate", "category",
-  "isMilestone", "locked", "skipWeekends", "roundId", "roundRole", "time", "dayOrder",
+  "isMilestone", "locked", "overrideWarning", "skipWeekends", "roundId", "roundRole", "time", "dayOrder",
 ];
 function eventsEqual(a: WorkbackEvent[], b: WorkbackEvent[]): boolean {
   if (a.length !== b.length) return false;
@@ -68,6 +68,7 @@ const proj: Project = {
       category: "custom",
       isMilestone: true,
       locked: true,
+      overrideWarning: true,
       skipWeekends: true,
       roundId: "r1",
       roundRole: "review",
@@ -91,6 +92,8 @@ const proj: Project = {
   anchorMonth: "2026-06",
   monthsVisible: 2,
   showLegend: true,
+  printNotes: true,
+  printGrayscale: true,
   shareId: "abc123def456",
   createdAt: 111,
   updatedAt: 222,
@@ -107,6 +110,8 @@ const proj: Project = {
   check("save/load: categories survive", loaded?.categories.length === 2 && loaded?.categories[1].color === "#10b981");
   check("save/load: monthsVisible survives", loaded?.monthsVisible === 2);
   check("save/load: closures survive", loaded?.closures?.length === 2 && loaded?.closures[0].label === "Juneteenth");
+  check("save/load: print options survive", loaded?.printNotes === true && loaded?.printGrayscale === true);
+  check("save/load: warning override survives", loaded?.events[0].overrideWarning === true);
   check("save/load: shareId survives", loaded?.shareId === "abc123def456");
   check("save/load: createdAt survives", loaded?.createdAt === 111);
   check("save/load: appears in index", listProjects().some((s) => s.id === "persist-test" && s.eventCount === 2));
@@ -178,6 +183,18 @@ const proj: Project = {
   check("closures: malformed date dropped", !m.closures?.some((c) => c.date === "not-a-date"));
   check("closures: unlabeled keeps date with no label", m.closures?.[1].date === "2026-07-03" && m.closures?.[1].label === undefined);
   check("closures: empty array → undefined", migrate({ id: "c", events: [], updatedAt: 1, closures: [] }).closures === undefined);
+}
+
+// 4c. New optional flags (print options, warning override) collapse to
+//     undefined when falsy so stored projects/events stay lean, kept when set
+{
+  const ev = { id: "a", startDate: "2026-01-01", endDate: "2026-01-01", category: "x", isMilestone: false, locked: false };
+  const off = migrate({ id: "z", updatedAt: 1, printNotes: false, printGrayscale: false, events: [{ ...ev, overrideWarning: false }] });
+  check("migrate: falsy print flags → undefined", off.printNotes === undefined && off.printGrayscale === undefined);
+  check("migrate: falsy overrideWarning → undefined", off.events[0].overrideWarning === undefined);
+  const on = migrate({ id: "z", updatedAt: 1, printNotes: true, printGrayscale: true, events: [{ ...ev, overrideWarning: true }] });
+  check("migrate: truthy print flags kept", on.printNotes === true && on.printGrayscale === true);
+  check("migrate: truthy overrideWarning kept", on.events[0].overrideWarning === true);
 }
 
 // 5. Cloud publish→fetch: RTDB drops undefined/empty arrays and we add a
