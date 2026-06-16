@@ -1,5 +1,6 @@
 import type {
   CellValue,
+  ColumnLink,
   ColumnRole,
   Estimate,
   EstimateColumn,
@@ -119,7 +120,7 @@ export function duplicateEstimate(id: string): Estimate | null {
     updatedAt: now,
     sections: src.sections.map((s) => ({ ...s, lineItemIds: [...s.lineItemIds] })),
     lineItems: Object.fromEntries(Object.entries(src.lineItems).map(([k, v]) => [k, { ...v }])),
-    columns: src.columns.map((c) => ({ ...c })),
+    columns: src.columns.map((c) => ({ ...c, links: c.links?.map((l) => ({ ...l })) })),
     cells: Object.fromEntries(Object.entries(src.cells).map(([k, v]) => [k, { ...v }])),
     actuals: Object.fromEntries(
       Object.entries(src.actuals).map(([k, v]) => [
@@ -142,6 +143,14 @@ function str(v: unknown, fallback: string): string {
   return typeof v === "string" ? v : fallback;
 }
 
+function migrateLinks(raw: unknown): ColumnLink[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const links = (raw as Partial<ColumnLink>[])
+    .filter((l) => l && typeof l.url === "string" && l.url.trim())
+    .map((l) => ({ label: str(l!.label, "").trim() || l!.url!.trim(), url: l!.url!.trim() }));
+  return links.length ? links : undefined;
+}
+
 function migrateColumns(raw: unknown): EstimateColumn[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<EstimateColumn>[])
@@ -153,6 +162,8 @@ function migrateColumns(raw: unknown): EstimateColumn[] {
       markupPct: num(c.markupPct, 0),
       contingencyPct: num(c.contingencyPct, 0),
       vendor: typeof c.vendor === "string" && c.vendor ? c.vendor : undefined,
+      notes: typeof c.notes === "string" && c.notes ? c.notes : undefined,
+      links: migrateLinks(c.links),
       order: num(c.order, i),
     }))
     .sort((a, b) => a.order - b.order);

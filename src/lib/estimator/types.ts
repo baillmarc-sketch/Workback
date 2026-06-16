@@ -8,6 +8,13 @@
 
 export type ColumnRole = "version" | "vendor";
 
+/** A reference link on a column — the treatment, the full bid PDF, a reel, etc.
+    Stored as a URL (host the file on Drive/Dropbox/etc.) plus a label. */
+export interface ColumnLink {
+  label: string;
+  url: string;
+}
+
 /** One comparison column. Markup/contingency live here (not on the estimate)
     because a vendor bid and an internal version legitimately carry different
     margins, and the triple-bid comparison is only meaningful per column. */
@@ -21,6 +28,10 @@ export interface EstimateColumn {
   contingencyPct: number;
   /** Optional company label for vendor columns */
   vendor?: string;
+  /** Free-text notes about this bid/version */
+  notes?: string;
+  /** Links to the treatment, full bid, reel, etc. */
+  links?: ColumnLink[];
   order: number;
 }
 

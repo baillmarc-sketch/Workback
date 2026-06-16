@@ -195,6 +195,9 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                 <span className="flex items-center gap-1 truncate text-[12.5px] font-semibold">
                   {col.name || "Untitled"}
                   {col.id === baseId && <span className="text-[9px] text-ink-faint" title="Baseline">★</span>}
+                  {(col.links?.length || col.notes) && (
+                    <span className="text-[9px] text-ink-faint" title="Has notes / links">🔗</span>
+                  )}
                 </span>
                 <span className="truncate text-[10px] tracking-wide text-ink-faint uppercase">
                   {awarded
