@@ -84,7 +84,9 @@ interface Store {
   redo: () => void;
 }
 
-const StoreContext = createContext<Store | null>(null);
+// Exported so headless render smoke-tests can supply a mock store without the
+// full provider/auth/firebase stack.
+export const StoreContext = createContext<Store | null>(null);
 
 function hasAnyCell(e: Estimate): boolean {
   return Object.keys(e.cells).length > 0;
