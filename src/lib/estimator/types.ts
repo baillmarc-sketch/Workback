@@ -63,6 +63,8 @@ export interface Estimate {
   title: string;
   subtitle: string;
   notes: string;
+  /** Client-facing assumptions the estimate is built on (one per line). */
+  assumptions: string;
   /** ISO 4217, e.g. "USD" */
   currency: string;
   sections: EstimateSection[];

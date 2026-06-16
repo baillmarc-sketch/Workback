@@ -11,6 +11,7 @@ import {
   newEstimate,
   saveEstimate,
 } from "@/lib/estimator/storage";
+import { ESTIMATE_TEMPLATES } from "@/lib/estimator/templates";
 import { useEstimate } from "@/state/estimateStore";
 import Modal from "../Modal";
 
@@ -18,22 +19,43 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
   const { estimate, open } = useEstimate();
   const { user, getToken } = useAuth();
   const [, bump] = useState(0);
+  const [picking, setPicking] = useState(false);
   const estimates = listEstimates();
 
   return (
     <Modal title="Estimates" onClose={onClose} width={440}>
       <div className="flex flex-col gap-3">
-        <button
-          className="self-start rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
-          onClick={() => {
-            const e = newEstimate();
-            saveEstimate(e);
-            open(e);
-            onClose();
-          }}
-        >
-          + New estimate
-        </button>
+        {!picking ? (
+          <button
+            className="self-start rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+            onClick={() => setPicking(true)}
+          >
+            + New estimate
+          </button>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
+              Start from
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {ESTIMATE_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  title={t.description}
+                  className="rounded-md border border-hairline px-2.5 py-1.5 text-[12.5px] font-medium hover:bg-paper"
+                  onClick={() => {
+                    const e = newEstimate(t.id);
+                    saveEstimate(e);
+                    open(e);
+                    onClose();
+                  }}
+                >
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {estimates.length === 0 ? (
           <div className="py-4 text-center text-[12.5px] text-ink-faint">No saved estimates yet.</div>

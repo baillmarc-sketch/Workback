@@ -122,6 +122,34 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   const renameSection = (sectionId: string, name: string) =>
     commit((e) => ({ ...e, sections: e.sections.map((s) => (s.id === sectionId ? { ...s, name } : s)) }));
 
+  // Fast keyboard fill: move the open cell editor to an adjacent cell. Down/up
+  // walk the line items in display order (across sections); left/right move
+  // across the visible columns. Mirrors spreadsheet/Workback-style entry.
+  const orderedLineIds = estimate.sections.flatMap((s) => s.lineItemIds);
+  const navigateCell = (dir: "down" | "up" | "left" | "right") => {
+    if (!editCell) return;
+    let tLi = editCell.lineItemId;
+    let tCol = editCell.columnId;
+    if (dir === "down" || dir === "up") {
+      const idx = orderedLineIds.indexOf(editCell.lineItemId);
+      const n = dir === "down" ? idx + 1 : idx - 1;
+      if (n < 0 || n >= orderedLineIds.length) {
+        setEditCell(null);
+        return;
+      }
+      tLi = orderedLineIds[n];
+    } else {
+      const ci = visibleColumns.findIndex((c) => c.id === editCell.columnId);
+      const n = dir === "right" ? ci + 1 : ci - 1;
+      if (n < 0 || n >= visibleColumns.length) return; // stay put at the edge
+      tCol = visibleColumns[n].id;
+    }
+    const el = document.querySelector(`[data-cell="${tLi}__${tCol}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    setEditCell({ lineItemId: tLi, columnId: tCol, anchor: rectToAnchor(el.getBoundingClientRect()) });
+  };
+
   const renameLineItem = (lineItemId: string, label: string) =>
     commit((e) => ({
       ...e,
@@ -250,6 +278,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                     return (
                       <button
                         key={col.id}
+                        data-cell={`${liId}__${col.id}`}
                         className="flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 text-right text-[13px] tabular-nums hover:bg-paper"
                         style={{ width: COL_W }}
                         onClick={(e) =>
@@ -375,6 +404,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 
       {editCell && estimate.lineItems[editCell.lineItemId] && (
         <CellEditorPopover
+          key={`${editCell.lineItemId}__${editCell.columnId}`}
           title={`${estimate.lineItems[editCell.lineItemId].label || "Line item"} · ${
             estimate.columns.find((c) => c.id === editCell.columnId)?.name ?? ""
           }`}
@@ -382,6 +412,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
           currency={currency}
           anchor={editCell.anchor}
           onClose={() => setEditCell(null)}
+          onNavigate={navigateCell}
           onCommit={(expr, value) =>
             commit((e) => {
               const key = cellKey(editCell.lineItemId, editCell.columnId);
