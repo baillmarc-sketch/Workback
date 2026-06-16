@@ -1,15 +1,12 @@
 "use client";
 
-import App from "@/components/App";
+import Toolkit from "@/components/Toolkit";
 import { AuthProvider } from "@/state/auth";
-import { ProjectProvider } from "@/state/store";
 
 export default function Page() {
   return (
     <AuthProvider>
-      <ProjectProvider>
-        <App />
-      </ProjectProvider>
+      <Toolkit />
     </AuthProvider>
   );
 }
