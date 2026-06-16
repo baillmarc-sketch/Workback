@@ -6,6 +6,8 @@ import { useEstimate } from "@/state/estimateStore";
 import Popover from "../Popover";
 
 interface ColumnEditorPopoverProps {
+  /** The column at open time; the live copy is re-read from the store by id so
+      controlled inputs reflect edits instead of reverting to this snapshot. */
   column: EstimateColumn;
   anchor: { left: number; top: number; right: number; bottom: number };
   onClose: () => void;
@@ -15,9 +17,12 @@ const inputCls =
   "w-full rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
 const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
-export default function ColumnEditorPopover({ column, anchor, onClose }: ColumnEditorPopoverProps) {
+export default function ColumnEditorPopover({ column: columnProp, anchor, onClose }: ColumnEditorPopoverProps) {
   const { estimate, commit, patch } = useEstimate();
-  if (!estimate) return null;
+  // Always render from the live column in the store, not the open-time snapshot,
+  // so typing the name and toggling Version/Vendor take effect immediately.
+  const column = estimate?.columns.find((c) => c.id === columnProp.id);
+  if (!estimate || !column) return null;
   const isBaseline = estimate.baselineColumnId === column.id;
 
   const update = (changes: Partial<EstimateColumn>) =>
