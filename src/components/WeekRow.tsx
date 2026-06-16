@@ -16,7 +16,8 @@ interface WeekRowProps {
   events: WorkbackEvent[];
   categories: ProjectCategory[];
   selectedId: string | null;
-  warningIds: Set<string>;
+  /** event id → reason it conflicts with a locked date */
+  warnings: Map<string, string>;
   shiftedIds: Set<string>;
   draggingId: string | null;
   readOnly?: boolean;
@@ -77,7 +78,7 @@ export default function WeekRow({
   events,
   categories,
   selectedId,
-  warningIds,
+  warnings,
   shiftedIds,
   draggingId,
   readOnly,
@@ -119,7 +120,7 @@ export default function WeekRow({
           weekStart={weekStart}
           topOffset={DAY_HEADER}
           selected={seg.event.id === selectedId}
-          warning={warningIds.has(seg.event.id)}
+          warningReason={warnings.get(seg.event.id)}
           justShifted={shiftedIds.has(seg.event.id)}
           dragging={seg.event.id === draggingId}
           onSelect={onSelectEvent}

@@ -4,6 +4,7 @@ import {
   countWorkdays,
   diffDays,
   durationDays,
+  fmtShort,
   snapWorkday,
 } from "./dates";
 import type { CategoryId, DateChange, WorkbackEvent } from "./types";
@@ -104,11 +105,13 @@ export function resizeEvent(
 
 /**
  * Warning state, derived: an unlocked event is flagged when it overlaps a
- * locked event, or sits with < 1 day of buffer before one.
+ * locked event, or sits with < 1 day of buffer before one. Returns a map of
+ * event id → human-readable reason, so the UI can explain *why* each event is
+ * flagged — on hover over the warning icon and in the event's detail popover.
  */
-export function warningIds(events: WorkbackEvent[]): Set<string> {
+export function warnings(events: WorkbackEvent[]): Map<string, string> {
   const locks = events.filter((e) => e.locked);
-  const out = new Set<string>();
+  const out = new Map<string, string>();
   if (locks.length === 0) return out;
   for (const e of events) {
     if (e.locked) continue;
@@ -116,13 +119,27 @@ export function warningIds(events: WorkbackEvent[]): Set<string> {
       const overlaps = e.startDate <= l.endDate && e.endDate >= l.startDate;
       const buffer = diffDays(e.endDate, l.startDate) - 1;
       const tight = l.startDate > e.endDate && buffer < 1;
-      if (overlaps || tight) {
-        out.add(e.id);
+      if (overlaps) {
+        out.set(e.id, `Overlaps the locked date ${lockRef(l)}.`);
+        break;
+      }
+      if (tight) {
+        out.set(e.id, `Leaves less than a day before the locked date ${lockRef(l)}.`);
         break;
       }
     }
   }
   return out;
+}
+
+/** "Title" (Jun 20) — or a date range when the lock spans several days. */
+function lockRef(l: WorkbackEvent): string {
+  const dates =
+    l.startDate === l.endDate
+      ? fmtShort(l.startDate)
+      : `${fmtShort(l.startDate)}–${fmtShort(l.endDate)}`;
+  const title = l.title.trim();
+  return title ? `"${title}" (${dates})` : dates;
 }
 
 /**

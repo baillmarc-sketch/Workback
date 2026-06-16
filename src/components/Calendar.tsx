@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { addMonthsKey, diffDays } from "@/lib/dates";
 import { compareSameDay } from "@/lib/eventTime";
-import { moveEvent, resizeEvent, warningIds as computeWarnings } from "@/lib/workback";
+import { moveEvent, resizeEvent, warnings as computeWarnings } from "@/lib/workback";
 import { catText, categoryOf } from "@/lib/categories";
 import type { Project, WorkbackEvent } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -225,7 +225,7 @@ export default function Calendar({
             mKey={m}
             project={displayProject}
             selectedId={selectedId}
-            warningIds={warnings}
+            warnings={warnings}
             shiftedIds={shiftedIds}
             draggingId={draggingId}
             readOnly={readOnly}
