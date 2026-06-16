@@ -1,11 +1,12 @@
 "use client";
 
-export type ViewMode = "all" | "versions" | "bids";
+export type ViewMode = "all" | "versions" | "leveling" | "actuals";
 
 const MODES: { id: ViewMode; label: string; title: string }[] = [
   { id: "all", label: "All", title: "Show every column" },
   { id: "versions", label: "Versions", title: "Show only your internal version columns" },
-  { id: "bids", label: "Triple bid", title: "Compare vendor bid columns side by side" },
+  { id: "leveling", label: "Leveling", title: "Compare vendor bids against your estimate and award one" },
+  { id: "actuals", label: "Actuals", title: "Track estimate vs committed, actual, and remaining" },
 ];
 
 export default function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {

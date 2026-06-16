@@ -12,6 +12,7 @@ import {
   sampleEstimate,
   saveEstimate,
 } from "@/lib/estimator/storage";
+import ActualsGrid from "./ActualsGrid";
 import EstimateExportDialog from "./EstimateExportDialog";
 import EstimateGrid from "./EstimateGrid";
 import EstimatesDialog from "./EstimatesDialog";
@@ -145,7 +146,7 @@ export default function EstimatorApp() {
         onShare={onShare}
         onExport={() => setDialog("export")}
       />
-      <EstimateGrid mode={mode} />
+      {mode === "actuals" ? <ActualsGrid /> : <EstimateGrid mode={mode} />}
 
       {dialog === "estimates" && <EstimatesDialog onClose={() => setDialog(null)} />}
       {dialog === "export" && <EstimateExportDialog mode={mode} onClose={() => setDialog(null)} />}

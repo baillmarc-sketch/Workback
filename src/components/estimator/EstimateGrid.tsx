@@ -4,6 +4,7 @@ import { useState } from "react";
 import { uid } from "@/lib/types";
 import {
   baselineColumnId,
+  cellVariance,
   columnDelta,
   columnSubtotal,
   columnTotal,
@@ -36,10 +37,19 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 
   if (!estimate) return null;
 
-  const visibleColumns = estimate.columns.filter((c) =>
-    mode === "all" ? true : mode === "versions" ? c.role === "version" : c.role === "vendor"
-  );
   const baseId = baselineColumnId(estimate);
+  // Leveling shows your estimate baseline first, then the vendor bids; per-cell
+  // and total variance are read against that baseline.
+  let visibleColumns: EstimateColumn[];
+  if (mode === "versions") {
+    visibleColumns = estimate.columns.filter((c) => c.role === "version");
+  } else if (mode === "leveling") {
+    const base = estimate.columns.find((c) => c.id === baseId);
+    const vendors = estimate.columns.filter((c) => c.role === "vendor" && c.id !== base?.id);
+    visibleColumns = base ? [base, ...vendors] : vendors;
+  } else {
+    visibleColumns = estimate.columns; // "all"
+  }
   const currency = estimate.currency;
   const rowWidth = LABEL_W + COL_W * visibleColumns.length;
 
@@ -48,8 +58,11 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
     commit((e) => {
       const col: EstimateColumn = {
         id: uid(),
-        name: mode === "bids" ? `Vendor ${e.columns.filter((c) => c.role === "vendor").length + 1}` : `Version ${e.columns.length + 1}`,
-        role: mode === "bids" ? "vendor" : "version",
+        name:
+          mode === "leveling"
+            ? `Vendor ${e.columns.filter((c) => c.role === "vendor").length + 1}`
+            : `Version ${e.columns.length + 1}`,
+        role: mode === "leveling" ? "vendor" : "version",
         markupPct: e.defaultMarkupPct,
         contingencyPct: e.defaultContingencyPct,
         order: e.columns.length,
@@ -140,22 +153,31 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
             </button>,
             "h-12"
           )}
-          {visibleColumns.map((col) => (
-            <button
-              key={col.id}
-              className="flex h-12 shrink-0 flex-col justify-center border-l border-hairline px-3 text-left hover:bg-paper"
-              style={{ width: COL_W }}
-              onClick={(e) => setEditCol({ column: col, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
-            >
-              <span className="flex items-center gap-1 truncate text-[12.5px] font-semibold">
-                {col.name || "Untitled"}
-                {col.id === baseId && <span className="text-[9px] text-ink-faint">★</span>}
-              </span>
-              <span className="truncate text-[10px] tracking-wide text-ink-faint uppercase">
-                {col.role === "vendor" ? col.vendor || "Vendor" : "Version"}
-              </span>
-            </button>
-          ))}
+          {visibleColumns.map((col) => {
+            const awarded = col.id === estimate.awardedColumnId;
+            return (
+              <button
+                key={col.id}
+                className={`flex h-12 shrink-0 flex-col justify-center border-l border-hairline px-3 text-left hover:bg-paper ${
+                  awarded ? "bg-[#f0fdf4] ring-1 ring-inset ring-[#86efac]" : ""
+                }`}
+                style={{ width: COL_W }}
+                onClick={(e) => setEditCol({ column: col, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
+              >
+                <span className="flex items-center gap-1 truncate text-[12.5px] font-semibold">
+                  {col.name || "Untitled"}
+                  {col.id === baseId && <span className="text-[9px] text-ink-faint" title="Baseline">★</span>}
+                </span>
+                <span className="truncate text-[10px] tracking-wide text-ink-faint uppercase">
+                  {awarded
+                    ? "✓ Awarded"
+                    : col.role === "vendor"
+                      ? col.vendor || "Vendor"
+                      : "Version"}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Sections */}
@@ -219,10 +241,16 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                   )}
                   {visibleColumns.map((col) => {
                     const cell = estimate.cells[cellKey(liId, col.id)];
+                    // In leveling, show each vendor cell's variance vs the baseline cell.
+                    const showVar =
+                      mode === "leveling" && baseId && col.id !== baseId && col.role === "vendor" && cell;
+                    const v = showVar
+                      ? cellVariance(cell!.value, estimate.cells[cellKey(liId, baseId!)]?.value ?? 0)
+                      : null;
                     return (
                       <button
                         key={col.id}
-                        className="h-9 shrink-0 border-l border-hairline px-3 text-right text-[13px] tabular-nums hover:bg-paper"
+                        className="flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 text-right text-[13px] tabular-nums hover:bg-paper"
                         style={{ width: COL_W }}
                         onClick={(e) =>
                           setEditCell({
@@ -232,10 +260,11 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                           })
                         }
                       >
-                        {cell ? (
-                          formatCurrency(cell.value, currency)
-                        ) : (
-                          <span className="text-ink-faint">—</span>
+                        {cell ? formatCurrency(cell.value, currency) : <span className="text-ink-faint">—</span>}
+                        {v && v.abs !== 0 && (
+                          <span className={`text-[9.5px] ${v.abs > 0 ? "text-danger" : "text-[#15803d]"}`}>
+                            {formatCurrencySigned(v.abs, currency)}
+                          </span>
                         )}
                       </button>
                     );
@@ -346,13 +375,22 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 
       {editCell && estimate.lineItems[editCell.lineItemId] && (
         <CellEditorPopover
-          lineItemId={editCell.lineItemId}
-          columnId={editCell.columnId}
-          lineItemLabel={estimate.lineItems[editCell.lineItemId].label}
-          columnName={estimate.columns.find((c) => c.id === editCell.columnId)?.name ?? ""}
+          title={`${estimate.lineItems[editCell.lineItemId].label || "Line item"} · ${
+            estimate.columns.find((c) => c.id === editCell.columnId)?.name ?? ""
+          }`}
+          initialExpr={estimate.cells[cellKey(editCell.lineItemId, editCell.columnId)]?.expr ?? ""}
           currency={currency}
           anchor={editCell.anchor}
           onClose={() => setEditCell(null)}
+          onCommit={(expr, value) =>
+            commit((e) => {
+              const key = cellKey(editCell.lineItemId, editCell.columnId);
+              const cells = { ...e.cells };
+              if (expr === "") delete cells[key];
+              else cells[key] = { expr, value };
+              return { ...e, cells };
+            })
+          }
         />
       )}
       {editCol && (

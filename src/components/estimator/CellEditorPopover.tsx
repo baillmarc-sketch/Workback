@@ -4,73 +4,57 @@ import { useEffect, useRef, useState } from "react";
 import { isCoarsePointer } from "@/lib/device";
 import { evalExpr } from "@/lib/estimator/formula";
 import { formatCurrency } from "@/lib/estimator/format";
-import { cellKey, type CellValue } from "@/lib/estimator/types";
-import { useEstimate } from "@/state/estimateStore";
 import Popover from "../Popover";
 
 interface CellEditorPopoverProps {
-  lineItemId: string;
-  columnId: string;
-  lineItemLabel: string;
-  columnName: string;
+  /** Caption above the input, e.g. "Director · Premium" */
+  title: string;
+  initialExpr: string;
   currency: string;
   anchor: { left: number; top: number; right: number; bottom: number };
   onClose: () => void;
+  /** Called with the trimmed expression and its evaluated value on commit. An
+      empty expression means "clear this cell". Only called for valid input. */
+  onCommit: (expr: string, value: number) => void;
 }
 
 const inputCls =
   "w-full rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
 
 /**
- * Edits a single cost cell. You type arithmetic (e.g. "2*15000+500"); the
- * popover live-evaluates it and shows the dollar result. On commit it stores
- * both the raw expression and the computed value. The raw expression is saved
- * on close (blur/Escape) too, so a half-typed valid edit isn't lost.
+ * Edits one cost figure. You type arithmetic (e.g. "2*15000+500"); the popover
+ * live-evaluates it and shows the dollar result, committing the raw expression
+ * and computed value. The latest valid value is saved on close (blur/Escape)
+ * too, so a typed-then-dismissed edit isn't lost. Reused for estimate cells and
+ * for actuals (committed/spent).
  */
 export default function CellEditorPopover({
-  lineItemId,
-  columnId,
-  lineItemLabel,
-  columnName,
+  title,
+  initialExpr,
   currency,
   anchor,
   onClose,
+  onCommit,
 }: CellEditorPopoverProps) {
-  const { estimate, commit } = useEstimate();
-  const existing = estimate?.cells[cellKey(lineItemId, columnId)];
-  const [expr, setExpr] = useState(existing?.expr ?? "");
+  const [expr, setExpr] = useState(initialExpr);
   const result = evalExpr(expr);
 
-  // Persist the latest valid expression when the popover unmounts, mirroring
-  // the EventPopover auto-save-on-close pattern.
+  // Persist the latest valid expression when the popover unmounts.
   const exprRef = useRef(expr);
   exprRef.current = expr;
-  const save = (raw: string) => {
-    const r = evalExpr(raw);
-    if (!r.ok) return; // never store an unparseable expression
-    commit((e) => {
-      const key = cellKey(lineItemId, columnId);
-      const cells = { ...e.cells };
-      if (raw.trim() === "") {
-        delete cells[key]; // blank clears the cell
-      } else {
-        const cell: CellValue = { expr: raw.trim(), value: r.value ?? 0 };
-        cells[key] = cell;
-      }
-      return { ...e, cells };
-    });
-  };
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
   useEffect(() => {
-    return () => save(exprRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      const r = evalExpr(exprRef.current);
+      if (r.ok) onCommitRef.current(exprRef.current.trim(), r.value ?? 0);
+    };
   }, []);
 
   return (
     <Popover anchor={anchor} onClose={onClose} width={240}>
       <div className="flex flex-col gap-2 p-3">
-        <div className="text-[11px] font-medium text-ink-faint">
-          {lineItemLabel || "Line item"} · {columnName}
-        </div>
+        <div className="text-[11px] font-medium text-ink-faint">{title}</div>
         <input
           className={inputCls}
           value={expr}

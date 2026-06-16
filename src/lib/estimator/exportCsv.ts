@@ -1,12 +1,18 @@
 import type { Estimate, EstimateColumn } from "./types";
 import { cellKey } from "./types";
 import {
+  actualsTotals,
+  actualValue,
   baselineColumnId,
   columnDelta,
   columnSubtotal,
   columnTotal,
+  committedValue,
   contingencyAmount,
+  lineEstimate,
   markupAmount,
+  resolveActualsSource,
+  sectionActualsTotals,
   sectionSubtotal,
 } from "./totals";
 
@@ -61,5 +67,31 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
     );
   }
 
+  return lines.join("\n");
+}
+
+/** Build a CSV of the Actuals view: Estimate / Committed / Actual / Remaining
+    per line, with section subtotals and a grand total. */
+export function buildActualsCsv(estimate: Estimate): string {
+  const sourceId = resolveActualsSource(estimate) ?? "";
+  const lines: string[] = [];
+  lines.push(row(["", "Estimate", "Committed", "Actual", "Remaining"]));
+
+  for (const section of estimate.sections) {
+    lines.push(row([section.name]));
+    for (const liId of section.lineItemIds) {
+      const li = estimate.lineItems[liId];
+      if (!li) continue;
+      const est = lineEstimate(estimate, liId, sourceId);
+      const act = actualValue(estimate, liId);
+      lines.push(row([li.label || "", est, committedValue(estimate, liId), act, est - act]));
+    }
+    const sub = sectionActualsTotals(estimate, section.id, sourceId);
+    lines.push(row([`Subtotal — ${section.name}`, sub.estimate, sub.committed, sub.actual, sub.remaining]));
+  }
+
+  const g = actualsTotals(estimate, sourceId);
+  lines.push(row(["Total", g.estimate, g.committed, g.actual, g.remaining]));
+  lines.push(row(["Over / (under)", "", "", "", g.actual - g.estimate]));
   return lines.join("\n");
 }

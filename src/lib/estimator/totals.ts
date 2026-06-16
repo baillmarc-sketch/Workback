@@ -66,3 +66,86 @@ export function baselineColumnId(est: Estimate): string | undefined {
   }
   return est.columns[0]?.id;
 }
+
+// --- Bid leveling + Actuals ---
+
+function exists(est: Estimate, columnId: string | undefined): string | undefined {
+  return columnId && est.columns.some((c) => c.id === columnId) ? columnId : undefined;
+}
+
+/** Which column supplies the per-line "Estimate" figure in Actuals: the chosen
+    source, else the awarded bid, else the delta baseline ("award feeds
+    actuals"). */
+export function resolveActualsSource(est: Estimate): string | undefined {
+  return (
+    exists(est, est.actualsSourceColumnId) ??
+    exists(est, est.awardedColumnId) ??
+    baselineColumnId(est)
+  );
+}
+
+/** The Estimate figure for one line, from the source column's cell. */
+export function lineEstimate(est: Estimate, lineItemId: string, sourceColumnId: string): number {
+  return cellValue(est, lineItemId, sourceColumnId);
+}
+
+export function committedValue(est: Estimate, lineItemId: string): number {
+  const a = est.actuals[lineItemId];
+  return a && Number.isFinite(a.committed.value) ? a.committed.value : 0;
+}
+
+export function actualValue(est: Estimate, lineItemId: string): number {
+  const a = est.actuals[lineItemId];
+  return a && Number.isFinite(a.actual.value) ? a.actual.value : 0;
+}
+
+/** Budget left to spend against this line. */
+export function remainingAmount(estimate: number, actual: number): number {
+  return estimate - actual;
+}
+
+/** Open POs not yet invoiced. */
+export function outstandingAmount(committed: number, actual: number): number {
+  return committed - actual;
+}
+
+/** Estimate vs actual (or any value vs a base): positive abs = over. */
+export function lineVariance(value: number, base: number): Delta {
+  const abs = value - base;
+  const pct = base === 0 ? 0 : (abs / base) * 100;
+  return { abs, pct };
+}
+
+/** Per-cell leveling variance (a vendor cell vs the baseline cell). */
+export const cellVariance = lineVariance;
+
+export interface ActualsTotals {
+  estimate: number;
+  committed: number;
+  actual: number;
+  remaining: number;
+}
+
+function sumActuals(est: Estimate, lineItemIds: string[], sourceColumnId: string): ActualsTotals {
+  let estimate = 0;
+  let committed = 0;
+  let actual = 0;
+  for (const id of lineItemIds) {
+    estimate += lineEstimate(est, id, sourceColumnId);
+    committed += committedValue(est, id);
+    actual += actualValue(est, id);
+  }
+  return { estimate, committed, actual, remaining: estimate - actual };
+}
+
+/** Estimate/Committed/Actual/Remaining summed over one section. */
+export function sectionActualsTotals(est: Estimate, sectionId: string, sourceColumnId: string): ActualsTotals {
+  const section = est.sections.find((s) => s.id === sectionId);
+  return sumActuals(est, section?.lineItemIds ?? [], sourceColumnId);
+}
+
+/** Estimate/Committed/Actual/Remaining summed over every line item. */
+export function actualsTotals(est: Estimate, sourceColumnId: string): ActualsTotals {
+  const all = est.sections.flatMap((s) => s.lineItemIds);
+  return sumActuals(est, all, sourceColumnId);
+}

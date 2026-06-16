@@ -50,6 +50,13 @@ export interface CellValue {
   value: number;
 }
 
+/** Actuals for one line item (independent of the version/vendor columns): the
+    PO raised and the amount invoiced. Both are formula cells like CellValue. */
+export interface LineActual {
+  committed: CellValue;
+  actual: CellValue;
+}
+
 export interface Estimate {
   schema: 1;
   id: string;
@@ -67,6 +74,14 @@ export interface Estimate {
   cells: Record<string, CellValue>;
   /** Column the delta row compares against; falls back to the first column. */
   baselineColumnId?: string;
+  /** Bid leveling: the vendor column chosen as the awarded bid (highlighted,
+      and the default Estimate source for the Actuals view). */
+  awardedColumnId?: string;
+  /** Which column supplies the per-line "Estimate" figure in the Actuals view;
+      falls back to the awarded column, then the baseline. */
+  actualsSourceColumnId?: string;
+  /** Actuals axis: lineItemId -> committed/actual. Flat (RTDB-safe) like cells. */
+  actuals: Record<string, LineActual>;
   /** Defaults applied to newly created columns. */
   defaultMarkupPct: number;
   defaultContingencyPct: number;

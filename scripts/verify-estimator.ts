@@ -22,6 +22,12 @@ import {
   contingencyAmount,
   columnTotal,
   columnDelta,
+  resolveActualsSource,
+  lineVariance,
+  remainingAmount,
+  outstandingAmount,
+  actualsTotals,
+  sectionActualsTotals,
 } from "../src/lib/estimator/totals.ts";
 import {
   saveEstimate,
@@ -201,6 +207,129 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("cloud: empty-cell estimate loads clean", out.cells && Object.keys(out.cells).length === 0);
   check("cloud: sections survive even with empty items", out.sections.length === est.sections.length);
   check("cloud: every section has an (empty) lineItemIds array", out.sections.every((s) => Array.isArray(s.lineItemIds)));
+}
+
+// 7. Actuals math + variance
+{
+  const liA = "aA";
+  const liB = "aB";
+  const liC = "aC";
+  const colEst = "cEst";
+  const colVendor = "cVen";
+  const est: Estimate = {
+    schema: 1,
+    id: "actuals-test",
+    title: "Actuals",
+    subtitle: "",
+    notes: "",
+    currency: "USD",
+    sections: [
+      { id: "s1", name: "Production", lineItemIds: [liA, liB], order: 0 },
+      { id: "s2", name: "Post", lineItemIds: [liC], order: 1 },
+    ],
+    lineItems: {
+      [liA]: { id: liA, label: "A", order: 0 },
+      [liB]: { id: liB, label: "B", order: 1 },
+      [liC]: { id: liC, label: "C", order: 0 },
+    },
+    columns: [
+      { id: colEst, name: "Est", role: "version", markupPct: 0, contingencyPct: 0, order: 0 },
+      { id: colVendor, name: "Vendor", role: "vendor", markupPct: 0, contingencyPct: 0, order: 1 },
+    ],
+    cells: {
+      [`${liA}:${colEst}`]: { expr: "1000", value: 1000 },
+      [`${liB}:${colEst}`]: { expr: "500", value: 500 },
+      [`${liC}:${colEst}`]: { expr: "300", value: 300 },
+    },
+    actuals: {
+      [liA]: { committed: { expr: "1000", value: 1000 }, actual: { expr: "900", value: 900 } },
+      [liB]: { committed: { expr: "600", value: 600 }, actual: { expr: "600", value: 600 } },
+    },
+    baselineColumnId: colEst,
+    defaultMarkupPct: 0,
+    defaultContingencyPct: 0,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  const src = resolveActualsSource(est)!;
+  check("actuals: source resolves to baseline", src === colEst);
+  const g = actualsTotals(est, src);
+  check("actuals: estimate total", g.estimate === 1800, g);
+  check("actuals: committed total", g.committed === 1600, g);
+  check("actuals: actual total", g.actual === 1500, g);
+  check("actuals: remaining = estimate - actual", g.remaining === 300, g);
+  const s1 = sectionActualsTotals(est, "s1", src);
+  check("actuals: section estimate", s1.estimate === 1500 && s1.actual === 1500 && s1.remaining === 0, s1);
+  check("actuals: remainingAmount", remainingAmount(1000, 900) === 100);
+  check("actuals: outstandingAmount", outstandingAmount(1000, 900) === 100);
+  const v = lineVariance(900, 1000);
+  check("actuals: line variance abs/pct", v.abs === -100 && v.pct === -10, v);
+  check("actuals: variance vs 0 estimate -> pct 0", lineVariance(500, 0).pct === 0);
+}
+
+// 8. resolveActualsSource fallback order: source > awarded > baseline > first
+{
+  const base = (over: Partial<Estimate>): Estimate => ({
+    ...newEstimate(),
+    ...over,
+  });
+  const cols = newEstimate().columns; // one column
+  const e1 = base({ columns: cols, actualsSourceColumnId: cols[0].id });
+  check("source: explicit source wins", resolveActualsSource(e1) === cols[0].id);
+  const e2 = base({ columns: cols, actualsSourceColumnId: undefined, awardedColumnId: cols[0].id, baselineColumnId: undefined });
+  check("source: falls back to awarded", resolveActualsSource(e2) === cols[0].id);
+  const e3 = base({ columns: cols, actualsSourceColumnId: undefined, awardedColumnId: undefined, baselineColumnId: cols[0].id });
+  check("source: falls back to baseline", resolveActualsSource(e3) === cols[0].id);
+  const e4 = base({ columns: cols, actualsSourceColumnId: undefined, awardedColumnId: undefined, baselineColumnId: undefined });
+  check("source: falls back to first column", resolveActualsSource(e4) === cols[0].id);
+}
+
+// 9. Persistence of actuals + award + source column
+{
+  const e = sampleEstimate();
+  e.id = "actuals-persist";
+  e.actualsSourceColumnId = e.columns[0].id;
+  saveEstimate(e);
+  const loaded = loadEstimate("actuals-persist");
+  check("actuals persist: awardedColumnId survives", loaded?.awardedColumnId === e.awardedColumnId);
+  check("actuals persist: source column survives", loaded?.actualsSourceColumnId === e.columns[0].id);
+  check(
+    "actuals persist: committed+actual expr & value survive",
+    !!loaded &&
+      Object.entries(e.actuals).every(
+        ([k, a]) =>
+          loaded.actuals[k]?.committed.expr === a.committed.expr &&
+          loaded.actuals[k]?.committed.value === a.committed.value &&
+          loaded.actuals[k]?.actual.value === a.actual.value
+      ),
+    loaded?.actuals
+  );
+
+  // duplicate deep-copies actuals
+  const copy = duplicateEstimate("actuals-persist");
+  if (copy) {
+    const k = Object.keys(copy.actuals)[0];
+    copy.actuals[k].actual = { expr: "1", value: 1 };
+    const orig = loadEstimate("actuals-persist");
+    check("actuals duplicate: deep-copied (original untouched)", orig?.actuals[k]?.actual.value !== 1);
+  }
+}
+
+// 10. migrate self-heals a corrupted actual.value; RTDB-dropped actuals -> {}
+{
+  const e = newEstimate();
+  const li = "li-a";
+  e.lineItems[li] = { id: li, label: "A", order: 0 };
+  e.sections[0].lineItemIds.push(li);
+  (e.actuals as Record<string, unknown>)[li] = {
+    committed: { expr: "3*100" }, // value missing -> recompute from expr
+    actual: { expr: "250", value: NaN }, // NaN cache -> recompute
+  };
+  const fixed = migrate(JSON.parse(JSON.stringify(e)));
+  check("actuals migrate: committed recomputed from expr", fixed.actuals[li]?.committed.value === 300, fixed.actuals[li]);
+  check("actuals migrate: actual NaN recomputed", fixed.actuals[li]?.actual.value === 250, fixed.actuals[li]);
+  const empty = migrate(JSON.parse(JSON.stringify(newEstimate())));
+  check("actuals migrate: empty actuals -> {}", empty.actuals && Object.keys(empty.actuals).length === 0);
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);

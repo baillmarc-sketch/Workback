@@ -106,6 +106,19 @@ export default function ColumnEditorPopover({ column, anchor, onClose }: ColumnE
           Use as baseline for deltas
         </label>
 
+        <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+          <input
+            type="checkbox"
+            checked={estimate.awardedColumnId === column.id}
+            onChange={(e) =>
+              // Awarding is a real decision — commit it. It also becomes the
+              // default Estimate source in the Actuals view.
+              commit((est) => ({ ...est, awardedColumnId: e.target.checked ? column.id : undefined }))
+            }
+          />
+          Mark as awarded bid
+        </label>
+
         <div className="flex items-center border-t border-hairline pt-2.5">
           <button
             className="ml-auto rounded-md px-2 py-1 text-[12px] font-medium text-danger hover:bg-red-50 disabled:opacity-35"
@@ -120,7 +133,10 @@ export default function ColumnEditorPopover({ column, anchor, onClose }: ColumnE
                 );
                 const baselineColumnId =
                   e.baselineColumnId === column.id ? columns[0]?.id : e.baselineColumnId;
-                return { ...e, columns, cells, baselineColumnId };
+                const awardedColumnId = e.awardedColumnId === column.id ? undefined : e.awardedColumnId;
+                const actualsSourceColumnId =
+                  e.actualsSourceColumnId === column.id ? undefined : e.actualsSourceColumnId;
+                return { ...e, columns, cells, baselineColumnId, awardedColumnId, actualsSourceColumnId };
               });
               onClose();
             }}

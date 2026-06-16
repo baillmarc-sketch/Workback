@@ -6,6 +6,7 @@ import type {
   EstimateLineItem,
   EstimateSection,
   EstimateSummary,
+  LineActual,
 } from "./types";
 import { uid } from "../types";
 import { bumpVersion } from "../storage";
@@ -119,6 +120,12 @@ export function duplicateEstimate(id: string): Estimate | null {
     lineItems: Object.fromEntries(Object.entries(src.lineItems).map(([k, v]) => [k, { ...v }])),
     columns: src.columns.map((c) => ({ ...c })),
     cells: Object.fromEntries(Object.entries(src.cells).map(([k, v]) => [k, { ...v }])),
+    actuals: Object.fromEntries(
+      Object.entries(src.actuals).map(([k, v]) => [
+        k,
+        { committed: { ...v.committed }, actual: { ...v.actual } },
+      ])
+    ),
   };
   saveEstimate(copy);
   return copy;
@@ -183,16 +190,31 @@ function migrateSections(raw: unknown, lineItems: Record<string, EstimateLineIte
     .sort((a, b) => a.order - b.order);
 }
 
+function migrateCell(v: Partial<CellValue> | undefined): CellValue {
+  const expr = str(v?.expr, "");
+  // Recompute the cached value from the raw expression so a missing/NaN cache
+  // (hand-edits, partial writes) self-heals on load.
+  const value = typeof v?.value === "number" && Number.isFinite(v.value) ? v.value : evalOrZero(expr);
+  return { expr, value };
+}
+
 function migrateCells(raw: unknown): Record<string, CellValue> {
   const out: Record<string, CellValue> = {};
   if (raw && typeof raw === "object") {
     for (const [k, v] of Object.entries(raw as Record<string, Partial<CellValue>>)) {
       if (!v) continue;
-      const expr = str(v.expr, "");
-      // Recompute the cached value from the raw expression so a missing/NaN
-      // cache (hand-edits, partial writes) self-heals on load.
-      const value = typeof v.value === "number" && Number.isFinite(v.value) ? v.value : evalOrZero(expr);
-      out[k] = { expr, value };
+      out[k] = migrateCell(v);
+    }
+  }
+  return out;
+}
+
+function migrateActuals(raw: unknown): Record<string, LineActual> {
+  const out: Record<string, LineActual> = {};
+  if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw as Record<string, Partial<LineActual>>)) {
+      if (!v) continue;
+      out[k] = { committed: migrateCell(v.committed), actual: migrateCell(v.actual) };
     }
   }
   return out;
@@ -214,8 +236,15 @@ export function migrate(data: unknown): Estimate {
     lineItems,
     columns: migrateColumns(e.columns),
     cells: migrateCells(e.cells),
+    actuals: migrateActuals(e.actuals),
     baselineColumnId:
       typeof e.baselineColumnId === "string" && e.baselineColumnId ? e.baselineColumnId : undefined,
+    awardedColumnId:
+      typeof e.awardedColumnId === "string" && e.awardedColumnId ? e.awardedColumnId : undefined,
+    actualsSourceColumnId:
+      typeof e.actualsSourceColumnId === "string" && e.actualsSourceColumnId
+        ? e.actualsSourceColumnId
+        : undefined,
     defaultMarkupPct: num(e.defaultMarkupPct, 0),
     defaultContingencyPct: num(e.defaultContingencyPct, 0),
     shareId: typeof e.shareId === "string" && e.shareId ? e.shareId : undefined,
@@ -255,6 +284,7 @@ export function newEstimate(): Estimate {
     lineItems: {},
     columns: [firstColumn],
     cells: {},
+    actuals: {},
     baselineColumnId: firstColumn.id,
     defaultMarkupPct: 0,
     defaultContingencyPct: 0,
@@ -331,6 +361,20 @@ export function sampleEstimate(): Estimate {
   set(liLicense, vendor, "18000");
   set(liMix, vendor, "5500");
 
+  // A few actuals so the Actuals view demos with real variance against the
+  // awarded vendor bid.
+  const actuals: Record<string, LineActual> = {};
+  const act = (li: EstimateLineItem, committedExpr: string, actualExpr: string) => {
+    actuals[li.id] = {
+      committed: { expr: committedExpr, value: evalOrZero(committedExpr) },
+      actual: { expr: actualExpr, value: evalOrZero(actualExpr) },
+    };
+  };
+  act(liDirector, "22000", "22000");
+  act(liCrew, "26000", "27500"); // came in over
+  act(liEquipment, "11000", "10200"); // under
+  act(liEditor, "17000", "8500"); // half invoiced so far
+
   return {
     schema: 1,
     id: uid(),
@@ -342,7 +386,9 @@ export function sampleEstimate(): Estimate {
     lineItems,
     columns: [versionA, versionB, vendor],
     cells,
+    actuals,
     baselineColumnId: versionA.id,
+    awardedColumnId: vendor.id,
     defaultMarkupPct: 15,
     defaultContingencyPct: 10,
     createdAt: now,
