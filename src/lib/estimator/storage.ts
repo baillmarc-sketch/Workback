@@ -341,6 +341,7 @@ export function migrate(data: unknown): Estimate {
     fields: migrateFields(e.fields),
     deliverables: migrateDeliverables(e.deliverables),
     deliverablesShowSpecs: e.deliverablesShowSpecs === false ? false : true,
+    logoUrl: typeof e.logoUrl === "string" && e.logoUrl ? e.logoUrl : undefined,
     team: migrateTeam(e.team),
     adjustments: migrateAdjustments(e),
     sections: migrateSections(e.sections, lineItems),

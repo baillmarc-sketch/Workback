@@ -129,6 +129,8 @@ export interface Estimate {
   deliverables: Deliverable[];
   /** Whether the deliverables table shows Length/Usage columns (off for events). */
   deliverablesShowSpecs?: boolean;
+  /** Logo shown on the client PDF header — an image URL or a data: URL. */
+  logoUrl?: string;
   /** Team (Name / Role / Level / Hours). */
   team: TeamMember[];
   /** Below-the-line adjustments applied to every column (markup, contingency,
