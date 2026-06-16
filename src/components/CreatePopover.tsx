@@ -75,6 +75,25 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
     onClose();
   };
 
+  const closure = (project?.closures ?? []).find((c) => c.date === dayKey);
+
+  // Mark/clear an office closure for this day. Marking flips savedRef so the
+  // unmount auto-save won't also drop an event onto the day being closed.
+  const markClosed = () => {
+    savedRef.current = true;
+    const label = title.trim() || undefined;
+    commit((p) => ({
+      ...p,
+      closures: [...(p.closures ?? []).filter((c) => c.date !== dayKey), { date: dayKey, label }],
+    }));
+    onClose();
+  };
+  const reopen = () => {
+    savedRef.current = true;
+    commit((p) => ({ ...p, closures: (p.closures ?? []).filter((c) => c.date !== dayKey) }));
+    onClose();
+  };
+
   // Escape cancels without saving. Register in capture before Popover's own
   // Escape handler (which is added on a 0ms timeout) and stop it firing too.
   useEffect(() => {
@@ -92,8 +111,27 @@ export default function CreatePopover({ dayKey, anchor, onClose, onCreated }: Cr
   return (
     <Popover anchor={anchor} onClose={save} width={344}>
       <div className="flex flex-col gap-2.5 p-3.5">
-        <div className="text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
-          {fmtLong(dayKey)}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
+            {fmtLong(dayKey)}
+          </span>
+          {closure ? (
+            <button
+              className="shrink-0 text-[11px] font-medium text-ink-soft hover:text-ink"
+              onClick={reopen}
+              title="Reopen this day — removes the office closure"
+            >
+              ✕ Reopen day
+            </button>
+          ) : (
+            <button
+              className="shrink-0 text-[11px] font-medium text-ink-soft hover:text-ink"
+              onClick={markClosed}
+              title="Grey out this day as an office closure / holiday. Uses the title above as its label, if set."
+            >
+              Mark office closed
+            </button>
+          )}
         </div>
         <input
           ref={inputRef}

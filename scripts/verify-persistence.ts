@@ -84,6 +84,10 @@ const proj: Project = {
       locked: false,
     },
   ],
+  closures: [
+    { date: "2026-06-19", label: "Juneteenth" },
+    { date: "2026-06-25" },
+  ],
   anchorMonth: "2026-06",
   monthsVisible: 2,
   showLegend: true,
@@ -102,6 +106,7 @@ const proj: Project = {
   check("save/load: subtitle survives", loaded?.subtitle === proj.subtitle);
   check("save/load: categories survive", loaded?.categories.length === 2 && loaded?.categories[1].color === "#10b981");
   check("save/load: monthsVisible survives", loaded?.monthsVisible === 2);
+  check("save/load: closures survive", loaded?.closures?.length === 2 && loaded?.closures[0].label === "Juneteenth");
   check("save/load: shareId survives", loaded?.shareId === "abc123def456");
   check("save/load: createdAt survives", loaded?.createdAt === 111);
   check("save/load: appears in index", listProjects().some((s) => s.id === "persist-test" && s.eventCount === 2));
@@ -150,7 +155,29 @@ const proj: Project = {
   check("share: event fields survive", eventsEqual(out.events, proj.events));
   check("share: categories survive", out.categories.length === 2);
   check("share: notes survive", out.notes === proj.notes);
+  check("share: closures survive", out.closures?.length === 2 && out.closures[1].date === "2026-06-25");
   check("share: shareId stripped (by design)", out.shareId === undefined);
+}
+
+// 4b. Closures migrate: valid kept & de-duped by date, malformed dropped,
+//     empty collapses to undefined so stored projects stay lean
+{
+  const m = migrate({
+    id: "c", events: [], updatedAt: 1,
+    closures: [
+      { date: "2026-12-25", label: "Christmas" },
+      { date: "2026-12-25", label: "dup ignored" },
+      { date: "not-a-date", label: "bad" },
+      { label: "no date" },
+      { date: "2026-07-03" },
+    ],
+  });
+  check("closures: valid entries kept", m.closures?.length === 2, m.closures);
+  check("closures: first label survives", m.closures?.[0].label === "Christmas");
+  check("closures: duplicate date dropped", m.closures?.filter((c) => c.date === "2026-12-25").length === 1);
+  check("closures: malformed date dropped", !m.closures?.some((c) => c.date === "not-a-date"));
+  check("closures: unlabeled keeps date with no label", m.closures?.[1].date === "2026-07-03" && m.closures?.[1].label === undefined);
+  check("closures: empty array → undefined", migrate({ id: "c", events: [], updatedAt: 1, closures: [] }).closures === undefined);
 }
 
 // 5. Cloud publish→fetch: RTDB drops undefined/empty arrays and we add a

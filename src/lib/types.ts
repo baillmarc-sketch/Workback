@@ -31,6 +31,15 @@ export interface WorkbackEvent {
   dayOrder?: number;
 }
 
+/** A non-working day: an office closure or holiday. Greys out the day in the
+    grid and print. PTO is modeled as a normal event/milestone, not a closure. */
+export interface Closure {
+  /** yyyy-MM-dd */
+  date: string;
+  /** Optional name shown on the day, e.g. "Thanksgiving" */
+  label?: string;
+}
+
 export interface Project {
   schema: 2;
   id: string;
@@ -40,6 +49,9 @@ export interface Project {
   /** Editable per-project label set; rename/recolor/add/delete in the legend */
   categories: ProjectCategory[];
   events: WorkbackEvent[];
+  /** Office closures / holidays — non-working days greyed out on the calendar.
+      A purely visual marker; PTO stays a normal event, not a closure. */
+  closures?: Closure[];
   /** First visible month, yyyy-MM */
   anchorMonth: string;
   monthsVisible: 1 | 2 | 3;

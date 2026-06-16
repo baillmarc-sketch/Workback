@@ -198,6 +198,8 @@ export default function Calendar({
     : project;
 
   const warnings = computeWarnings(displayProject.events);
+  // date → closure label ("" when unlabeled); presence of the key = day closed
+  const closures = new Map((displayProject.closures ?? []).map((c) => [c.date, c.label ?? ""]));
   const months: string[] = [];
   if (monthsOverride) {
     months.push(...monthsOverride);
@@ -226,6 +228,7 @@ export default function Calendar({
             project={displayProject}
             selectedId={selectedId}
             warnings={warnings}
+            closures={closures}
             shiftedIds={shiftedIds}
             draggingId={draggingId}
             readOnly={readOnly}

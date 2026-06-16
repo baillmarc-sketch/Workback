@@ -18,6 +18,8 @@ interface WeekRowProps {
   selectedId: string | null;
   /** event id → reason it conflicts with a locked date */
   warnings: Map<string, string>;
+  /** date key → closure label ("" when unlabeled); presence = day closed */
+  closures: Map<string, string>;
   shiftedIds: Set<string>;
   draggingId: string | null;
   readOnly?: boolean;
@@ -27,29 +29,40 @@ interface WeekRowProps {
   onMoreClick: (dayKey: string, hidden: WorkbackEvent[], rect: DOMRect) => void;
 }
 
+// Diagonal hatch marks a closed day as "blocked" without drowning out any
+// bars that still sit on it.
+const CLOSED_HATCH =
+  "repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0,0,0,0.035) 5px, rgba(0,0,0,0.035) 6px)";
+
 function DayCell({
   dayKey,
   inMonth,
   isToday,
+  closureLabel,
   readOnly,
   onDayClick,
 }: {
   dayKey: string;
   inMonth: boolean;
   isToday: boolean;
+  /** undefined = open; a string (possibly "") = office closed that day */
+  closureLabel?: string;
   readOnly?: boolean;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `day:${dayKey}`, data: { dayKey } });
   const dayNum = parseInt(dayKey.slice(8), 10);
+  const closed = closureLabel !== undefined && inMonth;
 
   return (
     <div
       ref={setNodeRef}
       data-day={dayKey}
+      title={closed ? `Office closed${closureLabel ? ` — ${closureLabel}` : ""}` : undefined}
       className={`relative border-r border-hairline last:border-r-0 ${
-        !inMonth ? "bg-paper" : isWeekendKey(dayKey) ? "bg-[#f6f5f1]" : ""
+        !inMonth ? "bg-paper" : closed ? "bg-[#edebe4]" : isWeekendKey(dayKey) ? "bg-[#f6f5f1]" : ""
       } ${isOver ? "!bg-[#f1efe9]" : ""} ${readOnly ? "" : "cursor-pointer"}`}
+      style={closed ? { backgroundImage: CLOSED_HATCH } : undefined}
       onClick={(e) => {
         if (readOnly) return;
         onDayClick(dayKey, (e.currentTarget as HTMLElement).getBoundingClientRect());
@@ -68,6 +81,11 @@ function DayCell({
           {dayNum}
         </span>
       </div>
+      {closed && (
+        <div className="pointer-events-none absolute top-1 right-7 left-1.5 truncate text-[10px] font-semibold tracking-[0.03em] text-ink-faint uppercase">
+          {closureLabel || "Closed"}
+        </div>
+      )}
     </div>
   );
 }
@@ -79,6 +97,7 @@ export default function WeekRow({
   categories,
   selectedId,
   warnings,
+  closures,
   shiftedIds,
   draggingId,
   readOnly,
@@ -106,6 +125,7 @@ export default function WeekRow({
             dayKey={d}
             inMonth={isInMonth(d, monthKey)}
             isToday={d === today}
+            closureLabel={closures.get(d)}
             readOnly={readOnly}
             onDayClick={onDayClick}
           />
