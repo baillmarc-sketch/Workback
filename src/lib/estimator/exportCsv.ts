@@ -43,10 +43,11 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
     lines.push("");
   }
 
-  // Deliverables
+  // Deliverables (Length/Usage hidden for events)
   if (estimate.deliverables.length) {
-    lines.push(row(["Deliverables", "Length", "Usage"]));
-    for (const d of estimate.deliverables) lines.push(row([d.title, d.length, d.usage]));
+    const specs = estimate.deliverablesShowSpecs !== false;
+    lines.push(row(specs ? ["Deliverables", "Length", "Usage"] : ["Deliverables"]));
+    for (const d of estimate.deliverables) lines.push(row(specs ? [d.title, d.length, d.usage] : [d.title]));
     lines.push("");
   }
 

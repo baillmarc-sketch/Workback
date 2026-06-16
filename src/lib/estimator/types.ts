@@ -127,6 +127,8 @@ export interface Estimate {
   fields: ProjectField[];
   /** Deliverables (Title / Length / Usage). */
   deliverables: Deliverable[];
+  /** Whether the deliverables table shows Length/Usage columns (off for events). */
+  deliverablesShowSpecs?: boolean;
   /** Team (Name / Role / Level / Hours). */
   team: TeamMember[];
   /** Below-the-line adjustments applied to every column (markup, contingency,

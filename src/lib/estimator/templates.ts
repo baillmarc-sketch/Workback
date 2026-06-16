@@ -19,6 +19,8 @@ export interface EstimateTemplate {
   sections: { name: string; items: TemplateItem[] }[];
   /** Below-the-line adjustments applied to every column. */
   adjustments: { label: string; type: AdjustmentType; value: number }[];
+  /** Whether deliverables show Length/Usage columns (off for events). */
+  deliverablesShowSpecs: boolean;
   assumptions: string;
 }
 
@@ -91,7 +93,6 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
         name: "Music & Audio",
         items: ["Popular Music Licensing", "Original Music — Demos", "Original Music — Buyout", "Music Supervision", "Musicology"],
       },
-      { name: "Digital", items: ["Hosting", "Licenses", "Hardware"] },
       {
         name: "Talent & Usage",
         items: [
@@ -107,11 +108,12 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
       { name: "Travel", items: ["Flights", "Per Diem (Hotel / Meals + Misc)", "Ground Transportation", "Rental Cars"] },
       {
         name: "Misc",
-        items: [{ label: "Project Archive", amount: 750 }, "Outside Legal Counsel", "Trademark Search", "Hard Drives", "Shipping", "Printing & Misc"],
+        items: ["Outside Legal Counsel", "Trademark Search", "Hard Drives", "Shipping", "Printing & Misc"],
       },
       { name: "Insurance", items: ["Special Coverage"] },
     ],
     adjustments: STD_ADJUSTMENTS,
+    deliverablesShowSpecs: true,
     assumptions: VIDEO_ASSUMPTIONS,
   },
   {
@@ -128,10 +130,11 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
       { name: "Food & Beverage", items: ["Catering", "Bar"] },
       { name: "Talent & Usage", items: ["Host / Talent", "Talent Usage"] },
       { name: "Travel", items: ["Flights", "Per Diem (Hotel / Meals + Misc)", "Ground Transportation", "Rental Cars"] },
-      { name: "Misc", items: [{ label: "Project Archive", amount: 750 }, "Permits / Licenses", "Shipping", "Storage", "Printing & Misc"] },
+      { name: "Misc", items: ["Permits / Licenses", "Shipping", "Storage", "Printing & Misc"] },
       { name: "Insurance", items: ["Event Insurance", "Special Coverage"] },
     ],
     adjustments: STD_ADJUSTMENTS,
+    deliverablesShowSpecs: false,
     assumptions: EVENT_ASSUMPTIONS,
   },
   {
@@ -145,6 +148,7 @@ export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [
       { name: "Other", items: [] },
     ],
     adjustments: [],
+    deliverablesShowSpecs: true,
     assumptions: "",
   },
 ];
