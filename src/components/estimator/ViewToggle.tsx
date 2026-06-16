@@ -5,7 +5,7 @@ export type ViewMode = "all" | "versions" | "leveling" | "actuals";
 const MODES: { id: ViewMode; label: string; title: string }[] = [
   { id: "all", label: "All", title: "Show every column" },
   { id: "versions", label: "Versions", title: "Show only your internal version columns" },
-  { id: "leveling", label: "Leveling", title: "Compare vendor bids against your estimate and award one" },
+  { id: "leveling", label: "Triple Bid", title: "Compare vendor bids against your estimate and award one" },
   { id: "actuals", label: "Actuals", title: "Track estimate vs committed, actual, and remaining" },
 ];
 
