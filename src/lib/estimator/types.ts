@@ -20,6 +20,8 @@ export interface EstimateColumn {
   id: string;
   name: string;
   role: ColumnRole;
+  /** When true, cells hold a low–high ballpark range and totals show a range. */
+  range?: boolean;
   /** Optional company label for vendor columns */
   vendor?: string;
   /** Free-text notes about this bid/version */
@@ -88,6 +90,9 @@ export interface EstimateSection {
 export interface CellValue {
   expr: string;
   value: number;
+  /** High end of a ballpark range (range columns only); `value` is the low end. */
+  highExpr?: string;
+  high?: number;
 }
 
 /** A single PO or invoice booked against a line item. The Committed total for a

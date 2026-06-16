@@ -11,7 +11,14 @@ function cellValue(est: Estimate, lineItemId: string, columnId: string): number 
   return c && Number.isFinite(c.value) ? c.value : 0;
 }
 
-/** Sum of one section's line items for a single column. */
+/** High end of a range cell; equals the low value for non-range cells. */
+function cellHigh(est: Estimate, lineItemId: string, columnId: string): number {
+  const c = est.cells[cellKey(lineItemId, columnId)];
+  if (!c) return 0;
+  return Number.isFinite(c.high as number) ? (c.high as number) : Number.isFinite(c.value) ? c.value : 0;
+}
+
+/** Sum of one section's line items for a single column (low end). */
 export function sectionSubtotal(est: Estimate, sectionId: string, columnId: string): number {
   const section = est.sections.find((s) => s.id === sectionId);
   if (!section) return 0;
@@ -20,10 +27,26 @@ export function sectionSubtotal(est: Estimate, sectionId: string, columnId: stri
   return sum;
 }
 
-/** Sum of every line item (across all sections) for a single column. */
+/** Section subtotal using the high end of range cells. */
+export function sectionSubtotalHigh(est: Estimate, sectionId: string, columnId: string): number {
+  const section = est.sections.find((s) => s.id === sectionId);
+  if (!section) return 0;
+  let sum = 0;
+  for (const liId of section.lineItemIds) sum += cellHigh(est, liId, columnId);
+  return sum;
+}
+
+/** Sum of every line item (across all sections) for a single column (low end). */
 export function columnSubtotal(est: Estimate, columnId: string): number {
   let sum = 0;
   for (const section of est.sections) sum += sectionSubtotal(est, section.id, columnId);
+  return sum;
+}
+
+/** Column subtotal using the high end of range cells. */
+export function columnSubtotalHigh(est: Estimate, columnId: string): number {
+  let sum = 0;
+  for (const section of est.sections) sum += sectionSubtotalHigh(est, section.id, columnId);
   return sum;
 }
 
@@ -42,6 +65,12 @@ export function columnAdjustments(est: Estimate, columnId: string): number {
 export function columnTotal(est: Estimate, columnId: string): number {
   const subtotal = columnSubtotal(est, columnId);
   return subtotal + columnAdjustments(est, columnId);
+}
+
+/** Grand total using the high end of range cells. */
+export function columnTotalHigh(est: Estimate, columnId: string): number {
+  const subtotal = columnSubtotalHigh(est, columnId);
+  return subtotal + est.adjustments.reduce((sum, a) => sum + adjustmentAmount(subtotal, a), 0);
 }
 
 export interface Delta {

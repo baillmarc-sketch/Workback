@@ -8,12 +8,15 @@ import {
   cellVariance,
   columnDelta,
   columnSubtotal,
+  columnSubtotalHigh,
   columnTotal,
+  columnTotalHigh,
   sectionSubtotal,
+  sectionSubtotalHigh,
 } from "@/lib/estimator/totals";
-import { evalExpr } from "@/lib/estimator/formula";
+import { evalExpr, parseRange } from "@/lib/estimator/formula";
 import { formatCurrency, formatCurrencySigned, formatPct, formatPctSigned } from "@/lib/estimator/format";
-import { cellKey, type EstimateColumn } from "@/lib/estimator/types";
+import { cellKey, type CellValue, type EstimateColumn } from "@/lib/estimator/types";
 import { useEstimate } from "@/state/estimateStore";
 import ColumnEditorPopover from "./ColumnEditorPopover";
 import type { ViewMode } from "./ViewToggle";
@@ -82,22 +85,40 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   const colIds = visibleColumns.map((c) => c.id);
 
   // --- cell editing ---
-  const exprOf = (liId: string, colId: string) => estimate.cells[cellKey(liId, colId)]?.expr ?? "";
+  const isRangeCol = (colId: string) => !!estimate.columns.find((c) => c.id === colId)?.range;
+  const exprOf = (liId: string, colId: string) => {
+    const c = estimate.cells[cellKey(liId, colId)];
+    if (!c) return "";
+    if (isRangeCol(colId) && c.highExpr && c.highExpr !== c.expr) return `${c.expr}-${c.highExpr}`;
+    return c.expr;
+  };
 
-  /** Persist a cell as the user types: blank clears it, valid math stores
-      {expr,value}, invalid keystrokes update only the local draft. */
+  /** Persist a cell as the user types: blank clears it, valid input stores the
+      cell, invalid keystrokes update only the local draft. Range columns parse
+      a "low-high" range; others a single expression. */
   const writeCell = (liId: string, colId: string, value: string) => {
     setDraft(value);
-    const r = evalExpr(value);
+    const key = cellKey(liId, colId);
     if (value.trim() === "") {
       commit((e) => {
         const cells = { ...e.cells };
-        delete cells[cellKey(liId, colId)];
+        delete cells[key];
         return { ...e, cells };
       });
-    } else if (r.ok) {
-      commit((e) => ({ ...e, cells: { ...e.cells, [cellKey(liId, colId)]: { expr: value.trim(), value: r.value ?? 0 } } }));
+      return;
     }
+    if (isRangeCol(colId)) {
+      const r = parseRange(value);
+      if (!r.ok || r.low === undefined) return;
+      const cell: CellValue =
+        r.high !== undefined && r.highExpr && r.high !== r.low
+          ? { expr: r.lowExpr ?? "", value: r.low, highExpr: r.highExpr, high: r.high }
+          : { expr: r.lowExpr ?? value.trim(), value: r.low };
+      commit((e) => ({ ...e, cells: { ...e.cells, [key]: cell } }));
+      return;
+    }
+    const r = evalExpr(value);
+    if (r.ok) commit((e) => ({ ...e, cells: { ...e.cells, [key]: { expr: value.trim(), value: r.value ?? 0 } } }));
   };
 
   const clearCell = (liId: string, colId: string) =>
@@ -106,6 +127,12 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
       delete cells[cellKey(liId, colId)];
       return { ...e, cells };
     });
+
+  /** Format a figure as a range for range columns (low – high), else a single value. */
+  const fmtRange = (colId: string, low: number, high: number) =>
+    isRangeCol(colId) && high !== low
+      ? `${formatCurrency(low, currency)} – ${formatCurrency(high, currency)}`
+      : formatCurrency(low, currency);
 
   const startEdit = (liId: string, colId: string, seed?: string) => {
     setSel({ liId, colId });
@@ -278,6 +305,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                   <span className="flex items-center gap-1 truncate text-[12.5px] font-semibold">
                     {col.name || "Untitled"}
                     {col.id === baseId && <span className="text-[9px] text-ink-faint" title="Baseline">★</span>}
+                    {col.range && <span className="text-[9px] text-ink-faint" title="Ballpark range column">↔</span>}
                     {(col.links?.length || col.notes) && (
                       <span className="text-[9px] text-ink-faint" title="Has notes / links">🔗</span>
                     )}
@@ -385,7 +413,11 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                               className="flex h-full w-full flex-col items-end justify-center px-3 text-right text-[13px] tabular-nums hover:bg-paper"
                               onClick={() => startEdit(liId, col.id)}
                             >
-                              {cell ? formatCurrency(cell.value, currency) : <span className="text-ink-faint">—</span>}
+                              {cell ? (
+                                fmtRange(col.id, cell.value, cell.high ?? cell.value)
+                              ) : (
+                                <span className="text-ink-faint">—</span>
+                              )}
                               {v && v.abs !== 0 && (
                                 <span className={`text-[9.5px] ${v.abs > 0 ? "text-danger" : "text-[#15803d]"}`}>
                                   {formatCurrencySigned(v.abs, currency)}
@@ -414,7 +446,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                     className="flex h-8 shrink-0 items-center justify-end border-l border-hairline px-3 text-[12.5px] font-medium tabular-nums"
                     style={{ width: COL_W }}
                   >
-                    {formatCurrency(sectionSubtotal(estimate, section.id, col.id), currency)}
+                    {fmtRange(col.id, sectionSubtotal(estimate, section.id, col.id), sectionSubtotalHigh(estimate, section.id, col.id))}
                   </div>
                 ))}
               </div>
@@ -435,19 +467,33 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
           </div>
 
           {/* Totals block: Net subtotal → adjustments → Total */}
-          <TotalRow label="Net Subtotal" columns={visibleColumns} value={(col) => columnSubtotal(estimate, col.id)} currency={currency} />
+          <TotalRow
+            label="Net Subtotal"
+            columns={visibleColumns}
+            cell={(col) => fmtRange(col.id, columnSubtotal(estimate, col.id), columnSubtotalHigh(estimate, col.id))}
+          />
           {estimate.adjustments.map((adj) => (
             <TotalRow
               key={adj.id}
               label={adj.label}
               columns={visibleColumns}
               sub={adj.type === "percent" ? () => formatPct(adj.value) : undefined}
-              value={(col) => adjustmentAmount(columnSubtotal(estimate, col.id), adj)}
-              currency={currency}
+              cell={(col) =>
+                fmtRange(
+                  col.id,
+                  adjustmentAmount(columnSubtotal(estimate, col.id), adj),
+                  adjustmentAmount(columnSubtotalHigh(estimate, col.id), adj)
+                )
+              }
               muted
             />
           ))}
-          <TotalRow label="Total" columns={visibleColumns} value={(col) => columnTotal(estimate, col.id)} currency={currency} strong />
+          <TotalRow
+            label="Total"
+            columns={visibleColumns}
+            cell={(col) => fmtRange(col.id, columnTotal(estimate, col.id), columnTotalHigh(estimate, col.id))}
+            strong
+          />
 
           {/* Delta vs baseline */}
           {baseId && (
@@ -496,17 +542,15 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 function TotalRow({
   label,
   columns,
-  value,
+  cell,
   sub,
-  currency,
   strong,
   muted,
 }: {
   label: string;
   columns: EstimateColumn[];
-  value: (col: EstimateColumn) => number;
+  cell: (col: EstimateColumn) => React.ReactNode;
   sub?: (col: EstimateColumn) => string;
-  currency: string;
   strong?: boolean;
   muted?: boolean;
 }) {
@@ -527,7 +571,7 @@ function TotalRow({
           style={{ width: COL_W }}
         >
           {sub && <span className="text-[10px] text-ink-faint">{sub(col)}</span>}
-          {formatCurrency(value(col), currency)}
+          {cell(col)}
         </div>
       ))}
     </div>

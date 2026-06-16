@@ -14,10 +14,12 @@ const store = new Map<string, string>();
   },
 } as Storage;
 
-import { evalExpr, evalOrZero } from "../src/lib/estimator/formula.ts";
+import { evalExpr, evalOrZero, parseRange } from "../src/lib/estimator/formula.ts";
 import {
   sectionSubtotal,
   columnSubtotal,
+  columnSubtotalHigh,
+  columnTotalHigh,
   adjustmentAmount,
   columnTotal,
   columnDelta,
@@ -371,6 +373,41 @@ function check(name: string, cond: boolean, detail?: unknown) {
   saveEstimate(e);
   const loaded = loadEstimate("assume-test");
   check("assumptions: persist round-trip", loaded?.assumptions === e.assumptions, loaded?.assumptions);
+}
+
+// 12. Ballpark range columns
+{
+  const r1 = parseRange("10000-15000");
+  check("range: parses low-high", r1.ok && r1.low === 10000 && r1.high === 15000, r1);
+  const r2 = parseRange("5000");
+  check("range: single value -> low=high", r2.ok && r2.low === 5000 && r2.high === 5000, r2);
+  const r3 = parseRange("15000-10000");
+  check("range: normalizes low<=high", r3.ok && r3.low === 10000 && r3.high === 15000, r3);
+  const r4 = parseRange("2*1000 to 3000");
+  check("range: math + 'to' separator", r4.ok && r4.low === 2000 && r4.high === 3000, r4);
+  check("range: empty ok", parseRange("").ok && parseRange("").low === undefined);
+
+  const li = "rli";
+  const col = "rcol";
+  const est: Estimate = {
+    ...newEstimate("blank"),
+    id: "range-test",
+    columns: [{ id: col, name: "Ballpark", role: "version", range: true, order: 0 }],
+    lineItems: { [li]: { id: li, label: "X", order: 0 } },
+    sections: [{ id: "s", name: "S", lineItemIds: [li], order: 0 }],
+    cells: { [`${li}:${col}`]: { expr: "10000", value: 10000, highExpr: "15000", high: 15000 } },
+    adjustments: [{ id: "a", label: "Contingency", type: "percent", value: 10 }],
+  };
+  check("range: column subtotal low", columnSubtotal(est, col) === 10000);
+  check("range: column subtotal high", columnSubtotalHigh(est, col) === 15000);
+  check("range: column total low (10000 + 10%)", columnTotal(est, col) === 11000);
+  check("range: column total high (15000 + 10%)", columnTotalHigh(est, col) === 16500);
+
+  // persistence keeps the high end
+  saveEstimate(est);
+  const loaded = loadEstimate("range-test");
+  const cell = loaded?.cells[`${li}:${col}`];
+  check("range: persists high", cell?.value === 10000 && cell?.high === 15000 && loaded?.columns[0]?.range === true, cell);
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);

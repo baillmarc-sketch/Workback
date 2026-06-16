@@ -87,6 +87,15 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
           </div>
         </div>
 
+        <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
+          <input
+            type="checkbox"
+            checked={!!live.range}
+            onChange={(e) => update({ range: e.target.checked || undefined })}
+          />
+          Ballpark range column (low–high)
+        </label>
+
         {live.role === "vendor" && (
           <div>
             <label className={labelCls}>Company</label>
