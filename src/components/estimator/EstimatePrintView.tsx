@@ -56,12 +56,18 @@ export default function EstimatePrintView({ config }: { config: PrintConfig }) {
   return (
     <div className="estimate-print print-only">
       {/* Header */}
-      <div style={{ borderBottom: "3px solid #000", paddingBottom: 8, marginBottom: 14 }}>
-        <h1 className="font-display text-[24px] font-bold leading-tight">{estimate.title || "Estimate"}</h1>
-        {estimate.subtitle && <div className="text-[13px] text-[#444]">{estimate.subtitle}</div>}
-        <div className="mt-1 text-[11px] text-[#666]">
-          Estimate · {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+      <div style={{ borderBottom: "3px solid #000", paddingBottom: 8, marginBottom: 14 }} className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[24px] font-bold leading-tight">{estimate.title || "Estimate"}</h1>
+          {estimate.subtitle && <div className="text-[13px] text-[#444]">{estimate.subtitle}</div>}
+          <div className="mt-1 text-[11px] text-[#666]">
+            Estimate · {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+          </div>
         </div>
+        {estimate.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={estimate.logoUrl} alt="Logo" style={{ maxHeight: 56, maxWidth: 180, objectFit: "contain" }} />
+        )}
       </div>
 
       {/* Project info */}

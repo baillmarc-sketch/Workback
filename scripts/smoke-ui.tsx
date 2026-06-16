@@ -15,6 +15,7 @@ import ActualsGrid from "../src/components/estimator/ActualsGrid.tsx";
 import ProjectDetailsPanel from "../src/components/estimator/ProjectDetailsPanel.tsx";
 import EstimatorToolbar from "../src/components/estimator/EstimatorToolbar.tsx";
 import AdjustmentsDialog from "../src/components/estimator/AdjustmentsDialog.tsx";
+import EstimatorHelpDialog from "../src/components/estimator/EstimatorHelpDialog.tsx";
 import EstimatePrintView, { defaultPrintConfig } from "../src/components/estimator/EstimatePrintView.tsx";
 import type { Estimate } from "../src/lib/estimator/types.ts";
 // Note: EstimatesDialog/EstimatorHeader use the Auth context and always render
@@ -82,6 +83,7 @@ for (const id of ["video", "event"] as const) {
 }
 // Modal-based dialogs return null without a document — should not throw.
 render("AdjustmentsDialog · sample", sample, React.createElement(AdjustmentsDialog, { onClose: noop }));
+render("EstimatorHelpDialog · sample", sample, React.createElement(EstimatorHelpDialog, { onClose: noop }));
 
 // Empty/edge estimate (no columns? keep one; no cells, no sections content).
 const empty = newEstimate("blank");

@@ -20,11 +20,12 @@ import EstimatePrintDialog from "./EstimatePrintDialog";
 import EstimatePrintView, { defaultPrintConfig, type PrintConfig } from "./EstimatePrintView";
 import EstimatesDialog from "./EstimatesDialog";
 import EstimatorHeader from "./EstimatorHeader";
+import EstimatorHelpDialog from "./EstimatorHelpDialog";
 import EstimatorToolbar from "./EstimatorToolbar";
 import ProjectDetailsPanel from "./ProjectDetailsPanel";
 import type { ViewMode } from "./ViewToggle";
 
-type Dialog = "estimates" | "export" | "adjustments" | "print" | null;
+type Dialog = "estimates" | "export" | "adjustments" | "print" | "help" | null;
 
 export default function EstimatorApp() {
   const { estimate, open, patch, undo, redo } = useEstimate();
@@ -107,9 +108,17 @@ export default function EstimatorApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Undo/redo keyboard shortcuts
+  // Undo/redo + help keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // "?" opens help (when not typing in a field)
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        e.preventDefault();
+        setDialog((d) => d ?? "help");
+        return;
+      }
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key === "z" || e.key === "Z") {
         e.preventDefault();
@@ -159,6 +168,23 @@ export default function EstimatorApp() {
         />
         <ProjectDetailsPanel key={estimate.id} />
         {mode === "actuals" ? <ActualsGrid /> : <EstimateGrid mode={mode} />}
+
+        <footer className="mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
+          Estimator — auto-saved {estimate.shareId ? "& synced" : "locally"} · type to edit · Enter ↓ · Tab → · ⌘Z undo ·{" "}
+          <button
+            className="font-medium underline-offset-2 hover:text-ink-soft hover:underline"
+            onClick={() => setDialog("help")}
+          >
+            ? How it works
+          </button>
+        </footer>
+        <footer className="mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
+          Auto-saved · tap a cell to edit ·{" "}
+          <button className="font-medium underline-offset-2" onClick={() => setDialog("help")}>
+            How it works
+          </button>
+        </footer>
+        <div className="pb-4 text-center text-[11px] text-ink-faint">©2026. Stolen from Marc Baill.</div>
       </div>
 
       {/* Client-ready PDF document — hidden on screen, shown only when printing */}
@@ -174,6 +200,7 @@ export default function EstimatorApp() {
           onClose={() => setDialog(null)}
         />
       )}
+      {dialog === "help" && <EstimatorHelpDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div className="no-print fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink px-3.5 py-2 text-[12.5px] font-medium text-paper shadow-lg">
