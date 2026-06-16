@@ -3,7 +3,7 @@
  * of operations is fixed and additive (not compounded): markup and contingency
  * are both computed off the raw subtotal, then summed into the total.
  */
-import type { Estimate } from "./types";
+import type { Estimate, LedgerEntry, LedgerKind } from "./types";
 import { cellKey } from "./types";
 
 function cellValue(est: Estimate, lineItemId: string, columnId: string): number {
@@ -89,14 +89,27 @@ export function lineEstimate(est: Estimate, lineItemId: string, sourceColumnId: 
   return cellValue(est, lineItemId, sourceColumnId);
 }
 
-export function committedValue(est: Estimate, lineItemId: string): number {
-  const a = est.actuals[lineItemId];
-  return a && Number.isFinite(a.committed.value) ? a.committed.value : 0;
+/** PO or invoice entries booked against a line, newest dates last. */
+export function lineEntries(est: Estimate, lineItemId: string, kind: LedgerKind): LedgerEntry[] {
+  return est.ledger.filter((x) => x.lineItemId === lineItemId && x.kind === kind);
 }
 
+function sumEntries(est: Estimate, lineItemId: string, kind: LedgerKind): number {
+  let sum = 0;
+  for (const x of est.ledger) {
+    if (x.lineItemId === lineItemId && x.kind === kind && Number.isFinite(x.amount)) sum += x.amount;
+  }
+  return sum;
+}
+
+/** Committed = sum of the line's PO entries. */
+export function committedValue(est: Estimate, lineItemId: string): number {
+  return sumEntries(est, lineItemId, "po");
+}
+
+/** Actual = sum of the line's invoice entries. */
 export function actualValue(est: Estimate, lineItemId: string): number {
-  const a = est.actuals[lineItemId];
-  return a && Number.isFinite(a.actual.value) ? a.actual.value : 0;
+  return sumEntries(est, lineItemId, "invoice");
 }
 
 /** Budget left to spend against this line. */
@@ -123,6 +136,9 @@ export interface ActualsTotals {
   estimate: number;
   committed: number;
   actual: number;
+  /** committed − actual: open POs not yet invoiced */
+  outstanding: number;
+  /** estimate − actual: budget left to spend */
   remaining: number;
 }
 
@@ -135,7 +151,7 @@ function sumActuals(est: Estimate, lineItemIds: string[], sourceColumnId: string
     committed += committedValue(est, id);
     actual += actualValue(est, id);
   }
-  return { estimate, committed, actual, remaining: estimate - actual };
+  return { estimate, committed, actual, outstanding: committed - actual, remaining: estimate - actual };
 }
 
 /** Estimate/Committed/Actual/Remaining summed over one section. */

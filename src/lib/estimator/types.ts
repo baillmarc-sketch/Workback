@@ -8,6 +8,13 @@
 
 export type ColumnRole = "version" | "vendor";
 
+/** A reference link on a column — the treatment, the full bid PDF, a reel, etc.
+    Stored as a URL (host the file on Drive/Dropbox/etc.) plus a label. */
+export interface ColumnLink {
+  label: string;
+  url: string;
+}
+
 /** One comparison column. Markup/contingency live here (not on the estimate)
     because a vendor bid and an internal version legitimately carry different
     margins, and the triple-bid comparison is only meaningful per column. */
@@ -21,6 +28,10 @@ export interface EstimateColumn {
   contingencyPct: number;
   /** Optional company label for vendor columns */
   vendor?: string;
+  /** Free-text notes about this bid/version */
+  notes?: string;
+  /** Links to the treatment, full bid, reel, etc. */
+  links?: ColumnLink[];
   order: number;
 }
 
@@ -50,11 +61,22 @@ export interface CellValue {
   value: number;
 }
 
-/** Actuals for one line item (independent of the version/vendor columns): the
-    PO raised and the amount invoiced. Both are formula cells like CellValue. */
-export interface LineActual {
-  committed: CellValue;
-  actual: CellValue;
+/** A single PO or invoice booked against a line item. The Committed total for a
+    line is the sum of its "po" entries; the Actual total is the sum of its
+    "invoice" entries. */
+export type LedgerKind = "po" | "invoice";
+
+export interface LedgerEntry {
+  id: string;
+  lineItemId: string;
+  kind: LedgerKind;
+  amount: number;
+  /** PO # / invoice # */
+  ref?: string;
+  vendor?: string;
+  /** yyyy-MM-dd */
+  date?: string;
+  note?: string;
 }
 
 export interface Estimate {
@@ -82,8 +104,9 @@ export interface Estimate {
   /** Which column supplies the per-line "Estimate" figure in the Actuals view;
       falls back to the awarded column, then the baseline. */
   actualsSourceColumnId?: string;
-  /** Actuals axis: lineItemId -> committed/actual. Flat (RTDB-safe) like cells. */
-  actuals: Record<string, LineActual>;
+  /** PO + invoice ledger driving the Actuals view. Committed = Σ po entries,
+      Actual = Σ invoice entries, per line item. */
+  ledger: LedgerEntry[];
   /** Defaults applied to newly created columns. */
   defaultMarkupPct: number;
   defaultContingencyPct: number;

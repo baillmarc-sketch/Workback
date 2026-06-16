@@ -21,3 +21,12 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: workback-firebase
+      # action-hosting-deploy only ships Hosting — deploy the Realtime Database
+      # security rules (database.rules.json) too, so estimate/share rules go live.
+      - name: Deploy database rules
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" \
+            npx -y firebase-tools deploy --only database --project workback-firebase --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

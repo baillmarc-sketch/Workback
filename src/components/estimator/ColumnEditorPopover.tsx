@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { isCoarsePointer } from "@/lib/device";
-import type { ColumnRole, EstimateColumn } from "@/lib/estimator/types";
+import type { ColumnLink, ColumnRole, EstimateColumn } from "@/lib/estimator/types";
 import { useEstimate } from "@/state/estimateStore";
 import Popover from "../Popover";
 
@@ -16,6 +16,12 @@ const inputCls =
   "w-full rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
 const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
+/** Add a scheme so a bare "drive.google.com/…" still opens as an absolute URL. */
+function hrefOf(url: string): string {
+  const u = url.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`;
+}
+
 export default function ColumnEditorPopover({ column: columnProp, anchor, onClose }: ColumnEditorPopoverProps) {
   const { estimate, commit, patch } = useEstimate();
   const columnId = columnProp.id;
@@ -28,6 +34,14 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
   const [vendor, setVendor] = useState(columnProp.vendor ?? "");
   const [markup, setMarkup] = useState(String(columnProp.markupPct ?? 0));
   const [contingency, setContingency] = useState(String(columnProp.contingencyPct ?? 0));
+  const [notes, setNotes] = useState(columnProp.notes ?? "");
+  const [links, setLinks] = useState<ColumnLink[]>(columnProp.links ?? []);
+
+  const writeLinks = (next: ColumnLink[]) => {
+    setLinks(next); // keep half-typed rows visible while editing
+    const cleaned = next.filter((l) => l.url.trim());
+    update({ links: cleaned.length ? cleaned : undefined });
+  };
 
   if (!estimate) return null;
   // Role, baseline, and awarded are click-driven, so read them live from the
@@ -43,8 +57,8 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
     }));
 
   return (
-    <Popover anchor={anchor} onClose={onClose} width={280}>
-      <div className="flex flex-col gap-3 p-3.5">
+    <Popover anchor={anchor} onClose={onClose} width={300}>
+      <div className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-3.5">
         <input
           className="w-full border-none bg-transparent text-[15px] font-semibold outline-none placeholder:text-ink-faint"
           value={name}
@@ -119,6 +133,66 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
               }}
             />
           </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Links</label>
+          <div className="flex flex-col gap-1.5">
+            {links.map((l, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <input
+                  className={`${inputCls} w-[88px] shrink-0`}
+                  value={l.label}
+                  placeholder="Label"
+                  onChange={(e) => writeLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+                />
+                <input
+                  className={`${inputCls} min-w-0 flex-1`}
+                  value={l.url}
+                  placeholder="https://… (treatment, bid, reel)"
+                  inputMode="url"
+                  onChange={(e) => writeLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
+                />
+                {l.url.trim() && (
+                  <a
+                    href={hrefOf(l.url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 px-1 text-[13px] text-ink-faint hover:text-ink"
+                    title="Open link"
+                  >
+                    ↗
+                  </a>
+                )}
+                <button
+                  className="shrink-0 px-1 text-[13px] text-ink-faint hover:text-danger"
+                  title="Remove link"
+                  onClick={() => writeLinks(links.filter((_, j) => j !== i))}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              className="self-start text-[12px] font-medium text-ink-soft hover:text-ink"
+              onClick={() => writeLinks([...links, { label: "", url: "" }])}
+            >
+              + Add link
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Notes</label>
+          <textarea
+            className={`${inputCls} min-h-[48px] resize-y`}
+            value={notes}
+            placeholder="Notes about this bid / version…"
+            onChange={(e) => {
+              setNotes(e.target.value);
+              update({ notes: e.target.value || undefined });
+            }}
+          />
         </div>
 
         <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
