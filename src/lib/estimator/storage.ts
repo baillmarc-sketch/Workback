@@ -11,6 +11,7 @@ import type {
 import { uid } from "../types";
 import { bumpVersion } from "../storage";
 import { evalOrZero } from "./formula";
+import { estimateTemplateById, type EstimateTemplateId } from "./templates";
 
 const INDEX_KEY = "estimator:index";
 const ESTIMATE_PREFIX = "estimator:estimate:";
@@ -231,6 +232,7 @@ export function migrate(data: unknown): Estimate {
     title: str(e.title, "Untitled Estimate"),
     subtitle: str(e.subtitle, ""),
     notes: str(e.notes, ""),
+    assumptions: str(e.assumptions, ""),
     currency: str(e.currency, "USD"),
     sections: migrateSections(e.sections, lineItems),
     lineItems,
@@ -255,22 +257,27 @@ export function migrate(data: unknown): Estimate {
 
 // --- constructors ---
 
-const DEFAULT_SECTIONS = ["Production", "Post", "Music", "Insurance", "Talent"];
-
-export function newEstimate(): Estimate {
+/** Build a new estimate from a starter template: its sections and (empty) line
+    items are pre-filled so you only need to type the numbers. */
+export function newEstimate(templateId: EstimateTemplateId = "video"): Estimate {
   const now = Date.now();
-  const sections: EstimateSection[] = DEFAULT_SECTIONS.map((name, i) => ({
-    id: uid(),
-    name,
-    lineItemIds: [],
-    order: i,
-  }));
+  const template = estimateTemplateById(templateId);
+  const lineItems: Record<string, EstimateLineItem> = {};
+  let order = 0;
+  const sections: EstimateSection[] = template.sections.map((s, i) => {
+    const lineItemIds = s.items.map((label) => {
+      const id = uid();
+      lineItems[id] = { id, label, order: order++ };
+      return id;
+    });
+    return { id: uid(), name: s.name, lineItemIds, order: i };
+  });
   const firstColumn: EstimateColumn = {
     id: uid(),
     name: "Internal v1",
     role: "version",
-    markupPct: 0,
-    contingencyPct: 0,
+    markupPct: template.markupPct,
+    contingencyPct: template.contingencyPct,
     order: 0,
   };
   return {
@@ -279,15 +286,16 @@ export function newEstimate(): Estimate {
     title: "Untitled Estimate",
     subtitle: "",
     notes: "",
+    assumptions: "",
     currency: "USD",
     sections,
-    lineItems: {},
+    lineItems,
     columns: [firstColumn],
     cells: {},
     actuals: {},
     baselineColumnId: firstColumn.id,
-    defaultMarkupPct: 0,
-    defaultContingencyPct: 0,
+    defaultMarkupPct: template.markupPct,
+    defaultContingencyPct: template.contingencyPct,
     createdAt: now,
     updatedAt: now,
   };
@@ -381,6 +389,8 @@ export function sampleEstimate(): Estimate {
     title: "Sample Estimate",
     subtitle: "Acme x Brand · Spot 2026",
     notes: "",
+    assumptions:
+      "Two (2) shoot days in Los Angeles.\nClient provides final script and brand assets.\nUsage: 1 year, North America, digital + broadcast.\nTalent buyout estimated for 6 on-camera principals.\nDoes not include media spend or sales tax.",
     currency: "USD",
     sections,
     lineItems,

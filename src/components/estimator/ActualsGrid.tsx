@@ -69,8 +69,33 @@ export default function ActualsGrid() {
     </div>
   );
 
+  // Fast keyboard fill across the actuals: down/up walk line items in display
+  // order; left/right toggle between Committed and Actual.
+  const orderedLineIds = estimate.sections.flatMap((s) => s.lineItemIds);
+  const navigate = (dir: "down" | "up" | "left" | "right") => {
+    if (!edit) return;
+    let tLi = edit.lineItemId;
+    let tField: Field = edit.field;
+    if (dir === "down" || dir === "up") {
+      const idx = orderedLineIds.indexOf(edit.lineItemId);
+      const n = dir === "down" ? idx + 1 : idx - 1;
+      if (n < 0 || n >= orderedLineIds.length) {
+        setEdit(null);
+        return;
+      }
+      tLi = orderedLineIds[n];
+    } else {
+      tField = dir === "right" ? "actual" : "committed";
+    }
+    const el = document.querySelector(`[data-acell="${tLi}__${tField}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    setEdit({ lineItemId: tLi, field: tField, anchor: rectToAnchor(el.getBoundingClientRect()) });
+  };
+
   const editable = (lineItemId: string, field: Field, value: number) => (
     <button
+      data-acell={`${lineItemId}__${field}`}
       className="flex h-9 shrink-0 items-center justify-end border-l border-hairline px-3 text-right text-[13px] tabular-nums hover:bg-paper"
       style={{ width: COL_W }}
       onClick={(e) => setEdit({ lineItemId, field, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
@@ -221,6 +246,7 @@ export default function ActualsGrid() {
 
       {edit && estimate.lineItems[edit.lineItemId] && (
         <CellEditorPopover
+          key={`${edit.lineItemId}__${edit.field}`}
           title={`${estimate.lineItems[edit.lineItemId].label || "Line item"} · ${
             edit.field === "committed" ? "Committed (PO)" : "Actual (spent)"
           }`}
@@ -228,6 +254,7 @@ export default function ActualsGrid() {
           currency={currency}
           anchor={edit.anchor}
           onClose={() => setEdit(null)}
+          onNavigate={navigate}
           onCommit={(expr, value) => setActual(edit.lineItemId, edit.field, { expr, value })}
         />
       )}

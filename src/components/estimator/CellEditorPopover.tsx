@@ -16,6 +16,10 @@ interface CellEditorPopoverProps {
   /** Called with the trimmed expression and its evaluated value on commit. An
       empty expression means "clear this cell". Only called for valid input. */
   onCommit: (expr: string, value: number) => void;
+  /** Move to an adjacent cell for fast keyboard fill (Enter = down, Shift+Enter
+      = up, Tab = right, Shift+Tab = left). The current value is committed on the
+      resulting unmount. When omitted, Enter just closes. */
+  onNavigate?: (dir: "down" | "up" | "left" | "right") => void;
 }
 
 const inputCls =
@@ -35,6 +39,7 @@ export default function CellEditorPopover({
   anchor,
   onClose,
   onCommit,
+  onNavigate,
 }: CellEditorPopoverProps) {
   const [expr, setExpr] = useState(initialExpr);
   const result = evalExpr(expr);
@@ -63,7 +68,14 @@ export default function CellEditorPopover({
           autoFocus={!isCoarsePointer()}
           onChange={(e) => setExpr(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") onClose();
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (onNavigate) onNavigate(e.shiftKey ? "up" : "down");
+              else onClose();
+            } else if (e.key === "Tab" && onNavigate) {
+              e.preventDefault();
+              onNavigate(e.shiftKey ? "left" : "right");
+            }
           }}
         />
         <div className="flex items-baseline justify-between">

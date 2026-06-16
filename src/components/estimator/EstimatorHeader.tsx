@@ -7,6 +7,7 @@ import AccountButton from "../AccountButton";
 export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: () => void }) {
   const { estimate, commit } = useEstimate();
   const [notesOpen, setNotesOpen] = useState(false);
+  const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   if (!estimate) return null;
 
   return (
@@ -39,19 +40,37 @@ export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: 
         </div>
       </div>
 
-      <button
-        className="mt-1 text-[11.5px] font-medium text-ink-faint hover:text-ink-soft"
-        onClick={() => setNotesOpen((v) => !v)}
-        aria-expanded={notesOpen}
-      >
-        {notesOpen ? "▾ Notes" : "▸ Notes"}
-      </button>
+      <div className="mt-1 flex items-center gap-4">
+        <button
+          className="text-[11.5px] font-medium text-ink-faint hover:text-ink-soft"
+          onClick={() => setAssumptionsOpen((v) => !v)}
+          aria-expanded={assumptionsOpen}
+        >
+          {assumptionsOpen ? "▾ Assumptions" : "▸ Assumptions"}
+        </button>
+        <button
+          className="text-[11.5px] font-medium text-ink-faint hover:text-ink-soft"
+          onClick={() => setNotesOpen((v) => !v)}
+          aria-expanded={notesOpen}
+        >
+          {notesOpen ? "▾ Notes" : "▸ Notes"}
+        </button>
+      </div>
+      {assumptionsOpen && (
+        <textarea
+          className="mt-1 w-full resize-y rounded-md border border-hairline bg-surface px-2.5 py-2 text-[13px] outline-none placeholder:text-ink-faint focus:border-ink-faint"
+          rows={4}
+          value={estimate.assumptions}
+          placeholder="Assumptions this estimate is built on — one per line (e.g. 2 shoot days; usage 1yr NA; excludes media & tax)…"
+          onChange={(e) => commit((est) => ({ ...est, assumptions: e.target.value }))}
+        />
+      )}
       {notesOpen && (
         <textarea
           className="mt-1 w-full resize-y rounded-md border border-hairline bg-surface px-2.5 py-2 text-[13px] outline-none placeholder:text-ink-faint focus:border-ink-faint"
           rows={3}
           value={estimate.notes}
-          placeholder="Estimate notes…"
+          placeholder="Internal notes…"
           onChange={(e) => commit((est) => ({ ...est, notes: e.target.value }))}
         />
       )}

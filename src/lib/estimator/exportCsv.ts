@@ -67,6 +67,14 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
     );
   }
 
+  if (estimate.assumptions.trim()) {
+    lines.push("");
+    lines.push(row(["Assumptions"]));
+    for (const line of estimate.assumptions.split("\n")) {
+      if (line.trim()) lines.push(row([line.trim()]));
+    }
+  }
+
   return lines.join("\n");
 }
 

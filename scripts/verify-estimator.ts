@@ -99,6 +99,7 @@ function check(name: string, cond: boolean, detail?: unknown) {
     title: "Totals",
     subtitle: "",
     notes: "",
+    assumptions: "",
     currency: "USD",
     sections: [
       { id: "s1", name: "Production", lineItemIds: [liA, liB], order: 0 },
@@ -222,6 +223,7 @@ function check(name: string, cond: boolean, detail?: unknown) {
     title: "Actuals",
     subtitle: "",
     notes: "",
+    assumptions: "",
     currency: "USD",
     sections: [
       { id: "s1", name: "Production", lineItemIds: [liA, liB], order: 0 },
@@ -330,6 +332,28 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("actuals migrate: actual NaN recomputed", fixed.actuals[li]?.actual.value === 250, fixed.actuals[li]);
   const empty = migrate(JSON.parse(JSON.stringify(newEstimate())));
   check("actuals migrate: empty actuals -> {}", empty.actuals && Object.keys(empty.actuals).length === 0);
+}
+
+// 11. Templates + assumptions
+{
+  const video = newEstimate("video");
+  check("template: video has sections", video.sections.length > 3);
+  check("template: video pre-fills line items", Object.keys(video.lineItems).length > 8);
+  check(
+    "template: every line item belongs to a section",
+    video.sections.flatMap((s) => s.lineItemIds).length === Object.keys(video.lineItems).length
+  );
+  check("template: starts with one version column", video.columns.length === 1 && video.columns[0].role === "version");
+  check("template: cells start empty (just type numbers)", Object.keys(video.cells).length === 0);
+  const blank = newEstimate("blank");
+  check("template: blank has empty sections", blank.sections.length > 0 && Object.keys(blank.lineItems).length === 0);
+
+  const e = newEstimate("event");
+  e.id = "assume-test";
+  e.assumptions = "2 shoot days\nUsage 1yr NA\nExcludes tax";
+  saveEstimate(e);
+  const loaded = loadEstimate("assume-test");
+  check("assumptions: persist round-trip", loaded?.assumptions === e.assumptions, loaded?.assumptions);
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);
