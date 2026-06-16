@@ -3,13 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { uid } from "@/lib/types";
 import {
+  adjustmentAmount,
   baselineColumnId,
   cellVariance,
   columnDelta,
   columnSubtotal,
   columnTotal,
-  contingencyAmount,
-  markupAmount,
   sectionSubtotal,
 } from "@/lib/estimator/totals";
 import { evalExpr } from "@/lib/estimator/formula";
@@ -180,8 +179,6 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
             ? `Vendor ${e.columns.filter((c) => c.role === "vendor").length + 1}`
             : `Version ${e.columns.length + 1}`,
         role: mode === "leveling" ? "vendor" : "version",
-        markupPct: e.defaultMarkupPct,
-        contingencyPct: e.defaultContingencyPct,
         order: e.columns.length,
       };
       return { ...e, columns: [...e.columns, col] };
@@ -437,24 +434,19 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
             ))}
           </div>
 
-          {/* Totals block */}
-          <TotalRow label="Subtotal" columns={visibleColumns} value={(col) => columnSubtotal(estimate, col.id)} currency={currency} />
-          <TotalRow
-            label="Markup"
-            columns={visibleColumns}
-            sub={(col) => formatPct(col.markupPct)}
-            value={(col) => markupAmount(columnSubtotal(estimate, col.id), col.markupPct)}
-            currency={currency}
-            muted
-          />
-          <TotalRow
-            label="Contingency"
-            columns={visibleColumns}
-            sub={(col) => formatPct(col.contingencyPct)}
-            value={(col) => contingencyAmount(columnSubtotal(estimate, col.id), col.contingencyPct)}
-            currency={currency}
-            muted
-          />
+          {/* Totals block: Net subtotal → adjustments → Total */}
+          <TotalRow label="Net Subtotal" columns={visibleColumns} value={(col) => columnSubtotal(estimate, col.id)} currency={currency} />
+          {estimate.adjustments.map((adj) => (
+            <TotalRow
+              key={adj.id}
+              label={adj.label}
+              columns={visibleColumns}
+              sub={adj.type === "percent" ? () => formatPct(adj.value) : undefined}
+              value={(col) => adjustmentAmount(columnSubtotal(estimate, col.id), adj)}
+              currency={currency}
+              muted
+            />
+          ))}
           <TotalRow label="Total" columns={visibleColumns} value={(col) => columnTotal(estimate, col.id)} currency={currency} strong />
 
           {/* Delta vs baseline */}

@@ -15,17 +15,11 @@ export interface ColumnLink {
   url: string;
 }
 
-/** One comparison column. Markup/contingency live here (not on the estimate)
-    because a vendor bid and an internal version legitimately carry different
-    margins, and the triple-bid comparison is only meaningful per column. */
+/** One comparison column (an internal version or a vendor bid). */
 export interface EstimateColumn {
   id: string;
   name: string;
   role: ColumnRole;
-  /** Applied to the column subtotal, e.g. 15 = 15% */
-  markupPct: number;
-  /** Applied to the column subtotal, e.g. 10 = 10% */
-  contingencyPct: number;
   /** Optional company label for vendor columns */
   vendor?: string;
   /** Free-text notes about this bid/version */
@@ -33,6 +27,41 @@ export interface EstimateColumn {
   /** Links to the treatment, full bid, reel, etc. */
   links?: ColumnLink[];
   order: number;
+}
+
+/** A below-the-line adjustment applied to every column's subtotal — markup,
+    contingency, insurance (2%), sales tax, etc. Rolls Net Subtotal → Total. */
+export type AdjustmentType = "percent" | "flat";
+export interface Adjustment {
+  id: string;
+  label: string;
+  type: AdjustmentType;
+  /** Percent of the column subtotal (type "percent") or a flat amount ("flat") */
+  value: number;
+}
+
+/** Project metadata field (Client, Job #, Director, Shoot Dates, …). */
+export interface ProjectField {
+  id: string;
+  label: string;
+  value: string;
+}
+
+/** A deliverable line (Title / Length / Usage). */
+export interface Deliverable {
+  id: string;
+  title: string;
+  length: string;
+  usage: string;
+}
+
+/** A team line (Name / Role / Level / Hours). */
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  level: string;
+  hours: string;
 }
 
 /** A budget line. Lives in a flat map so reordering/moving between sections is
@@ -89,6 +118,15 @@ export interface Estimate {
   assumptions: string;
   /** ISO 4217, e.g. "USD" */
   currency: string;
+  /** Project info panel (Client, Job #, Director, dates, …). */
+  fields: ProjectField[];
+  /** Deliverables (Title / Length / Usage). */
+  deliverables: Deliverable[];
+  /** Team (Name / Role / Level / Hours). */
+  team: TeamMember[];
+  /** Below-the-line adjustments applied to every column (markup, contingency,
+      insurance, sales tax). */
+  adjustments: Adjustment[];
   sections: EstimateSection[];
   /** id -> line item */
   lineItems: Record<string, EstimateLineItem>;
@@ -107,9 +145,6 @@ export interface Estimate {
   /** PO + invoice ledger driving the Actuals view. Committed = Σ po entries,
       Actual = Σ invoice entries, per line item. */
   ledger: LedgerEntry[];
-  /** Defaults applied to newly created columns. */
-  defaultMarkupPct: number;
-  defaultContingencyPct: number;
   /** Set when published to the shared cloud copy — the link channel ID */
   shareId?: string;
   createdAt: number;

@@ -3,14 +3,13 @@ import { cellKey } from "./types";
 import {
   actualsTotals,
   actualValue,
+  adjustmentAmount,
   baselineColumnId,
   columnDelta,
   columnSubtotal,
   columnTotal,
   committedValue,
-  contingencyAmount,
   lineEstimate,
-  markupAmount,
   resolveActualsSource,
   sectionActualsTotals,
   sectionSubtotal,
@@ -32,6 +31,22 @@ function row(cells: (string | number)[]): string {
     friendly; structure mirrors the on-screen grid including the totals block. */
 export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]): string {
   const lines: string[] = [];
+
+  // Project info
+  if (estimate.fields.some((f) => f.label || f.value)) {
+    for (const f of estimate.fields) {
+      if (f.label || f.value) lines.push(row([f.label, f.value]));
+    }
+    lines.push("");
+  }
+
+  // Deliverables
+  if (estimate.deliverables.length) {
+    lines.push(row(["Deliverables", "Length", "Usage"]));
+    for (const d of estimate.deliverables) lines.push(row([d.title, d.length, d.usage]));
+    lines.push("");
+  }
+
   const colNames = columns.map((c) => (c.role === "vendor" ? c.vendor || c.name : c.name));
   lines.push(row(["", ...colNames]));
 
@@ -50,11 +65,11 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
     lines.push(row([`Subtotal — ${section.name}`, ...columns.map((c) => sectionSubtotal(estimate, section.id, c.id))]));
   }
 
-  lines.push(row(["Subtotal", ...columns.map((c) => columnSubtotal(estimate, c.id))]));
-  lines.push(row(["Markup", ...columns.map((c) => markupAmount(columnSubtotal(estimate, c.id), c.markupPct))]));
-  lines.push(
-    row(["Contingency", ...columns.map((c) => contingencyAmount(columnSubtotal(estimate, c.id), c.contingencyPct))])
-  );
+  lines.push(row(["Net Subtotal", ...columns.map((c) => columnSubtotal(estimate, c.id))]));
+  for (const adj of estimate.adjustments) {
+    const label = adj.type === "percent" ? `${adj.label} (${adj.value}%)` : adj.label;
+    lines.push(row([label, ...columns.map((c) => adjustmentAmount(columnSubtotal(estimate, c.id), adj))]));
+  }
   lines.push(row(["Total", ...columns.map((c) => columnTotal(estimate, c.id))]));
 
   const baseId = baselineColumnId(estimate);

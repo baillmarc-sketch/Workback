@@ -13,14 +13,16 @@ import {
   saveEstimate,
 } from "@/lib/estimator/storage";
 import ActualsGrid from "./ActualsGrid";
+import AdjustmentsDialog from "./AdjustmentsDialog";
 import EstimateExportDialog from "./EstimateExportDialog";
 import EstimateGrid from "./EstimateGrid";
 import EstimatesDialog from "./EstimatesDialog";
 import EstimatorHeader from "./EstimatorHeader";
 import EstimatorToolbar from "./EstimatorToolbar";
+import ProjectDetailsPanel from "./ProjectDetailsPanel";
 import type { ViewMode } from "./ViewToggle";
 
-type Dialog = "estimates" | "export" | null;
+type Dialog = "estimates" | "export" | "adjustments" | null;
 
 export default function EstimatorApp() {
   const { estimate, open, patch, undo, redo } = useEstimate();
@@ -143,13 +145,16 @@ export default function EstimatorApp() {
       <EstimatorToolbar
         mode={mode}
         onModeChange={setMode}
+        onAdjustments={() => setDialog("adjustments")}
         onShare={onShare}
         onExport={() => setDialog("export")}
       />
+      <ProjectDetailsPanel key={estimate.id} />
       {mode === "actuals" ? <ActualsGrid /> : <EstimateGrid mode={mode} />}
 
       {dialog === "estimates" && <EstimatesDialog onClose={() => setDialog(null)} />}
       {dialog === "export" && <EstimateExportDialog mode={mode} onClose={() => setDialog(null)} />}
+      {dialog === "adjustments" && <AdjustmentsDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div className="no-print fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink px-3.5 py-2 text-[12.5px] font-medium text-paper shadow-lg">

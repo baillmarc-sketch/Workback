@@ -7,6 +7,7 @@ import ViewToggle, { type ViewMode } from "./ViewToggle";
 interface ToolbarProps {
   mode: ViewMode;
   onModeChange: (m: ViewMode) => void;
+  onAdjustments: () => void;
   onShare: () => void;
   onExport: () => void;
 }
@@ -14,7 +15,7 @@ interface ToolbarProps {
 const btn =
   "rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink disabled:opacity-35 disabled:hover:text-ink-soft";
 
-export default function EstimatorToolbar({ mode, onModeChange, onShare, onExport }: ToolbarProps) {
+export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, onShare, onExport }: ToolbarProps) {
   const { estimate, commit, undo, redo, canUndo, canRedo, syncState } = useEstimate();
   if (!estimate) return null;
 
@@ -44,6 +45,11 @@ export default function EstimatorToolbar({ mode, onModeChange, onShare, onExport
       </button>
       <button className={btn} disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
         ↻
+      </button>
+
+      <span className="mx-1 h-5 w-px bg-hairline-strong" />
+      <button className={btn} onClick={onAdjustments} title="Markup, contingency, insurance, sales tax…">
+        Adjustments
       </button>
 
       <span className="flex-1" />

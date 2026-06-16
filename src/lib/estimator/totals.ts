@@ -3,7 +3,7 @@
  * of operations is fixed and additive (not compounded): markup and contingency
  * are both computed off the raw subtotal, then summed into the total.
  */
-import type { Estimate, LedgerEntry, LedgerKind } from "./types";
+import type { Adjustment, Estimate, LedgerEntry, LedgerKind } from "./types";
 import { cellKey } from "./types";
 
 function cellValue(est: Estimate, lineItemId: string, columnId: string): number {
@@ -27,20 +27,21 @@ export function columnSubtotal(est: Estimate, columnId: string): number {
   return sum;
 }
 
-export function markupAmount(subtotal: number, markupPct: number): number {
-  return subtotal * (markupPct / 100);
+/** The dollar amount of one adjustment against a given subtotal. */
+export function adjustmentAmount(subtotal: number, adj: Adjustment): number {
+  return adj.type === "percent" ? subtotal * (adj.value / 100) : adj.value;
 }
 
-export function contingencyAmount(subtotal: number, contingencyPct: number): number {
-  return subtotal * (contingencyPct / 100);
-}
-
-/** Grand total for a column: subtotal + markup + contingency. */
-export function columnTotal(est: Estimate, columnId: string): number {
-  const col = est.columns.find((c) => c.id === columnId);
-  if (!col) return 0;
+/** Sum of all below-the-line adjustments for a column. */
+export function columnAdjustments(est: Estimate, columnId: string): number {
   const subtotal = columnSubtotal(est, columnId);
-  return subtotal + markupAmount(subtotal, col.markupPct) + contingencyAmount(subtotal, col.contingencyPct);
+  return est.adjustments.reduce((sum, a) => sum + adjustmentAmount(subtotal, a), 0);
+}
+
+/** Grand total for a column: subtotal + every adjustment. */
+export function columnTotal(est: Estimate, columnId: string): number {
+  const subtotal = columnSubtotal(est, columnId);
+  return subtotal + columnAdjustments(est, columnId);
 }
 
 export interface Delta {

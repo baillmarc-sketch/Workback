@@ -1,7 +1,10 @@
 import type {
+  Adjustment,
+  AdjustmentType,
   CellValue,
   ColumnLink,
   ColumnRole,
+  Deliverable,
   Estimate,
   EstimateColumn,
   EstimateLineItem,
@@ -9,6 +12,8 @@ import type {
   EstimateSummary,
   LedgerEntry,
   LedgerKind,
+  ProjectField,
+  TeamMember,
 } from "./types";
 import { uid } from "../types";
 import { bumpVersion } from "../storage";
@@ -119,6 +124,10 @@ export function duplicateEstimate(id: string): Estimate | null {
     shareId: undefined,
     createdAt: now,
     updatedAt: now,
+    fields: src.fields.map((f) => ({ ...f })),
+    deliverables: src.deliverables.map((d) => ({ ...d })),
+    team: src.team.map((m) => ({ ...m })),
+    adjustments: src.adjustments.map((a) => ({ ...a })),
     sections: src.sections.map((s) => ({ ...s, lineItemIds: [...s.lineItemIds] })),
     lineItems: Object.fromEntries(Object.entries(src.lineItems).map(([k, v]) => [k, { ...v }])),
     columns: src.columns.map((c) => ({ ...c, links: c.links?.map((l) => ({ ...l })) })),
@@ -155,14 +164,68 @@ function migrateColumns(raw: unknown): EstimateColumn[] {
       id: c.id!,
       name: str(c.name, "Column"),
       role: (c.role === "vendor" ? "vendor" : "version") as ColumnRole,
-      markupPct: num(c.markupPct, 0),
-      contingencyPct: num(c.contingencyPct, 0),
       vendor: typeof c.vendor === "string" && c.vendor ? c.vendor : undefined,
       notes: typeof c.notes === "string" && c.notes ? c.notes : undefined,
       links: migrateLinks(c.links),
       order: num(c.order, i),
     }))
     .sort((a, b) => a.order - b.order);
+}
+
+function migrateFields(raw: unknown): ProjectField[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Partial<ProjectField>[])
+    .filter((f) => f && (typeof f.label === "string" || typeof f.value === "string"))
+    .map((f) => ({ id: typeof f!.id === "string" && f!.id ? f!.id : uid(), label: str(f!.label, ""), value: str(f!.value, "") }));
+}
+
+function migrateDeliverables(raw: unknown): Deliverable[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Partial<Deliverable>[])
+    .filter((d) => !!d)
+    .map((d) => ({
+      id: typeof d!.id === "string" && d!.id ? d!.id : uid(),
+      title: str(d!.title, ""),
+      length: str(d!.length, ""),
+      usage: str(d!.usage, ""),
+    }));
+}
+
+function migrateTeam(raw: unknown): TeamMember[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Partial<TeamMember>[])
+    .filter((m) => !!m)
+    .map((m) => ({
+      id: typeof m!.id === "string" && m!.id ? m!.id : uid(),
+      name: str(m!.name, ""),
+      role: str(m!.role, ""),
+      level: str(m!.level, ""),
+      hours: str(m!.hours, ""),
+    }));
+}
+
+/** Below-the-line adjustments. Folds legacy per-column markup/contingency (and
+    the old estimate-level defaults) into estimate-wide adjustment rows. */
+function migrateAdjustments(e: Partial<Estimate> & { defaultMarkupPct?: unknown; columns?: unknown }): Adjustment[] {
+  const raw = (e as { adjustments?: unknown }).adjustments;
+  if (Array.isArray(raw)) {
+    return (raw as Partial<Adjustment>[])
+      .filter((a) => a && typeof a.label === "string")
+      .map((a) => ({
+        id: typeof a!.id === "string" && a!.id ? a!.id : uid(),
+        label: str(a!.label, "Adjustment"),
+        type: (a!.type === "flat" ? "flat" : "percent") as AdjustmentType,
+        value: num(a!.value, 0),
+      }));
+  }
+  // Legacy conversion: estimate defaults, else the first column's markup/contingency.
+  const cols = Array.isArray(e.columns) ? (e.columns as { markupPct?: number; contingencyPct?: number }[]) : [];
+  const markup = num((e as { defaultMarkupPct?: number }).defaultMarkupPct, num(cols[0]?.markupPct, 0));
+  const contingency = num((e as { defaultContingencyPct?: number }).defaultContingencyPct, num(cols[0]?.contingencyPct, 0));
+  const out: Adjustment[] = [];
+  if (markup) out.push({ id: uid(), label: "Markup", type: "percent", value: markup });
+  if (contingency) out.push({ id: uid(), label: "Contingency", type: "percent", value: contingency });
+  return out;
 }
 
 function migrateLineItems(raw: unknown): Record<string, EstimateLineItem> {
@@ -269,6 +332,10 @@ export function migrate(data: unknown): Estimate {
     notes: str(e.notes, ""),
     assumptions: str(e.assumptions, ""),
     currency: str(e.currency, "USD"),
+    fields: migrateFields(e.fields),
+    deliverables: migrateDeliverables(e.deliverables),
+    team: migrateTeam(e.team),
+    adjustments: migrateAdjustments(e),
     sections: migrateSections(e.sections, lineItems),
     lineItems,
     columns: migrateColumns(e.columns),
@@ -282,8 +349,6 @@ export function migrate(data: unknown): Estimate {
       typeof e.actualsSourceColumnId === "string" && e.actualsSourceColumnId
         ? e.actualsSourceColumnId
         : undefined,
-    defaultMarkupPct: num(e.defaultMarkupPct, 0),
-    defaultContingencyPct: num(e.defaultContingencyPct, 0),
     shareId: typeof e.shareId === "string" && e.shareId ? e.shareId : undefined,
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),
@@ -297,40 +362,39 @@ export function migrate(data: unknown): Estimate {
 export function newEstimate(templateId: EstimateTemplateId = "video"): Estimate {
   const now = Date.now();
   const template = estimateTemplateById(templateId);
+  const firstColumn: EstimateColumn = { id: uid(), name: "Internal v1", role: "version", order: 0 };
   const lineItems: Record<string, EstimateLineItem> = {};
+  const cells: Record<string, CellValue> = {};
   let order = 0;
   const sections: EstimateSection[] = template.sections.map((s, i) => {
-    const lineItemIds = s.items.map((label) => {
+    const lineItemIds = s.items.map((item) => {
+      const label = typeof item === "string" ? item : item.label;
+      const amount = typeof item === "string" ? undefined : item.amount;
       const id = uid();
       lineItems[id] = { id, label, order: order++ };
+      if (amount !== undefined) cells[`${id}:${firstColumn.id}`] = { expr: String(amount), value: amount };
       return id;
     });
     return { id: uid(), name: s.name, lineItemIds, order: i };
   });
-  const firstColumn: EstimateColumn = {
-    id: uid(),
-    name: "Internal v1",
-    role: "version",
-    markupPct: template.markupPct,
-    contingencyPct: template.contingencyPct,
-    order: 0,
-  };
   return {
     schema: 1,
     id: uid(),
     title: "Untitled Estimate",
     subtitle: "",
     notes: "",
-    assumptions: "",
+    assumptions: template.assumptions,
     currency: "USD",
+    fields: template.fields.map((label) => ({ id: uid(), label, value: "" })),
+    deliverables: [],
+    team: [],
+    adjustments: template.adjustments.map((a) => ({ id: uid(), ...a })),
     sections,
     lineItems,
     columns: [firstColumn],
-    cells: {},
+    cells,
     ledger: [],
     baselineColumnId: firstColumn.id,
-    defaultMarkupPct: template.markupPct,
-    defaultContingencyPct: template.contingencyPct,
     createdAt: now,
     updatedAt: now,
   };
@@ -368,9 +432,9 @@ export function sampleEstimate(): Estimate {
     { id: music, name: "Music", lineItemIds: [liLicense.id, liMix.id], order: 2 },
   ];
 
-  const versionA: EstimateColumn = { id: uid(), name: "Premium", role: "version", markupPct: 15, contingencyPct: 10, order: 0 };
-  const versionB: EstimateColumn = { id: uid(), name: "Value", role: "version", markupPct: 15, contingencyPct: 10, order: 1 };
-  const vendor: EstimateColumn = { id: uid(), name: "Production Co. A", role: "vendor", markupPct: 0, contingencyPct: 0, vendor: "Acme Films", order: 2 };
+  const versionA: EstimateColumn = { id: uid(), name: "Premium", role: "version", order: 0 };
+  const versionB: EstimateColumn = { id: uid(), name: "Value", role: "version", order: 1 };
+  const vendor: EstimateColumn = { id: uid(), name: "Production Co. A", role: "vendor", vendor: "Acme Films", order: 2 };
 
   const cells: Record<string, CellValue> = {};
   const set = (li: EstimateLineItem, col: EstimateColumn, expr: string) => {
@@ -429,6 +493,22 @@ export function sampleEstimate(): Estimate {
     assumptions:
       "Two (2) shoot days in Los Angeles.\nClient provides final script and brand assets.\nUsage: 1 year, North America, digital + broadcast.\nTalent buyout estimated for 6 on-camera principals.\nDoes not include media spend or sales tax.",
     currency: "USD",
+    fields: [
+      { id: uid(), label: "Client", value: "Acme" },
+      { id: uid(), label: "Product", value: "Brand Spot" },
+      { id: uid(), label: "Producer", value: "" },
+      { id: uid(), label: "Shoot Dates", value: "" },
+    ],
+    deliverables: [
+      { id: uid(), title: ":30 Hero Spot", length: ":30", usage: "1yr NA, digital + broadcast" },
+      { id: uid(), title: ":15 Cutdown", length: ":15", usage: "1yr NA, digital" },
+    ],
+    team: [{ id: uid(), name: "", role: "Producer", level: "Sr", hours: "" }],
+    adjustments: [
+      { id: uid(), label: "Contingency", type: "percent", value: 10 },
+      { id: uid(), label: "Insurance", type: "percent", value: 2 },
+      { id: uid(), label: "Sales Tax", type: "percent", value: 0 },
+    ],
     sections,
     lineItems,
     columns: [versionA, versionB, vendor],
@@ -436,8 +516,6 @@ export function sampleEstimate(): Estimate {
     ledger,
     baselineColumnId: versionA.id,
     awardedColumnId: vendor.id,
-    defaultMarkupPct: 15,
-    defaultContingencyPct: 10,
     createdAt: now,
     updatedAt: now,
   };
