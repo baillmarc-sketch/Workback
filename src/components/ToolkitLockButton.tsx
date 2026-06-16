@@ -21,9 +21,14 @@ export default function ToolkitLockButton() {
 
   return (
     <>
-      <div className="no-print fixed inset-x-0 bottom-3 z-30 flex justify-center">
+      <div
+        className="no-print fixed inset-x-0 z-30 flex justify-center"
+        // Sit above the iOS home indicator / mobile browser bottom chrome,
+        // which otherwise hides a button pinned right at the viewport edge.
+        style={{ bottom: "max(env(safe-area-inset-bottom), 14px)" }}
+      >
         <button
-          className="rounded-full border border-hairline bg-surface/80 px-3 py-1 text-[11px] font-medium text-ink-faint backdrop-blur-sm transition-colors hover:text-ink-soft"
+          className="rounded-full border border-hairline-strong bg-surface px-3.5 py-1.5 text-[11.5px] font-medium text-ink-soft shadow-sm transition-colors hover:text-ink"
           onClick={(e) => {
             if (unlocked) {
               openLauncher();
