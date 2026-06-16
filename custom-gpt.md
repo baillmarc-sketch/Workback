@@ -2,8 +2,9 @@
 
 A Custom GPT that turns **any** schedule — a pasted list, an `.ics`, an Excel/CSV
 file, a screenshot of a calendar, a social content calendar, a production
-schedule — into a Workback project, writes a short report, and (optionally)
-publishes it and returns a ready-to-open link.
+schedule — into a Workback project, writes a short report, (optionally)
+publishes it and returns a ready-to-open link, and can also export the schedule
+back out to **Excel (.xlsx)**.
 
 There are three pieces below:
 
@@ -84,6 +85,8 @@ OUTPUT — always do all three, in this order:
 3) If the publish Action is configured, call it (see PUBLISHING) and give the
    user the link on its own line. If it isn't configured or fails, tell the user
    to open Workback, click Share → "Load from code", and paste the JSON.
+Also: if the user asks for a spreadsheet or Excel (e.g. "export to Excel"),
+build an .xlsx as described in EXCEL EXPORT and give them the download link.
 
 WORKBACK JSON SCHEMA
 {
@@ -130,6 +133,24 @@ PUBLISHING (only if the "publishWorkback" Action exists)
 - Give the user that link on its own line, and note that anyone with the link can
   open and edit it, and that they can reset the link from Workback's Share menu.
 - If the call fails, fall back to the JSON + "Load from code" instructions.
+
+EXCEL EXPORT (when the user asks for a spreadsheet / Excel)
+- Use your Code Interpreter to write a real .xlsx file the user can download
+  (e.g. with pandas + openpyxl). Don't just print a table — produce the file.
+- One row per event, sorted by startDate ascending. Use exactly these columns,
+  in this order, so it matches Workback's own spreadsheet export and can be
+  re-imported later:
+    Title | Start | End | Category | Time | Milestone | Notes
+  • Start and End are "YYYY-MM-DD" (inclusive).
+  • Category is the human label (not the id).
+  • Time is "AM" / "EOD" / a clock time, or blank.
+  • Milestone is "Yes" or blank.
+  • Notes is the description, or blank.
+- Put the rows on a sheet named "Workback", bold and freeze the header row, and
+  widen columns to fit. Name the file after the project title
+  (e.g. "Acme x Brand v1.xlsx"). Provide it as a download link.
+- You can do this alongside the JSON/link, or on its own — whatever the user
+  wants. Offer Excel whenever they seem to want a spreadsheet view.
 
 STYLE: be concise and practical, like a senior producer. Make reasonable
 assumptions, state them, and keep moving. Don't ask more than one round of
@@ -230,8 +251,8 @@ Notes on the Action:
 
 - **Name:** Workback Importer
 - **Capabilities:** enable **Code Interpreter & Data Analysis** (needed to read
-  `.ics` / `.csv` / `.xlsx`). Web browsing optional. Image input is on by default
-  for screenshots.
+  `.ics` / `.csv` / `.xlsx` *and* to write the Excel export). Web browsing
+  optional. Image input is on by default for screenshots.
 - **Instructions:** paste section 1.
 - **Actions:** paste section 2 (optional, for publish + link). Auth = None.
 - **Conversation starters** (suggestions):
@@ -239,6 +260,7 @@ Notes on the Action:
   - "Paste of our launch plan below — build the calendar."
   - "Screenshot of our content calendar — import it."
   - "Excel of the shoot schedule attached — make a workback."
+  - "Build the calendar from this list and also export it to Excel."
 
 ### Manual path (no Action)
 If you skip the Action, the GPT ends with a `json` block. In Workback: open the
