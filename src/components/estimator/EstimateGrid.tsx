@@ -19,6 +19,7 @@ import { formatCurrency, formatCurrencySigned, formatPct, formatPctSigned } from
 import { cellKey, type CellValue, type EstimateColumn } from "@/lib/estimator/types";
 import { useEstimate } from "@/state/estimateStore";
 import ColumnEditorPopover from "./ColumnEditorPopover";
+import LineNotePopover from "./LineNotePopover";
 import type { ViewMode } from "./ViewToggle";
 
 type Anchor = { left: number; top: number; right: number; bottom: number };
@@ -38,6 +39,7 @@ type Dir = "up" | "down" | "left" | "right";
 export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   const { estimate, commit } = useEstimate();
   const [editCol, setEditCol] = useState<{ column: EstimateColumn; anchor: Anchor } | null>(null);
+  const [noteEdit, setNoteEdit] = useState<{ lineItemId: string; anchor: Anchor } | null>(null);
   // Spreadsheet-style selection + inline editing.
   const [sel, setSel] = useState<Sel | null>(null);
   const [editing, setEditing] = useState(false);
@@ -258,6 +260,12 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   const renameLineItem = (lineItemId: string, label: string) =>
     commit((e) => ({ ...e, lineItems: { ...e.lineItems, [lineItemId]: { ...e.lineItems[lineItemId], label } } }));
 
+  const setLineNote = (lineItemId: string, note: string) =>
+    commit((e) => ({
+      ...e,
+      lineItems: { ...e.lineItems, [lineItemId]: { ...e.lineItems[lineItemId], note: note.trim() || undefined } },
+    }));
+
   // --- shared row pieces ---
   const labelCell = (content: React.ReactNode, extra = "") => (
     <div
@@ -273,7 +281,8 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
       <p className="no-print mb-2 text-[11.5px] text-ink-faint">
         Tip: click a cell and type — <span className="font-medium text-ink-soft">Enter</span> ↓,{" "}
         <span className="font-medium text-ink-soft">Tab</span> →, arrows to move,{" "}
-        <span className="font-medium text-ink-soft">Esc</span> to stop. Math like <code>2*15000</code> works.
+        <span className="font-medium text-ink-soft">Esc</span> to stop. Math like <code>2*15000</code> or{" "}
+        <code>15000+10%</code> (adds 10%) works. Hover a line for the 🗒 note button.
       </p>
 
       <div
@@ -367,6 +376,17 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                           placeholder="Line item"
                           onChange={(e) => renameLineItem(liId, e.target.value)}
                         />
+                        <button
+                          className={`shrink-0 px-1 text-[12px] leading-none hover:text-ink ${
+                            li.note ? "text-ink-soft" : "text-ink-faint opacity-0 group-hover:opacity-100"
+                          }`}
+                          title={li.note ? li.note : "Add note"}
+                          onClick={(e) =>
+                            setNoteEdit({ lineItemId: liId, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })
+                          }
+                        >
+                          {li.note ? "🗒" : "🗒"}
+                        </button>
                         <button
                           className="shrink-0 px-1 text-[13px] leading-none text-ink-faint opacity-0 group-hover:opacity-100 hover:text-danger"
                           title="Delete line item"
@@ -534,6 +554,15 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 
       {editCol && (
         <ColumnEditorPopover column={editCol.column} anchor={editCol.anchor} onClose={() => setEditCol(null)} />
+      )}
+      {noteEdit && estimate.lineItems[noteEdit.lineItemId] && (
+        <LineNotePopover
+          label={estimate.lineItems[noteEdit.lineItemId].label}
+          note={estimate.lineItems[noteEdit.lineItemId].note ?? ""}
+          anchor={noteEdit.anchor}
+          onClose={() => setNoteEdit(null)}
+          onSave={(note) => setLineNote(noteEdit.lineItemId, note)}
+        />
       )}
     </div>
   );
