@@ -8,7 +8,8 @@
     "build:pages": "PAGES_BASE=/Workback next build && rm -rf docs && cp -r out docs && touch docs/.nojekyll",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts"
+    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts",
+    "stress": "npx -y tsx scripts/stress-estimator.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
