@@ -78,12 +78,13 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
   return lines.join("\n");
 }
 
-/** Build a CSV of the Actuals view: Estimate / Committed / Actual / Remaining
-    per line, with section subtotals and a grand total. */
+/** Build a CSV of the Actuals view (cost report): Estimate / Committed / Actual
+    / Outstanding / Remaining per line, with section subtotals, a grand total,
+    and a PO/invoice ledger detail. */
 export function buildActualsCsv(estimate: Estimate): string {
   const sourceId = resolveActualsSource(estimate) ?? "";
   const lines: string[] = [];
-  lines.push(row(["", "Estimate", "Committed", "Actual", "Remaining"]));
+  lines.push(row(["", "Estimate", "Committed", "Actual", "Outstanding", "Remaining"]));
 
   for (const section of estimate.sections) {
     lines.push(row([section.name]));
@@ -91,15 +92,31 @@ export function buildActualsCsv(estimate: Estimate): string {
       const li = estimate.lineItems[liId];
       if (!li) continue;
       const est = lineEstimate(estimate, liId, sourceId);
+      const committed = committedValue(estimate, liId);
       const act = actualValue(estimate, liId);
-      lines.push(row([li.label || "", est, committedValue(estimate, liId), act, est - act]));
+      lines.push(row([li.label || "", est, committed, act, committed - act, est - act]));
     }
     const sub = sectionActualsTotals(estimate, section.id, sourceId);
-    lines.push(row([`Subtotal — ${section.name}`, sub.estimate, sub.committed, sub.actual, sub.remaining]));
+    lines.push(row([`Subtotal — ${section.name}`, sub.estimate, sub.committed, sub.actual, sub.outstanding, sub.remaining]));
   }
 
   const g = actualsTotals(estimate, sourceId);
-  lines.push(row(["Total", g.estimate, g.committed, g.actual, g.remaining]));
-  lines.push(row(["Over / (under)", "", "", "", g.actual - g.estimate]));
+  lines.push(row(["Total", g.estimate, g.committed, g.actual, g.outstanding, g.remaining]));
+  lines.push(row(["Over / (under)", "", "", "", "", g.actual - g.estimate]));
+
+  if (estimate.ledger.length) {
+    lines.push("");
+    lines.push(row(["PO & invoice ledger"]));
+    lines.push(row(["Line item", "Type", "Ref", "Vendor", "Date", "Amount"]));
+    for (const section of estimate.sections) {
+      for (const liId of section.lineItemIds) {
+        const label = estimate.lineItems[liId]?.label || "";
+        for (const x of estimate.ledger.filter((e) => e.lineItemId === liId)) {
+          lines.push(row([label, x.kind === "po" ? "PO" : "Invoice", x.ref ?? "", x.vendor ?? "", x.date ?? "", x.amount]));
+        }
+      }
+    }
+  }
+
   return lines.join("\n");
 }

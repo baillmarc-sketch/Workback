@@ -7,7 +7,8 @@ import type {
   EstimateLineItem,
   EstimateSection,
   EstimateSummary,
-  LineActual,
+  LedgerEntry,
+  LedgerKind,
 } from "./types";
 import { uid } from "../types";
 import { bumpVersion } from "../storage";
@@ -122,12 +123,7 @@ export function duplicateEstimate(id: string): Estimate | null {
     lineItems: Object.fromEntries(Object.entries(src.lineItems).map(([k, v]) => [k, { ...v }])),
     columns: src.columns.map((c) => ({ ...c, links: c.links?.map((l) => ({ ...l })) })),
     cells: Object.fromEntries(Object.entries(src.cells).map(([k, v]) => [k, { ...v }])),
-    actuals: Object.fromEntries(
-      Object.entries(src.actuals).map(([k, v]) => [
-        k,
-        { committed: { ...v.committed }, actual: { ...v.actual } },
-      ])
-    ),
+    ledger: src.ledger.map((x) => ({ ...x })),
   };
   saveEstimate(copy);
   return copy;
@@ -221,12 +217,40 @@ function migrateCells(raw: unknown): Record<string, CellValue> {
   return out;
 }
 
-function migrateActuals(raw: unknown): Record<string, LineActual> {
-  const out: Record<string, LineActual> = {};
-  if (raw && typeof raw === "object") {
-    for (const [k, v] of Object.entries(raw as Record<string, Partial<LineActual>>)) {
-      if (!v) continue;
-      out[k] = { committed: migrateCell(v.committed), actual: migrateCell(v.actual) };
+/** Read the PO/invoice ledger, and fold any legacy `actuals` map (single
+    committed/actual value per line) into one entry each so older saves keep
+    their numbers. RTDB drops empty arrays, so `ledger` may be undefined. */
+function migrateLedger(e: Partial<Estimate> & { actuals?: unknown }): LedgerEntry[] {
+  const out: LedgerEntry[] = [];
+  const raw = (e as { ledger?: unknown }).ledger;
+  if (Array.isArray(raw)) {
+    for (const x of raw as Partial<LedgerEntry>[]) {
+      if (!x || typeof x.lineItemId !== "string" || !x.lineItemId) continue;
+      const amount = num(x.amount, 0);
+      out.push({
+        id: typeof x.id === "string" && x.id ? x.id : uid(),
+        lineItemId: x.lineItemId,
+        kind: (x.kind === "invoice" ? "invoice" : "po") as LedgerKind,
+        amount,
+        ref: typeof x.ref === "string" && x.ref ? x.ref : undefined,
+        vendor: typeof x.vendor === "string" && x.vendor ? x.vendor : undefined,
+        date: typeof x.date === "string" && x.date ? x.date : undefined,
+        note: typeof x.note === "string" && x.note ? x.note : undefined,
+      });
+    }
+  }
+  // Legacy: { lineItemId: { committed: {value}, actual: {value} } }
+  const legacy = (e as { actuals?: unknown }).actuals;
+  if (legacy && typeof legacy === "object") {
+    for (const [lineItemId, v] of Object.entries(legacy as Record<string, { committed?: { value?: number }; actual?: { value?: number } }>)) {
+      const c = v?.committed?.value;
+      const a = v?.actual?.value;
+      if (typeof c === "number" && Number.isFinite(c) && c !== 0) {
+        out.push({ id: uid(), lineItemId, kind: "po", amount: c, ref: "Imported" });
+      }
+      if (typeof a === "number" && Number.isFinite(a) && a !== 0) {
+        out.push({ id: uid(), lineItemId, kind: "invoice", amount: a, ref: "Imported" });
+      }
     }
   }
   return out;
@@ -249,7 +273,7 @@ export function migrate(data: unknown): Estimate {
     lineItems,
     columns: migrateColumns(e.columns),
     cells: migrateCells(e.cells),
-    actuals: migrateActuals(e.actuals),
+    ledger: migrateLedger(e),
     baselineColumnId:
       typeof e.baselineColumnId === "string" && e.baselineColumnId ? e.baselineColumnId : undefined,
     awardedColumnId:
@@ -303,7 +327,7 @@ export function newEstimate(templateId: EstimateTemplateId = "video"): Estimate 
     lineItems,
     columns: [firstColumn],
     cells: {},
-    actuals: {},
+    ledger: [],
     baselineColumnId: firstColumn.id,
     defaultMarkupPct: template.markupPct,
     defaultContingencyPct: template.contingencyPct,
@@ -380,19 +404,21 @@ export function sampleEstimate(): Estimate {
   set(liLicense, vendor, "18000");
   set(liMix, vendor, "5500");
 
-  // A few actuals so the Actuals view demos with real variance against the
-  // awarded vendor bid.
-  const actuals: Record<string, LineActual> = {};
-  const act = (li: EstimateLineItem, committedExpr: string, actualExpr: string) => {
-    actuals[li.id] = {
-      committed: { expr: committedExpr, value: evalOrZero(committedExpr) },
-      actual: { expr: actualExpr, value: evalOrZero(actualExpr) },
-    };
-  };
-  act(liDirector, "22000", "22000");
-  act(liCrew, "26000", "27500"); // came in over
-  act(liEquipment, "11000", "10200"); // under
-  act(liEditor, "17000", "8500"); // half invoiced so far
+  // A few PO/invoice entries so the Actuals view demos with real numbers
+  // against the awarded vendor bid.
+  const ledger: LedgerEntry[] = [];
+  const po = (li: EstimateLineItem, amount: number, ref: string) =>
+    ledger.push({ id: uid(), lineItemId: li.id, kind: "po", amount, ref, vendor: vendor.vendor });
+  const inv = (li: EstimateLineItem, amount: number, ref: string) =>
+    ledger.push({ id: uid(), lineItemId: li.id, kind: "invoice", amount, ref, vendor: vendor.vendor });
+  po(liDirector, 22000, "PO-101");
+  inv(liDirector, 22000, "INV-2201");
+  po(liCrew, 26000, "PO-102");
+  inv(liCrew, 27500, "INV-2202"); // came in over
+  po(liEquipment, 11000, "PO-103");
+  inv(liEquipment, 10200, "INV-2203"); // under
+  po(liEditor, 17000, "PO-104");
+  inv(liEditor, 8500, "INV-2204"); // half invoiced so far
 
   return {
     schema: 1,
@@ -407,7 +433,7 @@ export function sampleEstimate(): Estimate {
     lineItems,
     columns: [versionA, versionB, vendor],
     cells,
-    actuals,
+    ledger,
     baselineColumnId: versionA.id,
     awardedColumnId: vendor.id,
     defaultMarkupPct: 15,

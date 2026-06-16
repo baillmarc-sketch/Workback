@@ -61,11 +61,22 @@ export interface CellValue {
   value: number;
 }
 
-/** Actuals for one line item (independent of the version/vendor columns): the
-    PO raised and the amount invoiced. Both are formula cells like CellValue. */
-export interface LineActual {
-  committed: CellValue;
-  actual: CellValue;
+/** A single PO or invoice booked against a line item. The Committed total for a
+    line is the sum of its "po" entries; the Actual total is the sum of its
+    "invoice" entries. */
+export type LedgerKind = "po" | "invoice";
+
+export interface LedgerEntry {
+  id: string;
+  lineItemId: string;
+  kind: LedgerKind;
+  amount: number;
+  /** PO # / invoice # */
+  ref?: string;
+  vendor?: string;
+  /** yyyy-MM-dd */
+  date?: string;
+  note?: string;
 }
 
 export interface Estimate {
@@ -93,8 +104,9 @@ export interface Estimate {
   /** Which column supplies the per-line "Estimate" figure in the Actuals view;
       falls back to the awarded column, then the baseline. */
   actualsSourceColumnId?: string;
-  /** Actuals axis: lineItemId -> committed/actual. Flat (RTDB-safe) like cells. */
-  actuals: Record<string, LineActual>;
+  /** PO + invoice ledger driving the Actuals view. Committed = Σ po entries,
+      Actual = Σ invoice entries, per line item. */
+  ledger: LedgerEntry[];
   /** Defaults applied to newly created columns. */
   defaultMarkupPct: number;
   defaultContingencyPct: number;

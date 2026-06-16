@@ -243,10 +243,12 @@ function check(name: string, cond: boolean, detail?: unknown) {
       [`${liB}:${colEst}`]: { expr: "500", value: 500 },
       [`${liC}:${colEst}`]: { expr: "300", value: 300 },
     },
-    actuals: {
-      [liA]: { committed: { expr: "1000", value: 1000 }, actual: { expr: "900", value: 900 } },
-      [liB]: { committed: { expr: "600", value: 600 }, actual: { expr: "600", value: 600 } },
-    },
+    ledger: [
+      { id: "L1", lineItemId: liA, kind: "po", amount: 1000 },
+      { id: "L2", lineItemId: liA, kind: "invoice", amount: 900 },
+      { id: "L3", lineItemId: liB, kind: "po", amount: 600 },
+      { id: "L4", lineItemId: liB, kind: "invoice", amount: 600 },
+    ],
     baselineColumnId: colEst,
     defaultMarkupPct: 0,
     defaultContingencyPct: 0,
@@ -257,11 +259,16 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("actuals: source resolves to baseline", src === colEst);
   const g = actualsTotals(est, src);
   check("actuals: estimate total", g.estimate === 1800, g);
-  check("actuals: committed total", g.committed === 1600, g);
-  check("actuals: actual total", g.actual === 1500, g);
+  check("actuals: committed total (Σ POs)", g.committed === 1600, g);
+  check("actuals: actual total (Σ invoices)", g.actual === 1500, g);
+  check("actuals: outstanding total (committed - actual)", g.outstanding === 100, g);
   check("actuals: remaining = estimate - actual", g.remaining === 300, g);
   const s1 = sectionActualsTotals(est, "s1", src);
-  check("actuals: section estimate", s1.estimate === 1500 && s1.actual === 1500 && s1.remaining === 0, s1);
+  check(
+    "actuals: section totals",
+    s1.estimate === 1500 && s1.actual === 1500 && s1.outstanding === 100 && s1.remaining === 0,
+    s1
+  );
   check("actuals: remainingAmount", remainingAmount(1000, 900) === 100);
   check("actuals: outstandingAmount", outstandingAmount(1000, 900) === 100);
   const v = lineVariance(900, 1000);
@@ -286,52 +293,53 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("source: falls back to first column", resolveActualsSource(e4) === cols[0].id);
 }
 
-// 9. Persistence of actuals + award + source column
+// 9. Persistence of ledger + award + source column
 {
   const e = sampleEstimate();
   e.id = "actuals-persist";
   e.actualsSourceColumnId = e.columns[0].id;
   saveEstimate(e);
   const loaded = loadEstimate("actuals-persist");
-  check("actuals persist: awardedColumnId survives", loaded?.awardedColumnId === e.awardedColumnId);
-  check("actuals persist: source column survives", loaded?.actualsSourceColumnId === e.columns[0].id);
+  check("ledger persist: awardedColumnId survives", loaded?.awardedColumnId === e.awardedColumnId);
+  check("ledger persist: source column survives", loaded?.actualsSourceColumnId === e.columns[0].id);
   check(
-    "actuals persist: committed+actual expr & value survive",
+    "ledger persist: entries (amount/kind/ref) survive",
     !!loaded &&
-      Object.entries(e.actuals).every(
-        ([k, a]) =>
-          loaded.actuals[k]?.committed.expr === a.committed.expr &&
-          loaded.actuals[k]?.committed.value === a.committed.value &&
-          loaded.actuals[k]?.actual.value === a.actual.value
-      ),
-    loaded?.actuals
+      loaded.ledger.length === e.ledger.length &&
+      e.ledger.every((x) => {
+        const m = loaded.ledger.find((y) => y.id === x.id);
+        return m && m.amount === x.amount && m.kind === x.kind && m.ref === x.ref && m.lineItemId === x.lineItemId;
+      }),
+    loaded?.ledger
   );
 
-  // duplicate deep-copies actuals
+  // duplicate deep-copies the ledger
   const copy = duplicateEstimate("actuals-persist");
   if (copy) {
-    const k = Object.keys(copy.actuals)[0];
-    copy.actuals[k].actual = { expr: "1", value: 1 };
+    copy.ledger[0].amount = 999999;
     const orig = loadEstimate("actuals-persist");
-    check("actuals duplicate: deep-copied (original untouched)", orig?.actuals[k]?.actual.value !== 1);
+    check("ledger duplicate: deep-copied (original untouched)", orig?.ledger[0]?.amount !== 999999);
   }
 }
 
-// 10. migrate self-heals a corrupted actual.value; RTDB-dropped actuals -> {}
+// 10. migrate: legacy actuals fold into the ledger; RTDB-dropped ledger -> []
 {
-  const e = newEstimate();
   const li = "li-a";
-  e.lineItems[li] = { id: li, label: "A", order: 0 };
-  e.sections[0].lineItemIds.push(li);
-  (e.actuals as Record<string, unknown>)[li] = {
-    committed: { expr: "3*100" }, // value missing -> recompute from expr
-    actual: { expr: "250", value: NaN }, // NaN cache -> recompute
+  const legacy = {
+    ...newEstimate(),
+    ledger: undefined, // RTDB drops empty arrays
+    actuals: { [li]: { committed: { value: 300 }, actual: { value: 250 } } },
   };
-  const fixed = migrate(JSON.parse(JSON.stringify(e)));
-  check("actuals migrate: committed recomputed from expr", fixed.actuals[li]?.committed.value === 300, fixed.actuals[li]);
-  check("actuals migrate: actual NaN recomputed", fixed.actuals[li]?.actual.value === 250, fixed.actuals[li]);
-  const empty = migrate(JSON.parse(JSON.stringify(newEstimate())));
-  check("actuals migrate: empty actuals -> {}", empty.actuals && Object.keys(empty.actuals).length === 0);
+  legacy.lineItems[li] = { id: li, label: "A", order: 0 };
+  legacy.sections[0].lineItemIds.push(li);
+  const fixed = migrate(JSON.parse(JSON.stringify(legacy)));
+  check("migrate: legacy committed -> po entry", fixed.ledger.some((x) => x.lineItemId === li && x.kind === "po" && x.amount === 300), fixed.ledger);
+  check("migrate: legacy actual -> invoice entry", fixed.ledger.some((x) => x.lineItemId === li && x.kind === "invoice" && x.amount === 250), fixed.ledger);
+  check("migrate: dropped ledger -> []", Array.isArray(migrate(JSON.parse(JSON.stringify(newEstimate()))).ledger));
+  // ledger round-trips through a JSON (RTDB-style) clone unchanged
+  const withLedger = { ...newEstimate(), ledger: [{ id: "z1", lineItemId: li, kind: "po", amount: 4200, ref: "PO-9" }] };
+  const out = migrate(JSON.parse(JSON.stringify(withLedger)));
+  check("migrate: ledger round-trip", out.ledger.length === 1 && out.ledger[0].amount === 4200 && out.ledger[0].ref === "PO-9", out.ledger);
 }
 
 // 11. Templates + assumptions
