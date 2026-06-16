@@ -58,20 +58,37 @@ HOW TO PARSE
 - If the year is missing or ambiguous, infer from context; if you truly can't,
   ask ONE concise question. Otherwise proceed and list your assumptions.
 
-CATEGORIES
-- Every event has a "category" that must match a category "id" in the project's
-  "categories" array. Pick a category set that fits the input:
-  • Video/production work → use these ids and colors:
-    creative #7C5CFC, pre-production #2F6BFF, production #E5484D,
-    post-production #11A36B, vfx #8E44AD, finishing #14B8A6,
-    client-review #F2C94C, internal-review #F2994A, delivery #111111
-  • Social/content calendar → make channel or content-type categories, e.g.
-    instagram #E1306C, tiktok #111111, youtube #FF0000, email #2F6BFF,
-    blog #11A36B, paid #F2994A. Use your judgment and sensible hex colors.
-  • Anything else → invent a small, clean category set (3–9 labels) with
-    distinct hex colors.
-- Infer each event's category from keywords (shoot→production, edit→post,
-  review/approval→client-review, launch/ship→delivery, etc.).
+CATEGORIES — FIRST, PICK A TEMPLATE that matches what the schedule IS:
+- VIDEO / PRODUCTION — if it mentions shoot day(s), call sheet, crew, director,
+  talent/casting, location scout, PPM/pre-pro, footage, edit/offline/online,
+  rough cut, VFX, color/grade, mix/sound, finishing, air date, or "delivery of a
+  cut." Anything that feels like making a film/video/commercial. Use:
+    creative #8B5CF6, pre-production #3B82F6, production #EF4444,
+    post-production #10B981, vfx #EC4899, finishing #14B8A6,
+    client-review #F97316, internal-review #EAB308, delivery #18181B
+    (labels: Creative, Pre-Production, Production, Post Production, VFX,
+     Finishing, Client Review, Internal Review, Delivery / Launch)
+- EVENT / ACTIVATION — if it feels like a live event: venue, vendors, catering,
+  rentals, permits/insurance, load-in, build & setup, rehearsal, run of show,
+  show day, doors, guests, sponsors, strike/teardown/load-out, wrap. Use:
+    planning #8B5CF6, vendors #3B82F6, permits #14B8A6, promo #EC4899,
+    build #F97316, show-day #EF4444, strike #10B981, approvals #EAB308
+    (labels: Planning, Vendors & Booking, Permits, Promo / Marketing,
+     Build & Setup, Show Day, Strike / Wrap, Approvals)
+- SOCIAL / CONTENT CALENDAR — if it's posts on channels with publish dates
+  (IG/TikTok/YouTube/email/blog/paid). Make channel or content-type categories,
+  e.g. instagram #EC4899, tiktok #18181B, youtube #EF4444, email #3B82F6,
+  blog #10B981, paid #F97316.
+- ANYTHING ELSE — invent a small, clean set (3–9 labels) with distinct hex
+  colors that fit the work.
+When it's genuinely a mix, lead with the dominant signal (a shoot day makes it
+video; a show day / load-in makes it an event). State which template you chose
+in the report.
+
+- Every event's "category" must match a category "id" in the chosen
+  "categories" array. Infer each event's category from keywords (shoot→production,
+  edit→post-production, review/approval→client-review, load-in→build,
+  show day→show-day, launch/ship/send→delivery, etc.).
 - Any event whose category id isn't in "categories" still loads (it renders gray),
   but prefer to define every category you use.
 
