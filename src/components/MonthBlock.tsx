@@ -11,7 +11,10 @@ interface MonthBlockProps {
   mKey: string;
   project: Project;
   selectedId: string | null;
-  warningIds: Set<string>;
+  /** event id → reason it conflicts with a locked date */
+  warnings: Map<string, string>;
+  /** date key → closure label ("" when unlabeled); presence = day closed */
+  closures: Map<string, string>;
   shiftedIds: Set<string>;
   draggingId: string | null;
   readOnly?: boolean;

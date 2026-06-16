@@ -4,7 +4,7 @@ import { useState } from "react";
 import { addDaysKey, durationDays, snapWorkday } from "@/lib/dates";
 import { isCoarsePointer } from "@/lib/device";
 import { setLastCategoryId } from "@/lib/storage";
-import { countRounds, duplicateRound } from "@/lib/workback";
+import { countRounds, duplicateRound, warnings } from "@/lib/workback";
 import type { WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useStore } from "@/state/store";
@@ -25,6 +25,7 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
   const { project, commit } = useStore();
   const categories = project?.categories ?? [];
   const [showTime, setShowTime] = useState(!!event.time);
+  const warningReason = project ? warnings(project.events).get(event.id) : undefined;
 
   const update = (patch: Partial<WorkbackEvent>) =>
     commit((p) => ({
@@ -48,6 +49,15 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           onChange={(e) => update({ title: e.target.value })}
           onKeyDown={(e) => e.key === "Enter" && onClose()}
         />
+
+        {warningReason && (
+          <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1.5 text-[12px] font-medium text-danger">
+            <svg className="mt-px h-3 w-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+              <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+            </svg>
+            <span>{warningReason}</span>
+          </div>
+        )}
 
         <textarea
           className={`${inputCls} min-h-[52px] resize-y`}

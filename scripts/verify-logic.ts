@@ -4,7 +4,7 @@ import {
   resizeEvent,
   compressTimeline,
   applyChanges,
-  warningIds,
+  warnings,
   createReviewRound,
   duplicateRound,
 } from "../src/lib/workback.ts";
@@ -80,11 +80,14 @@ const base = [
 // 4. Warnings: overlap with lock or < 1 day buffer
 {
   const tight = [ev("x", "2026-06-18", "2026-06-19"), ev("y", "2026-06-10", "2026-06-11"), ev("L", "2026-06-20", "2026-06-20", { locked: true })];
-  const w = warningIds(tight);
+  const w = warnings(tight);
   check("warning: zero-buffer event flagged", w.has("x"));
   check("warning: distant event not flagged", !w.has("y"));
+  check("warning: reason names the lock", (w.get("x") ?? "").includes('"L"'));
   const overlap = [ev("x", "2026-06-19", "2026-06-21"), ev("L", "2026-06-20", "2026-06-20", { locked: true })];
-  check("warning: overlap flagged", warningIds(overlap).has("x"));
+  const wo = warnings(overlap);
+  check("warning: overlap flagged", wo.has("x"));
+  check("warning: overlap reason mentions overlap", (wo.get("x") ?? "").toLowerCase().includes("overlap"));
 }
 
 // 5. Compress timeline anchored to locked delivery: delivery fixed, start moves later

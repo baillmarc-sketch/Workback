@@ -1,4 +1,4 @@
-import type { Project, ProjectCategory, ProjectSummary } from "./types";
+import type { Closure, Project, ProjectCategory, ProjectSummary } from "./types";
 import { uid } from "./types";
 import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR, humanize } from "./categories";
 import { templateById, type TemplateId } from "./templates";
@@ -178,6 +178,22 @@ function migrateCategories(raw: unknown, events: Project["events"]): ProjectCate
   return categories;
 }
 
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Keep only well-formed closures, de-duplicated by date; drop the field
+    entirely when there are none so the stored project stays lean. */
+function migrateClosures(raw: unknown): Closure[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  const out: Closure[] = [];
+  for (const c of raw as Partial<Closure>[]) {
+    if (!c || typeof c.date !== "string" || !DATE_KEY.test(c.date) || seen.has(c.date)) continue;
+    seen.add(c.date);
+    out.push({ date: c.date, label: typeof c.label === "string" && c.label ? c.label : undefined });
+  }
+  return out.length ? out : undefined;
+}
+
 export function migrate(data: unknown): Project {
   const p = data as Partial<Project>;
   if (!p || !Array.isArray(p.events)) throw new Error("Not a Workback project");
@@ -198,6 +214,7 @@ export function migrate(data: unknown): Project {
     time: typeof e.time === "string" && e.time.trim() ? e.time : undefined,
     dayOrder: typeof e.dayOrder === "number" && Number.isFinite(e.dayOrder) ? e.dayOrder : undefined,
   }));
+  const closures = migrateClosures(p.closures);
   return {
     schema: 2,
     id: typeof p.id === "string" ? p.id : uid(),
@@ -206,6 +223,7 @@ export function migrate(data: unknown): Project {
     notes: p.notes ?? "",
     categories: migrateCategories(p.categories, events),
     events,
+    closures,
     anchorMonth: p.anchorMonth ?? monthKey(new Date()),
     monthsVisible: p.monthsVisible === 2 || p.monthsVisible === 3 ? p.monthsVisible : 1,
     showLegend: p.showLegend ?? true,
@@ -267,5 +285,7 @@ export function sampleProject(): Project {
     { id: uid(), title: "Final Client Approval", startDate: day(55), endDate: day(55), category: "client-review", isMilestone: true, locked: false, time: "AM" },
     { id: uid(), title: "Delivery", startDate: day(57), endDate: day(57), category: "delivery", isMilestone: true, locked: true, time: "EOD" },
   ];
+  // An office closure in a quiet gap shows off the greyed-out day at a glance
+  p.closures = [{ date: day(24), label: "Company Holiday" }];
   return p;
 }

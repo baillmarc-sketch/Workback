@@ -14,7 +14,8 @@ interface EventBarProps {
   weekStart: string;
   topOffset: number;
   selected: boolean;
-  warning: boolean;
+  /** Reason this event conflicts with a locked date; undefined when clear */
+  warningReason?: string;
   justShifted: boolean;
   dragging: boolean;
   onSelect: (eventId: string, rect: DOMRect) => void;
@@ -28,7 +29,7 @@ export default function EventBar({
   weekStart,
   topOffset,
   selected,
-  warning,
+  warningReason,
   justShifted,
   dragging,
   onSelect,
@@ -74,7 +75,7 @@ export default function EventBar({
           borderRadius: continuesLeft && continuesRight ? 2 : continuesLeft ? "2px 6px 6px 2px" : continuesRight ? "6px 2px 2px 6px" : 6,
           boxShadow: selected
             ? `0 0 0 2px ${cat.color}, 0 2px 8px rgba(0,0,0,0.10)`
-            : warning
+            : warningReason
               ? "0 0 0 2px var(--color-danger)"
               : undefined,
           "--cat-color": cat.color,
@@ -125,10 +126,14 @@ export default function EventBar({
             <path d="M3.5 5V3.5a2.5 2.5 0 0 1 5 0V5H9a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h.5Zm1.2 0h2.6V3.5a1.3 1.3 0 0 0-2.6 0V5Z" />
           </svg>
         )}
-        {warning && (
-          <svg className="h-3 w-3 shrink-0 text-danger" viewBox="0 0 12 12" fill="currentColor" aria-label="Schedule conflict">
-            <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-          </svg>
+        {warningReason && (
+          // Wrapped so the icon carries its own tooltip — hovering it surfaces
+          // the reason rather than the bar's title (event name/time).
+          <span className="inline-flex shrink-0" title={warningReason}>
+            <svg className="h-3 w-3 text-danger" viewBox="0 0 12 12" fill="currentColor" role="img" aria-label={warningReason}>
+              <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+            </svg>
+          </span>
         )}
         <span className="truncate">
           {event.time && <span className="opacity-70">{event.time} · </span>}
