@@ -73,6 +73,18 @@ function check(name: string, cond: boolean, detail?: unknown) {
   ok("((1+2)*(3+4))", 21);
   ok("100-25-25", 50); // left-associative subtraction
   ok("2*-3+10", 4);
+  // percent (spreadsheet semantics)
+  ok("10%", 0.1);
+  ok("15000*10%", 1500);
+  ok("15000+10%", 16500); // + percent = markup
+  ok("15000-10%", 13500); // - percent = discount
+  const approxOk = (expr: string, v: number) => {
+    const r = evalExpr(expr);
+    check(`formula: "${expr}" ~= ${v}`, r.ok && Math.abs((r.value ?? NaN) - v) < 1e-6, r);
+  };
+  approxOk("100*(1+10%)", 110); // FP-rounded for display
+  ok("200*50%", 100);
+  bad("%5"); // "%" can't lead
   bad("1/0");
   bad("alert(1)");
   bad("1;2");
@@ -413,6 +425,18 @@ function check(name: string, cond: boolean, detail?: unknown) {
   const loaded = loadEstimate("range-test");
   const cell = loaded?.cells[`${li}:${col}`];
   check("range: persists high", cell?.value === 10000 && cell?.high === 15000 && loaded?.columns[0]?.range === true, cell);
+}
+
+// 13. Line notes persist
+{
+  const e = newEstimate("blank");
+  e.id = "note-test";
+  const id = "nli";
+  e.lineItems[id] = { id, label: "X", order: 0, note: "call vendor re: rush fee" };
+  e.sections[0].lineItemIds.push(id);
+  saveEstimate(e);
+  const loaded = loadEstimate("note-test");
+  check("line note: persists", loaded?.lineItems[id]?.note === "call vendor re: rush fee", loaded?.lineItems[id]);
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);

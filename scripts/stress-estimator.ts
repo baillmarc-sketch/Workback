@@ -99,7 +99,7 @@ function genExpr(depth: number): string {
     for (let j = 0; j < len; j++) s += pick(chars.split(""));
     try {
       const r = evalExpr(s);
-      if (/[^0-9.+\-*/()\s]/.test(s) && r.ok && s.trim() !== "") {
+      if (/[^0-9.+\-*/()%\s]/.test(s) && r.ok && s.trim() !== "") {
         bad("formula garbage: disallowed chars accepted", { s });
       }
     } catch (e) {

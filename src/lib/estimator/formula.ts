@@ -2,8 +2,12 @@
  * Safe arithmetic evaluator for cost cells. A cell lets you type a small
  * expression like "2*15000+500" and stores the evaluated total. We never use
  * eval/Function — input is tokenized, converted to RPN with the shunting-yard
- * algorithm, then evaluated on a stack. Only numbers and + - * / ( ) are
+ * algorithm, then evaluated on a stack. Only numbers and + - * / ( ) % are
  * allowed, so shared estimates can't smuggle code into a viewer's browser.
+ *
+ * Percent follows spreadsheet semantics: "n%" is n/100 (so 15000*10% = 1500),
+ * but as the right side of + or - it's relative to the left operand, so
+ * 15000+10% = 16500 (a 10% markup) and 15000-10% = 13500 (a 10% discount).
  */
 
 export interface EvalResult {
@@ -12,15 +16,15 @@ export interface EvalResult {
   error?: string;
 }
 
-const ALLOWED = /^[0-9.+\-*/()\s]*$/;
+const ALLOWED = /^[0-9.+\-*/()%\s]*$/;
 
 type Token =
   | { t: "num"; v: number }
-  | { t: "op"; v: "+" | "-" | "*" | "/" | "u-" }
+  | { t: "op"; v: "+" | "-" | "*" | "/" | "u-" | "pct" }
   | { t: "lparen" }
   | { t: "rparen" };
 
-const PRECEDENCE: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "u-": 3 };
+const PRECEDENCE: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "u-": 3, pct: 4 };
 
 function tokenize(expr: string): Token[] | null {
   const tokens: Token[] = [];
@@ -61,6 +65,13 @@ function tokenize(expr: string): Token[] | null {
       i++;
       continue;
     }
+    if (c === "%") {
+      if (expectOperand) return null; // "%" must follow a value or ")"
+      tokens.push({ t: "op", v: "pct" });
+      // result of n% is still an operand (e.g. "10%*5" is valid, "10%5" is not)
+      i++;
+      continue;
+    }
     if (c === "+" || c === "-" || c === "*" || c === "/") {
       if (expectOperand) {
         // Leading/standalone sign: treat unary "-" as negation, drop unary "+".
@@ -85,6 +96,9 @@ function toRpn(tokens: Token[]): Token[] | null {
   const ops: Token[] = [];
   for (const tok of tokens) {
     if (tok.t === "num") {
+      output.push(tok);
+    } else if (tok.t === "op" && tok.v === "pct") {
+      // Postfix: binds tightest to the operand just emitted.
       output.push(tok);
     } else if (tok.t === "op") {
       while (ops.length) {
@@ -126,17 +140,31 @@ function toRpn(tokens: Token[]): Token[] | null {
   return output;
 }
 
+// Stack values carry a `pct` flag so + / - can treat a percent operand as
+// relative to the left operand (spreadsheet semantics).
+interface Val {
+  v: number;
+  pct: boolean;
+}
+
 function evalRpn(rpn: Token[]): number | null {
-  const stack: number[] = [];
+  const stack: Val[] = [];
   for (const tok of rpn) {
     if (tok.t === "num") {
-      stack.push(tok.v);
+      stack.push({ v: tok.v, pct: false });
       continue;
     }
     if (tok.t !== "op") return null;
+    if (tok.v === "pct") {
+      if (stack.length < 1) return null;
+      const x = stack.pop()!;
+      stack.push({ v: x.v / 100, pct: true });
+      continue;
+    }
     if (tok.v === "u-") {
       if (stack.length < 1) return null;
-      stack.push(-stack.pop()!);
+      const x = stack.pop()!;
+      stack.push({ v: -x.v, pct: x.pct });
       continue;
     }
     if (stack.length < 2) return null;
@@ -145,32 +173,32 @@ function evalRpn(rpn: Token[]): number | null {
     let r: number;
     switch (tok.v) {
       case "+":
-        r = a + b;
+        r = b.pct ? a.v + a.v * b.v : a.v + b.v; // a + 10%  ->  a * 1.10
         break;
       case "-":
-        r = a - b;
+        r = b.pct ? a.v - a.v * b.v : a.v - b.v; // a - 10%  ->  a * 0.90
         break;
       case "*":
-        r = a * b;
+        r = a.v * b.v; // b already /100 for percents (15000 * 10% = 1500)
         break;
       case "/":
-        if (b === 0) return null; // division by zero
-        r = a / b;
+        if (b.v === 0) return null; // division by zero
+        r = a.v / b.v;
         break;
       default:
         return null;
     }
-    stack.push(r);
+    stack.push({ v: r, pct: false });
   }
   if (stack.length !== 1) return null;
-  return stack[0];
+  return stack[0].v;
 }
 
 /** Evaluate an arithmetic expression. Blank input is a valid $0 cell. */
 export function evalExpr(expr: string): EvalResult {
   const trimmed = expr.trim();
   if (trimmed === "") return { ok: true, value: 0 };
-  if (!ALLOWED.test(trimmed)) return { ok: false, error: "Only numbers and + - * / ( ) are allowed" };
+  if (!ALLOWED.test(trimmed)) return { ok: false, error: "Only numbers and + - * / ( ) % are allowed" };
   const tokens = tokenize(trimmed);
   if (!tokens || tokens.length === 0) return { ok: false, error: "Could not read that expression" };
   const rpn = toRpn(tokens);
