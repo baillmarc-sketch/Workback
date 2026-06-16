@@ -7,12 +7,15 @@ import {
   baselineColumnId,
   columnDelta,
   columnSubtotal,
+  columnSubtotalHigh,
   columnTotal,
+  columnTotalHigh,
   committedValue,
   lineEstimate,
   resolveActualsSource,
   sectionActualsTotals,
   sectionSubtotal,
+  sectionSubtotalHigh,
 } from "./totals";
 
 /** RFC-4180 cell escaping: wrap in quotes when the value has a comma, quote,
@@ -47,6 +50,10 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
     lines.push("");
   }
 
+  // Range columns export "low-high"; others a plain number.
+  const rng = (c: EstimateColumn, low: number, high: number): string | number =>
+    c.range && high !== low ? `${low}-${high}` : low;
+
   const colNames = columns.map((c) => (c.role === "vendor" ? c.vendor || c.name : c.name));
   lines.push(row(["", ...colNames]));
 
@@ -58,19 +65,34 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
       lines.push(
         row([
           li.label || "",
-          ...columns.map((c) => estimate.cells[cellKey(liId, c.id)]?.value ?? 0),
+          ...columns.map((c) => {
+            const cell = estimate.cells[cellKey(liId, c.id)];
+            return rng(c, cell?.value ?? 0, cell?.high ?? cell?.value ?? 0);
+          }),
         ])
       );
     }
-    lines.push(row([`Subtotal — ${section.name}`, ...columns.map((c) => sectionSubtotal(estimate, section.id, c.id))]));
+    lines.push(
+      row([
+        `Subtotal — ${section.name}`,
+        ...columns.map((c) => rng(c, sectionSubtotal(estimate, section.id, c.id), sectionSubtotalHigh(estimate, section.id, c.id))),
+      ])
+    );
   }
 
-  lines.push(row(["Net Subtotal", ...columns.map((c) => columnSubtotal(estimate, c.id))]));
+  lines.push(row(["Net Subtotal", ...columns.map((c) => rng(c, columnSubtotal(estimate, c.id), columnSubtotalHigh(estimate, c.id)))]));
   for (const adj of estimate.adjustments) {
     const label = adj.type === "percent" ? `${adj.label} (${adj.value}%)` : adj.label;
-    lines.push(row([label, ...columns.map((c) => adjustmentAmount(columnSubtotal(estimate, c.id), adj))]));
+    lines.push(
+      row([
+        label,
+        ...columns.map((c) =>
+          rng(c, adjustmentAmount(columnSubtotal(estimate, c.id), adj), adjustmentAmount(columnSubtotalHigh(estimate, c.id), adj))
+        ),
+      ])
+    );
   }
-  lines.push(row(["Total", ...columns.map((c) => columnTotal(estimate, c.id))]));
+  lines.push(row(["Total", ...columns.map((c) => rng(c, columnTotal(estimate, c.id), columnTotalHigh(estimate, c.id)))]));
 
   const baseId = baselineColumnId(estimate);
   if (baseId) {

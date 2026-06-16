@@ -164,6 +164,7 @@ function migrateColumns(raw: unknown): EstimateColumn[] {
       id: c.id!,
       name: str(c.name, "Column"),
       role: (c.role === "vendor" ? "vendor" : "version") as ColumnRole,
+      range: c.range === true ? true : undefined,
       vendor: typeof c.vendor === "string" && c.vendor ? c.vendor : undefined,
       notes: typeof c.notes === "string" && c.notes ? c.notes : undefined,
       links: migrateLinks(c.links),
@@ -266,7 +267,12 @@ function migrateCell(v: Partial<CellValue> | undefined): CellValue {
   // Recompute the cached value from the raw expression so a missing/NaN cache
   // (hand-edits, partial writes) self-heals on load.
   const value = typeof v?.value === "number" && Number.isFinite(v.value) ? v.value : evalOrZero(expr);
-  return { expr, value };
+  const cell: CellValue = { expr, value };
+  if (typeof v?.highExpr === "string" && v.highExpr) {
+    cell.highExpr = v.highExpr;
+    cell.high = typeof v?.high === "number" && Number.isFinite(v.high) ? v.high : evalOrZero(v.highExpr);
+  }
+  return cell;
 }
 
 function migrateCells(raw: unknown): Record<string, CellValue> {

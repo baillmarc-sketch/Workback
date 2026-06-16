@@ -185,3 +185,41 @@ export function evalOrZero(expr: string): number {
   const r = evalExpr(expr);
   return r.ok && r.value !== undefined ? r.value : 0;
 }
+
+export interface RangeResult {
+  ok: boolean;
+  lowExpr?: string;
+  low?: number;
+  highExpr?: string;
+  high?: number;
+  error?: string;
+}
+
+/**
+ * Parse a ballpark range cell. Accepts "low – high", "low to high", "low..high",
+ * or "low-high"; a single expression becomes low == high. In a range column a
+ * "-" means the range separator, not subtraction. low/high are normalized so
+ * low <= high.
+ */
+export function parseRange(input: string): RangeResult {
+  const s = input.trim();
+  if (s === "") return { ok: true };
+  const m = s.match(/^(.+?)\s*(?:–|\.\.|\bto\b|-)\s*(.+)$/i);
+  if (!m) {
+    const r = evalExpr(s);
+    return r.ok ? { ok: true, lowExpr: s, low: r.value, highExpr: s, high: r.value } : { ok: false, error: r.error };
+  }
+  const lo = evalExpr(m[1]);
+  if (!lo.ok) return { ok: false, error: lo.error };
+  const hi = evalExpr(m[2]);
+  if (!hi.ok) return { ok: false, error: hi.error };
+  let low = lo.value ?? 0;
+  let high = hi.value ?? 0;
+  let lowExpr = m[1].trim();
+  let highExpr = m[2].trim();
+  if (low > high) {
+    [low, high] = [high, low];
+    [lowExpr, highExpr] = [highExpr, lowExpr];
+  }
+  return { ok: true, lowExpr, low, highExpr, high };
+}
