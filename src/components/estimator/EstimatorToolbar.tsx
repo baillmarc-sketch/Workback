@@ -1,8 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { CURRENCIES } from "@/lib/estimator/currencies";
 import { useEstimate } from "@/state/estimateStore";
 import ViewToggle, { type ViewMode } from "./ViewToggle";
+
+/** Track the browser's online/offline status so the save indicator can warn
+    that edits are held locally until the connection returns. */
+function useOnline(): boolean {
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+  return online;
+}
 
 interface ToolbarProps {
   mode: ViewMode;
@@ -18,7 +37,25 @@ const btn =
 
 export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, onShare, onExport, onPrint }: ToolbarProps) {
   const { estimate, commit, undo, redo, canUndo, canRedo, syncState } = useEstimate();
+  const online = useOnline();
   if (!estimate) return null;
+
+  // Status pill — always shown so users know edits are saved (and warned when
+  // offline), not just for shared estimates.
+  const offline = !online || syncState === "offline";
+  const syncing = online && syncState === "syncing";
+  const synced = !!estimate.shareId;
+  const status = offline
+    ? { dot: "bg-danger", text: "offline", title: "You're offline — changes are saved on this device and will sync when you reconnect." }
+    : syncing
+      ? { dot: "bg-ink-faint", text: "syncing…", title: "Saving your changes online…" }
+      : {
+          dot: "bg-[#10B981]",
+          text: synced ? "synced" : "saved",
+          title: synced
+            ? "Backed up online — edits sync to anyone who has the link."
+            : "Saved on this device (and to your account when signed in).",
+        };
 
   return (
     <div className="no-print sticky top-0 z-20 -mx-1 mb-4 flex flex-wrap items-center gap-1.5 bg-paper/90 px-1 py-2 backdrop-blur-sm">
@@ -55,23 +92,15 @@ export default function EstimatorToolbar({ mode, onModeChange, onAdjustments, on
 
       <span className="flex-1" />
 
-      {estimate.shareId && (
-        <span
-          className="hidden items-center gap-1 text-[11px] text-ink-faint sm:flex"
-          title="This estimate is backed up online — edits sync to anyone who has the link"
-        >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              syncState === "offline"
-                ? "bg-danger"
-                : syncState === "syncing"
-                  ? "bg-ink-faint"
-                  : "bg-[#10B981]"
-            }`}
-          />
-          {syncState === "offline" ? "offline" : syncState === "syncing" ? "syncing…" : "saved"}
-        </span>
-      )}
+      <span
+        className="flex items-center gap-1 text-[11px] text-ink-faint"
+        title={status.title}
+        role="status"
+        aria-live="polite"
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+        {status.text}
+      </span>
       <button
         className="rounded-md bg-ink px-3 py-1.5 text-[12px] font-semibold text-paper hover:opacity-85"
         onClick={onShare}

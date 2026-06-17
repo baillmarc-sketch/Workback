@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { uid } from "@/lib/types";
 import {
+  adjustmentSectionEnabled,
   baselineColumnId,
   cellVariance,
   columnAdjustmentAmount,
@@ -505,8 +506,11 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                                 <span className="text-ink-faint">—</span>
                               )}
                               {v && v.abs !== 0 && (
-                                <span className={`text-[9.5px] ${v.abs > 0 ? "text-danger" : "text-[#15803d]"}`}>
-                                  {formatCurrencySigned(v.abs, currency)}
+                                <span
+                                  className={`text-[9.5px] ${v.abs > 0 ? "text-danger" : "text-[#15803d]"}`}
+                                  aria-label={`${formatCurrencySigned(v.abs, currency)} ${v.abs > 0 ? "over" : "under"} estimate`}
+                                >
+                                  {v.abs > 0 ? "▲" : "▼"} {formatCurrencySigned(v.abs, currency)}
                                 </span>
                               )}
                             </button>
@@ -576,6 +580,20 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               cell={(col) => {
                 const v = effectiveAdjustmentValue(estimate, col.id, adj);
                 if (v === null) return <span className="text-ink-faint" title="Off for this column">—</span>;
+                // On for the column, but every section is excluded → it adds nothing.
+                const allSectionsOff =
+                  adj.type === "percent" &&
+                  estimate.sections.length > 0 &&
+                  estimate.sections.every((s) => !adjustmentSectionEnabled(estimate, col.id, adj.id, s.id));
+                if (allSectionsOff)
+                  return (
+                    <span
+                      className="text-danger"
+                      title="This adjustment is on but excluded from every section for this column, so it adds nothing."
+                    >
+                      ⚠ —
+                    </span>
+                  );
                 const scoped = columnHasSectionScope(estimate, col.id, adj);
                 const customized = v !== adj.value || scoped;
                 const txt = fmtRange(
@@ -613,6 +631,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                 "h-9"
               )}
               {visibleColumns.map((col) => {
+                const baseTotal = columnTotal(estimate, baseId);
                 if (col.id === baseId) {
                   return (
                     <div
@@ -626,14 +645,17 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                 }
                 const d = columnDelta(estimate, col.id, baseId);
                 const tone = d.abs > 0 ? "text-danger" : d.abs < 0 ? "text-[#15803d]" : "text-ink-faint";
+                const arrow = d.abs > 0 ? "▲ " : d.abs < 0 ? "▼ " : "";
                 return (
                   <div
                     key={col.id}
                     className={`flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 whitespace-nowrap tabular-nums ${tone}`}
                     style={{ width: widthOf(col) }}
+                    aria-label={`${formatCurrencySigned(d.abs, currency)} vs baseline${d.abs > 0 ? " (over)" : d.abs < 0 ? " (under)" : ""}`}
                   >
-                    <span className="text-[12.5px] font-medium">{formatCurrencySigned(d.abs, currency)}</span>
-                    <span className="text-[10.5px]">{formatPctSigned(d.pct)}</span>
+                    <span className="text-[12.5px] font-medium">{arrow}{formatCurrencySigned(d.abs, currency)}</span>
+                    {/* A delta against a $0 baseline has no meaningful percentage. */}
+                    <span className="text-[10.5px]">{baseTotal === 0 ? "n/a" : formatPctSigned(d.pct)}</span>
                   </div>
                 );
               })}
