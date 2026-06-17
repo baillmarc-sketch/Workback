@@ -85,7 +85,9 @@ interface Store {
   redo: () => void;
 }
 
-const StoreContext = createContext<Store | null>(null);
+// Exported so a read-only viewer (e.g. the admin "view as" page) can supply a
+// no-op store and render the calendar without the autosaving provider.
+export const StoreContext = createContext<Store | null>(null);
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { user, getToken } = useAuth();

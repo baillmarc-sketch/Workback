@@ -2,6 +2,7 @@
   "rules": {
     ".read": false,
     ".write": false,
+
     "shared": {
       "$shareId": {
         ".read": true,
@@ -16,10 +17,82 @@
         ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber()"
       }
     },
-    "users": {
+
+    "admins": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "root.child('admins').child(auth.uid).exists() || (auth.uid === $uid && auth.token.email === 'baillmarc@gmail.com')",
+        ".validate": "newData.isBoolean()"
+      }
+    },
+
+    "registry": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['email', 'lastSeen'])",
+        "email": { ".validate": "newData.isString() && newData.val() === auth.token.email" },
+        "emailKey": { ".validate": "newData.isString()" },
+        "name": { ".validate": "newData.isString() || newData.val() == null" },
+        "photoURL": { ".validate": "newData.isString() || newData.val() == null" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "lastSeen": { ".validate": "newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "entitlements": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
+        ".write": "root.child('admins').child(auth.uid).exists()",
+        "estimator": { ".validate": "newData.isBoolean()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "roles": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
+        ".write": "root.child('admins').child(auth.uid).exists()",
+        ".validate": "newData.isString() && (newData.val() == 'owner' || newData.val() == 'admin' || newData.val() == 'member')"
+      }
+    },
+
+    "teams": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      ".write": "root.child('admins').child(auth.uid).exists()",
+      "$teamId": {
+        ".validate": "newData.hasChildren(['name'])",
+        "name": { ".validate": "newData.isString()" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "members": {
+          "$uid": { ".validate": "newData.isBoolean()" }
+        },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "invites": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      ".write": "root.child('admins').child(auth.uid).exists()",
+      "$emailKey": {
+        ".read": "auth != null && (root.child('admins').child(auth.uid).exists() || root.child('registry').child(auth.uid).child('emailKey').val() === $emailKey)",
+        ".validate": "newData.hasChildren(['email'])",
+        "email": { ".validate": "newData.isString()" },
+        "estimator": { ".validate": "newData.isBoolean()" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "invitedBy": { ".validate": "newData.isString()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
         "projects": {
           "$pid": {
             ".validate": "newData.hasChildren(['id', 'events', 'updatedAt'])"
@@ -30,6 +103,11 @@
             ".validate": "newData.isNumber()"
           }
         },
+        "projectsTrash": {
+          "$pid": {
+            ".validate": "newData.hasChildren(['id', 'events', 'updatedAt'])"
+          }
+        },
         "estimates": {
           "$eid": {
             ".validate": "newData.hasChildren(['id', 'updatedAt'])"
@@ -38,6 +116,11 @@
         "estimatesDeleted": {
           "$eid": {
             ".validate": "newData.isNumber()"
+          }
+        },
+        "estimatesTrash": {
+          "$eid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt'])"
           }
         }
       }

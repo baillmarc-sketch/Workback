@@ -8,7 +8,7 @@
  * Adding a future app = one entry in APPS plus a branch in Toolkit.tsx.
  */
 
-export type AppId = "workback" | "estimator";
+export type AppId = "workback" | "estimator" | "admin";
 
 export type Entitlement = "free" | "pro";
 
@@ -52,6 +52,7 @@ export function parseAppFromHash(hash: string): AppId {
   if (h.startsWith("p=") || h.startsWith("wb=")) return "workback";
   if (h.startsWith("e=")) return "estimator";
   if (h === "app=estimator") return "estimator";
+  if (h === "app=admin") return "admin";
   return "workback";
 }
 
