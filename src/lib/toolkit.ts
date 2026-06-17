@@ -8,7 +8,7 @@
  * Adding a future app = one entry in APPS plus a branch in Toolkit.tsx.
  */
 
-export type AppId = "workback" | "estimator" | "admin";
+export type AppId = "workback" | "estimator" | "bid-specs" | "admin";
 
 export type Entitlement = "free" | "pro";
 
@@ -37,6 +37,13 @@ export const APPS: AppInfo[] = [
     blurb: "Build and compare production budgets across versions and vendor bids, level bids, and track actuals.",
     entitlement: "pro",
   },
+  {
+    id: "bid-specs",
+    name: "Bid Specs",
+    tab: "Bid Specs",
+    blurb: "Write and share AICP-aligned bid specs — the job, deliverables, usage, and terms vendors bid against.",
+    entitlement: "pro",
+  },
 ];
 
 export function appInfo(id: AppId): AppInfo {
@@ -52,6 +59,8 @@ export function parseAppFromHash(hash: string): AppId {
   if (h.startsWith("p=") || h.startsWith("wb=")) return "workback";
   if (h.startsWith("e=")) return "estimator";
   if (h === "app=estimator") return "estimator";
+  if (h.startsWith("bs=")) return "bid-specs";
+  if (h === "app=bid-specs") return "bid-specs";
   if (h === "app=admin") return "admin";
   return "workback";
 }

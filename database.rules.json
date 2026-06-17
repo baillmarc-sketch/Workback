@@ -17,6 +17,13 @@
         ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
       }
     },
+    "sharedBidSpecs": {
+      "$shareId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
+      }
+    },
 
     "config": {
       "ownerUids": {
@@ -166,6 +173,16 @@
         "estimatesTrash": {
           "$eid": {
             ".validate": "newData.hasChildren(['id', 'updatedAt'])"
+          }
+        },
+        "bidSpecs": {
+          "$sid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt']) && (!data.exists() || !data.hasChild('updatedAt') || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
+          }
+        },
+        "bidSpecsDeleted": {
+          "$sid": {
+            ".validate": "newData.isNumber()"
           }
         }
       }

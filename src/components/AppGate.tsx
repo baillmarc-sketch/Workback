@@ -78,7 +78,7 @@ export default function AppGate({ appId, children }: { appId: AppId; children: R
             : "Sign in to open this app, then request access. Access is granted per account."}
       </p>
 
-      {ready && user && appId === "estimator" && reqState !== "pending" && (
+      {ready && user && (appId === "estimator" || appId === "bid-specs") && reqState !== "pending" && (
         <div className="mt-5 flex w-full max-w-sm flex-col items-stretch gap-2">
           <textarea
             value={message}
