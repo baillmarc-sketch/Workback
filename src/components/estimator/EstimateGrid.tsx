@@ -243,7 +243,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   };
 
   // --- structure mutations ---
-  const addColumn = () =>
+  const addColumn = () => {
     commit((e) => {
       const col: EstimateColumn = {
         id: uid(),
@@ -256,6 +256,13 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
       };
       return { ...e, columns: [...e.columns, col] };
     });
+    // The new column is appended at the far right; reveal it so the click has
+    // visible feedback even when the grid is wider than the viewport.
+    requestAnimationFrame(() => {
+      const el = gridRef.current;
+      if (el) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    });
+  };
 
   const addLineItem = (sectionId: string) =>
     commit((e) => {
@@ -339,8 +346,12 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
           {/* Column headers */}
           <div className="flex border-b border-hairline-strong bg-surface">
             {labelCell(
-              <button className="text-[12px] font-medium text-ink-faint hover:text-ink" onClick={addColumn} title="Add a comparison column">
-                + Column
+              <button
+                className="rounded-md border border-hairline bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-soft hover:bg-paper hover:text-ink"
+                onClick={addColumn}
+                title={mode === "leveling" ? "Add a vendor bid column" : "Add a comparison column"}
+              >
+                + {mode === "leveling" ? "Add bid" : "Add column"}
               </button>,
               "h-12"
             )}
