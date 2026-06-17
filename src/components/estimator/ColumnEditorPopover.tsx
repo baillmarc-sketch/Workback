@@ -12,8 +12,9 @@ interface ColumnEditorPopoverProps {
   onClose: () => void;
 }
 
-const inputCls =
-  "w-full rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
+const fieldCls =
+  "rounded-md border border-hairline bg-paper px-2 py-1.5 text-[13px] outline-none focus:border-ink-faint";
+const inputCls = `w-full ${fieldCls}`;
 const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
 /** Add a scheme so a bare "drive.google.com/…" still opens as an absolute URL. */
@@ -159,15 +160,15 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
             {links.map((l, i) => (
               <div key={i} className="flex items-center gap-1">
                 <input
-                  className={`${inputCls} w-[88px] shrink-0`}
+                  className={`${fieldCls} w-[64px] shrink-0 text-[12px]`}
                   value={l.label}
-                  placeholder="Label"
+                  placeholder="Note"
                   onChange={(e) => writeLinks(links.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
                 />
                 <input
-                  className={`${inputCls} min-w-0 flex-1`}
+                  className={`${fieldCls} w-0 min-w-0 flex-1`}
                   value={l.url}
-                  placeholder="https://… (treatment, bid, reel)"
+                  placeholder="https://…"
                   inputMode="url"
                   onChange={(e) => writeLinks(links.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))}
                 />
@@ -176,14 +177,14 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
                     href={hrefOf(l.url)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 px-1 text-[13px] text-ink-faint hover:text-ink"
+                    className="shrink-0 px-0.5 text-[13px] text-ink-faint hover:text-ink"
                     title="Open link"
                   >
                     ↗
                   </a>
                 )}
                 <button
-                  className="shrink-0 px-1 text-[13px] text-ink-faint hover:text-danger"
+                  className="shrink-0 px-0.5 text-[13px] text-ink-faint hover:text-danger"
                   title="Remove link"
                   onClick={() => writeLinks(links.filter((_, j) => j !== i))}
                 >
