@@ -4,7 +4,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { layoutWeek } from "@/lib/layout";
 import { isInMonth, isWeekendKey, todayKey } from "@/lib/dates";
 import type { ProjectCategory, WorkbackEvent } from "@/lib/types";
-import EventBar, { LANE_HEIGHT, LANE_GAP } from "./EventBar";
+import EventBar, { LANE_HEIGHT, LANE_GAP, PRINT_LANE_HEIGHT } from "./EventBar";
 
 const DAY_HEADER = 26;
 const ROW_PAD = 6;
@@ -23,6 +23,8 @@ interface WeekRowProps {
   shiftedIds: Set<string>;
   draggingId: string | null;
   readOnly?: boolean;
+  /** Print render: taller lanes + wrapped labels */
+  forPrint?: boolean;
   onSelectEvent: (id: string, rect: DOMRect) => void;
   onResizeStart: (id: string, edge: "start" | "end", e: React.PointerEvent) => void;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
@@ -101,6 +103,7 @@ export default function WeekRow({
   shiftedIds,
   draggingId,
   readOnly,
+  forPrint,
   onSelectEvent,
   onResizeStart,
   onDayClick,
@@ -112,9 +115,10 @@ export default function WeekRow({
   const today = todayKey();
 
   // Row height auto-expands with event density
+  const laneHeight = forPrint ? PRINT_LANE_HEIGHT : LANE_HEIGHT;
   const lanes = Math.max(layout.laneCount, MIN_LANES);
   const overflowRow = layout.overflow.size > 0 ? 18 : 0;
-  const height = DAY_HEADER + lanes * (LANE_HEIGHT + LANE_GAP) + overflowRow + ROW_PAD;
+  const height = DAY_HEADER + lanes * (laneHeight + LANE_GAP) + overflowRow + ROW_PAD;
 
   return (
     <div className="week-row relative border-b border-hairline last:border-b-0" style={{ height }}>
@@ -146,6 +150,7 @@ export default function WeekRow({
           onSelect={onSelectEvent}
           onResizeStart={onResizeStart}
           readOnly={readOnly}
+          forPrint={forPrint}
         />
       ))}
 

@@ -25,7 +25,10 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
   const { project, commit } = useStore();
   const categories = project?.categories ?? [];
   const [showTime, setShowTime] = useState(!!event.time);
-  const warningReason = project ? warnings(project.events).get(event.id) : undefined;
+  // Conflict reason is computed regardless of override, so the popover can show
+  // it either as an active alarm or as the acknowledged (overridden) note.
+  const conflict = project ? warnings(project.events).get(event.id) : undefined;
+  const overridden = !!event.overrideWarning;
 
   const update = (patch: Partial<WorkbackEvent>) =>
     commit((p) => ({
@@ -50,14 +53,38 @@ export default function EventPopover({ event, anchor, onClose }: EventPopoverPro
           onKeyDown={(e) => e.key === "Enter" && onClose()}
         />
 
-        {warningReason && (
-          <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1.5 text-[12px] font-medium text-danger">
-            <svg className="mt-px h-3 w-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-              <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-            </svg>
-            <span>{warningReason}</span>
+        {overridden ? (
+          <div className="flex items-start justify-between gap-2 rounded-md bg-paper px-2 py-1.5 text-[12px] text-ink-soft">
+            <span className="flex items-start gap-1.5">
+              <svg className="mt-px h-3 w-3 shrink-0 text-ink-faint" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+              </svg>
+              <span>Warning overridden{conflict ? ` — ${conflict}` : ""}</span>
+            </span>
+            <button
+              className="shrink-0 font-medium text-ink-soft hover:text-ink"
+              onClick={() => update({ overrideWarning: undefined })}
+            >
+              Restore
+            </button>
           </div>
-        )}
+        ) : conflict ? (
+          <div className="flex items-start justify-between gap-2 rounded-md bg-red-50 px-2 py-1.5 text-[12px] font-medium text-danger">
+            <span className="flex items-start gap-1.5">
+              <svg className="mt-px h-3 w-3 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                <path d="M6 1 11.5 10.5H.5L6 1Zm-.6 3.5v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+              </svg>
+              <span>{conflict}</span>
+            </span>
+            <button
+              className="shrink-0 font-medium text-danger hover:opacity-70"
+              onClick={() => update({ overrideWarning: true })}
+              title="Acknowledge this conflict and hide the warning"
+            >
+              Override
+            </button>
+          </div>
+        ) : null}
 
         <textarea
           className={`${inputCls} min-h-[52px] resize-y`}

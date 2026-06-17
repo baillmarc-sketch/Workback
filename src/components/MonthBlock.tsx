@@ -18,6 +18,7 @@ interface MonthBlockProps {
   shiftedIds: Set<string>;
   draggingId: string | null;
   readOnly?: boolean;
+  forPrint?: boolean;
   onSelectEvent: (id: string, rect: DOMRect) => void;
   onResizeStart: (id: string, edge: "start" | "end", e: React.PointerEvent) => void;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
@@ -43,6 +44,11 @@ export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) 
         </h2>
         {project.showLegend && (
           <Legend categories={project.categories} events={project.events} className="mt-1.5" />
+        )}
+        {project.printNotes && project.notes.trim() && (
+          <p className="mt-1.5 max-w-[70ch] text-[11px] leading-snug whitespace-pre-wrap break-words text-ink-soft">
+            {project.notes}
+          </p>
         )}
       </div>
 

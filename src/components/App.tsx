@@ -26,6 +26,7 @@ import Header from "./Header";
 import HistoryDialog from "./HistoryDialog";
 import Legend from "./Legend";
 import MorePopover from "./MorePopover";
+import PrintDialog from "./PrintDialog";
 import ProjectsDialog from "./ProjectsDialog";
 import ReviewRoundDialog from "./ReviewRoundDialog";
 import ShareDialog from "./ShareDialog";
@@ -41,6 +42,7 @@ type Dialog =
   | "export"
   | "history"
   | "shortcuts"
+  | "print"
   | null;
 
 function rectToAnchor(r: DOMRect): Anchor {
@@ -454,7 +456,7 @@ export default function App() {
         onCompress={() => setDialog("compress")}
         onShare={handleShare}
         onExport={() => setDialog("export")}
-        onPrint={() => window.print()}
+        onPrint={() => setDialog("print")}
         onHistory={() => setDialog("history")}
       />
 
@@ -491,12 +493,13 @@ export default function App() {
 
       {/* Print/PDF: every month that has events, full month, one per page —
           independent of the 1/2/3-month on-screen view */}
-      <div className="print-only">
+      <div className={`print-only ${project.printGrayscale ? "print-grayscale" : ""}`}>
         <Calendar
           project={project}
           selectedId={null}
           downstreamMode={false}
           readOnly
+          forPrint
           monthsOverride={activeMonths}
           onSelectEvent={() => {}}
           onDayClick={() => {}}
@@ -552,6 +555,7 @@ export default function App() {
       {dialog === "export" && <ExportDialog onClose={() => setDialog(null)} />}
       {dialog === "history" && <HistoryDialog onClose={() => setDialog(null)} />}
       {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
+      {dialog === "print" && <PrintDialog onClose={() => setDialog(null)} />}
 
       {toast && (
         <div
