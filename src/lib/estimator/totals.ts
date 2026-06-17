@@ -68,12 +68,49 @@ export function effectiveAdjustmentValue(
   return typeof ov === "number" && Number.isFinite(ov) ? ov : adj.value;
 }
 
-/** One adjustment's amount for a column (0 when off), low or high end. */
+/** Flat-map key for one (adjustment × section) opt-out on a column. */
+export function adjustmentSectionKey(adjId: string, sectionId: string): string {
+  return `${adjId}:${sectionId}`;
+}
+
+/** Whether a percent adjustment applies to this section for this column. Missing
+    opt-out = included; an explicit `true` excludes the section's subtotal. */
+export function adjustmentSectionEnabled(
+  est: Estimate,
+  columnId: string,
+  adjId: string,
+  sectionId: string
+): boolean {
+  const col = est.columns.find((c) => c.id === columnId);
+  return !col?.adjustmentSectionsOff?.[adjustmentSectionKey(adjId, sectionId)];
+}
+
+/** True when this column excludes at least one section from a percent
+    adjustment (used to flag the column as customized in the grid). */
+export function columnHasSectionScope(est: Estimate, columnId: string, adj: Adjustment): boolean {
+  if (adj.type !== "percent") return false;
+  return est.sections.some((s) => !adjustmentSectionEnabled(est, columnId, adj.id, s.id));
+}
+
+/** The base a percent adjustment runs against for a column: the sum of the
+    section subtotals it still applies to (low or high end). */
+function adjustmentBase(est: Estimate, columnId: string, adj: Adjustment, high: boolean): number {
+  let base = 0;
+  for (const s of est.sections) {
+    if (!adjustmentSectionEnabled(est, columnId, adj.id, s.id)) continue;
+    base += high ? sectionSubtotalHigh(est, s.id, columnId) : sectionSubtotal(est, s.id, columnId);
+  }
+  return base;
+}
+
+/** One adjustment's amount for a column (0 when off), low or high end. Percent
+    adjustments run against only the sections still enabled for this column;
+    flat adjustments are a fixed amount regardless of sections. */
 export function columnAdjustmentAmount(est: Estimate, columnId: string, adj: Adjustment, high = false): number {
   const v = effectiveAdjustmentValue(est, columnId, adj);
   if (v === null) return 0;
-  const subtotal = high ? columnSubtotalHigh(est, columnId) : columnSubtotal(est, columnId);
-  return adjustmentAmount(subtotal, { ...adj, value: v });
+  if (adj.type === "flat") return v;
+  return adjustmentBase(est, columnId, adj, high) * (v / 100);
 }
 
 /** Sum of all below-the-line adjustments for a column (respecting overrides). */

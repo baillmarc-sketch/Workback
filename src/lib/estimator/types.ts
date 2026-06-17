@@ -31,6 +31,14 @@ export interface EstimateColumn {
   /** Per-column overrides for estimate-level adjustments: adjustmentId -> a
       value (override) or null (off for this column). Missing key = default. */
   adjustmentOverrides?: Record<string, number | null>;
+  /** Per-(adjustment × section) opt-outs for THIS column. Keyed
+      `${adjustmentId}:${sectionId}`; a present `true` means that percent
+      adjustment skips that section's subtotal for this column. Missing key =
+      the section is included. Lets markup/insurance be toggled section-by-section
+      and vendor-by-vendor (the full matrix). */
+  adjustmentSectionsOff?: Record<string, true>;
+  /** Pixel width when the user has dragged the column; falls back to a default. */
+  width?: number;
   order: number;
 }
 

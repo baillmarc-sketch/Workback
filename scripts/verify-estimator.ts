@@ -22,6 +22,9 @@ import {
   columnTotalHigh,
   adjustmentAmount,
   effectiveAdjustmentValue,
+  columnAdjustmentAmount,
+  adjustmentSectionEnabled,
+  columnHasSectionScope,
   columnTotal,
   columnDelta,
   resolveActualsSource,
@@ -473,6 +476,81 @@ function check(name: string, cond: boolean, detail?: unknown) {
     loaded?.columns[1]?.adjustmentOverrides?.mk === 25 && columnTotal(loaded!, colB) === 1250,
     loaded?.columns[1]?.adjustmentOverrides
   );
+}
+
+// 15. Per-section adjustment scoping (the section × vendor matrix) + width
+{
+  const liP = "lp";
+  const liO = "lo";
+  const colA = "scA";
+  const colB = "scB";
+  const sProd = "sP";
+  const sPost = "sO";
+  const est: Estimate = {
+    ...newEstimate("blank"),
+    id: "scope-test",
+    adjustments: [
+      { id: "mk", label: "Markup", type: "percent", value: 10 },
+      { id: "fee", label: "Flat fee", type: "flat", value: 500 },
+    ],
+    columns: [
+      { id: colA, name: "A", role: "version", order: 0 },
+      // Column B skips Markup on the Post section only.
+      { id: colB, name: "B", role: "vendor", order: 1, adjustmentSectionsOff: { "mk:sO": true } },
+    ],
+    sections: [
+      { id: sProd, name: "Production", lineItemIds: [liP], order: 0 },
+      { id: sPost, name: "Post", lineItemIds: [liO], order: 1 },
+    ],
+    lineItems: { [liP]: { id: liP, label: "Shoot", order: 0 }, [liO]: { id: liO, label: "Edit", order: 1 } },
+    cells: {
+      [`${liP}:${colA}`]: { expr: "1000", value: 1000 },
+      [`${liO}:${colA}`]: { expr: "1000", value: 1000 },
+      [`${liP}:${colB}`]: { expr: "1000", value: 1000 },
+      [`${liO}:${colB}`]: { expr: "1000", value: 1000 },
+    },
+    baselineColumnId: colA,
+  };
+  const markup = est.adjustments[0];
+  const fee = est.adjustments[1];
+  // A: markup on all 2000 -> 200; B: markup only on Production 1000 -> 100.
+  check("scope: full markup amount (A) = 200", columnAdjustmentAmount(est, colA, markup) === 200);
+  check("scope: section-limited markup (B) = 100", columnAdjustmentAmount(est, colB, markup) === 100);
+  check("scope: enabled Production (B)", adjustmentSectionEnabled(est, colB, "mk", sProd) === true);
+  check("scope: disabled Post (B)", adjustmentSectionEnabled(est, colB, "mk", sPost) === false);
+  check("scope: column flagged as scoped (B)", columnHasSectionScope(est, colB, markup) === true);
+  check("scope: column not scoped (A)", columnHasSectionScope(est, colA, markup) === false);
+  // Flat fees ignore section scoping entirely.
+  check("scope: flat fee unaffected by sections", columnAdjustmentAmount(est, colB, fee) === 500);
+  // Totals: A = 2000 + 200 + 500 = 2700; B = 2000 + 100 + 500 = 2600.
+  check("scope: total A = 2700", columnTotal(est, colA) === 2700);
+  check("scope: total B = 2600", columnTotal(est, colB) === 2600);
+
+  // Width + section opt-out persistence round-trip.
+  est.columns[1].width = 240;
+  saveEstimate(est);
+  const loaded = loadEstimate("scope-test");
+  check(
+    "scope: sectionsOff + width persist",
+    loaded?.columns[1]?.adjustmentSectionsOff?.["mk:sO"] === true &&
+      loaded?.columns[1]?.width === 240 &&
+      columnTotal(loaded!, colB) === 2600,
+    loaded?.columns[1]
+  );
+
+  // Duplicate deep-copies the matrix without aliasing the original.
+  saveEstimate(est);
+  const dup = duplicateEstimate("scope-test");
+  if (dup) {
+    dup.columns[1].adjustmentSectionsOff!["mk:sP"] = true; // mutate the copy
+    const reload = loadEstimate("scope-test");
+    check(
+      "scope: duplicate doesn't alias original matrix",
+      reload?.columns[1]?.adjustmentSectionsOff?.["mk:sP"] === undefined
+    );
+  } else {
+    check("scope: duplicate created", false);
+  }
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);

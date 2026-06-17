@@ -7,6 +7,7 @@ import {
   cellVariance,
   columnAdjustmentAmount,
   columnDelta,
+  columnHasSectionScope,
   columnSubtotal,
   columnSubtotalHigh,
   columnTotal,
@@ -29,7 +30,15 @@ function rectToAnchor(r: DOMRect): Anchor {
 }
 
 const LABEL_W = 240;
-const COL_W = 150;
+// Defaults sized so 6–7 digit figures (and "low – high" ranges) sit on one line;
+// any column can be dragged wider/narrower from here.
+const DEFAULT_COL_W = 168;
+const RANGE_COL_W = 208;
+const MIN_COL_W = 110;
+
+function defaultWidth(col: EstimateColumn): number {
+  return col.width ?? (col.range ? RANGE_COL_W : DEFAULT_COL_W);
+}
 
 const labelInput =
   "w-full border-none bg-transparent text-[13px] outline-none placeholder:text-ink-faint";
@@ -45,6 +54,9 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
   const [sel, setSel] = useState<Sel | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  // Live width while dragging a column divider; committed to the column on release.
+  const [drag, setDrag] = useState<{ colId: string; width: number } | null>(null);
+  const draggedRef = useRef(false); // suppress the header click that follows a drag
   const gridRef = useRef<HTMLDivElement>(null);
   const selectOnFocus = useRef(true); // select existing text on click/Enter, not when typing to seed
 
@@ -83,9 +95,40 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
     visibleColumns = estimate.columns; // "all"
   }
   const currency = estimate.currency;
-  const rowWidth = LABEL_W + COL_W * visibleColumns.length;
+  const widthOf = (col: EstimateColumn) =>
+    drag && drag.colId === col.id ? drag.width : defaultWidth(col);
+  const rowWidth = LABEL_W + visibleColumns.reduce((sum, c) => sum + widthOf(c), 0);
   const orderedLineIds = estimate.sections.flatMap((s) => s.lineItemIds);
   const colIds = visibleColumns.map((c) => c.id);
+
+  // Drag a column's right divider to resize; commit the final width on mouseup.
+  const startResize = (col: EstimateColumn, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = widthOf(col);
+    const clamp = (x: number) => Math.max(MIN_COL_W, Math.round(startW + (x - startX)));
+    const onMove = (ev: MouseEvent) => {
+      draggedRef.current = true;
+      setDrag({ colId: col.id, width: clamp(ev.clientX) });
+    };
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      const w = clamp(ev.clientX);
+      setDrag(null);
+      if (w !== startW) {
+        commit((est) => ({
+          ...est,
+          columns: est.columns.map((c) => (c.id === col.id ? { ...c, width: w } : c)),
+        }));
+      }
+      // The click that trails mouseup must be ignored so the editor doesn't open.
+      setTimeout(() => (draggedRef.current = false), 0);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
 
   // --- cell editing ---
   const isRangeCol = (colId: string) => !!estimate.columns.find((c) => c.id === colId)?.range;
@@ -306,11 +349,14 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               return (
                 <button
                   key={col.id}
-                  className={`flex h-12 shrink-0 flex-col justify-center border-l border-hairline px-3 text-left hover:bg-paper ${
+                  className={`relative flex h-12 shrink-0 flex-col justify-center border-l border-hairline px-3 text-left hover:bg-paper ${
                     awarded ? "bg-[#f0fdf4] ring-1 ring-inset ring-[#86efac]" : ""
                   }`}
-                  style={{ width: COL_W }}
-                  onClick={(e) => setEditCol({ column: col, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
+                  style={{ width: widthOf(col) }}
+                  onClick={(e) => {
+                    if (draggedRef.current) return; // ignore the click after a resize drag
+                    setEditCol({ column: col, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) });
+                  }}
                 >
                   <span className="flex items-center gap-1 truncate text-[12.5px] font-semibold">
                     {col.name || "Untitled"}
@@ -323,6 +369,14 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                   <span className="truncate text-[10px] tracking-wide text-ink-faint uppercase">
                     {awarded ? "✓ Awarded" : col.role === "vendor" ? col.vendor || "Vendor" : "Version"}
                   </span>
+                  {/* Drag handle on the right divider to resize this column. */}
+                  <span
+                    role="separator"
+                    aria-orientation="vertical"
+                    title="Drag to resize column"
+                    onMouseDown={(e) => startResize(col, e)}
+                    className="absolute top-0 right-0 z-20 h-full w-2 cursor-col-resize hover:bg-ink-faint/20"
+                  />
                 </button>
               );
             })}
@@ -359,7 +413,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                   "h-9"
                 )}
                 {visibleColumns.map((col) => (
-                  <div key={col.id} className="shrink-0 border-l border-hairline" style={{ width: COL_W }} />
+                  <div key={col.id} className="shrink-0 border-l border-hairline" style={{ width: widthOf(col) }} />
                 ))}
               </div>
 
@@ -414,7 +468,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                           className={`relative h-9 shrink-0 border-l border-hairline ${
                             isSel && !isEditing ? "ring-1 ring-inset ring-ink-faint" : ""
                           }`}
-                          style={{ width: COL_W }}
+                          style={{ width: widthOf(col) }}
                         >
                           {isEditing ? (
                             <input
@@ -431,7 +485,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                             />
                           ) : (
                             <button
-                              className="flex h-full w-full flex-col items-end justify-center px-3 text-right text-[13px] tabular-nums hover:bg-paper"
+                              className="flex h-full w-full flex-col items-end justify-center px-3 text-right text-[13px] whitespace-nowrap tabular-nums hover:bg-paper"
                               onClick={() => startEdit(liId, col.id)}
                             >
                               {cell ? (
@@ -464,8 +518,8 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                 {visibleColumns.map((col) => (
                   <div
                     key={col.id}
-                    className="flex h-8 shrink-0 items-center justify-end border-l border-hairline px-3 text-[12.5px] font-medium tabular-nums"
-                    style={{ width: COL_W }}
+                    className="flex h-8 shrink-0 items-center justify-end border-l border-hairline px-3 text-[12.5px] font-medium whitespace-nowrap tabular-nums"
+                    style={{ width: widthOf(col) }}
                   >
                     {fmtRange(col.id, sectionSubtotal(estimate, section.id, col.id), sectionSubtotalHigh(estimate, section.id, col.id))}
                   </div>
@@ -483,7 +537,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               "h-9"
             )}
             {visibleColumns.map((col) => (
-              <div key={col.id} className="shrink-0 border-l border-hairline" style={{ width: COL_W }} />
+              <div key={col.id} className="shrink-0 border-l border-hairline" style={{ width: widthOf(col) }} />
             ))}
           </div>
 
@@ -491,6 +545,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
           <TotalRow
             label="Net Subtotal"
             columns={visibleColumns}
+            widthOf={widthOf}
             cell={(col) => fmtRange(col.id, columnSubtotal(estimate, col.id), columnSubtotalHigh(estimate, col.id))}
           />
           {estimate.adjustments.map((adj) => (
@@ -498,6 +553,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               key={adj.id}
               label={adj.label}
               columns={visibleColumns}
+              widthOf={widthOf}
               sub={
                 adj.type === "percent"
                   ? (col) => {
@@ -509,14 +565,18 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               cell={(col) => {
                 const v = effectiveAdjustmentValue(estimate, col.id, adj);
                 if (v === null) return <span className="text-ink-faint" title="Off for this column">—</span>;
-                const overridden = v !== adj.value;
+                const scoped = columnHasSectionScope(estimate, col.id, adj);
+                const customized = v !== adj.value || scoped;
                 const txt = fmtRange(
                   col.id,
                   columnAdjustmentAmount(estimate, col.id, adj, false),
                   columnAdjustmentAmount(estimate, col.id, adj, true)
                 );
-                return overridden ? (
-                  <span className="text-ink" title="Overridden for this column">
+                return customized ? (
+                  <span
+                    className="text-ink"
+                    title={scoped ? "Customized for this column (some sections excluded)" : "Overridden for this column"}
+                  >
                     {txt}*
                   </span>
                 ) : (
@@ -529,6 +589,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
           <TotalRow
             label="Total"
             columns={visibleColumns}
+            widthOf={widthOf}
             cell={(col) => fmtRange(col.id, columnTotal(estimate, col.id), columnTotalHigh(estimate, col.id))}
             strong
           />
@@ -546,7 +607,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                     <div
                       key={col.id}
                       className="flex h-9 shrink-0 items-center justify-end border-l border-hairline px-3 text-[12px] text-ink-faint"
-                      style={{ width: COL_W }}
+                      style={{ width: widthOf(col) }}
                     >
                       baseline
                     </div>
@@ -557,8 +618,8 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
                 return (
                   <div
                     key={col.id}
-                    className={`flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 tabular-nums ${tone}`}
-                    style={{ width: COL_W }}
+                    className={`flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 whitespace-nowrap tabular-nums ${tone}`}
+                    style={{ width: widthOf(col) }}
                   >
                     <span className="text-[12.5px] font-medium">{formatCurrencySigned(d.abs, currency)}</span>
                     <span className="text-[10.5px]">{formatPctSigned(d.pct)}</span>
@@ -589,6 +650,7 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
 function TotalRow({
   label,
   columns,
+  widthOf,
   cell,
   sub,
   strong,
@@ -596,6 +658,7 @@ function TotalRow({
 }: {
   label: string;
   columns: EstimateColumn[];
+  widthOf: (col: EstimateColumn) => number;
   cell: (col: EstimateColumn) => React.ReactNode;
   sub?: (col: EstimateColumn) => string;
   strong?: boolean;
@@ -612,10 +675,10 @@ function TotalRow({
       {columns.map((col) => (
         <div
           key={col.id}
-          className={`flex shrink-0 items-center justify-end gap-1.5 border-l border-hairline px-3 tabular-nums ${
+          className={`flex shrink-0 items-center justify-end gap-1.5 border-l border-hairline px-3 whitespace-nowrap tabular-nums ${
             strong ? "h-11 text-[14px] font-semibold" : "h-9 text-[12.5px]"
           } ${muted ? "text-ink-soft" : ""}`}
-          style={{ width: COL_W }}
+          style={{ width: widthOf(col) }}
         >
           {sub && <span className="text-[10px] text-ink-faint">{sub(col)}</span>}
           {cell(col)}

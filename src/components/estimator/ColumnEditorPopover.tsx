@@ -79,6 +79,23 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
   const setOvrVal = (id: string, text: string) => writeOvr({ ...ovr, [id]: { off: ovr[id]?.off ?? false, text } });
   const setOvrOff = (id: string, off: boolean) => writeOvr({ ...ovr, [id]: { off, text: ovr[id]?.text ?? "" } });
 
+  // Per-(adjustment × section) toggle for this column. Click-driven, so read the
+  // live column rather than mirroring into local state.
+  const sectionOff = (adjId: string, sectionId: string) =>
+    !!live.adjustmentSectionsOff?.[`${adjId}:${sectionId}`];
+  const toggleSection = (adjId: string, sectionId: string) =>
+    commit((e) => ({
+      ...e,
+      columns: e.columns.map((c) => {
+        if (c.id !== columnId) return c;
+        const key = `${adjId}:${sectionId}`;
+        const next = { ...(c.adjustmentSectionsOff ?? {}) };
+        if (next[key]) delete next[key];
+        else next[key] = true;
+        return { ...c, adjustmentSectionsOff: Object.keys(next).length ? next : undefined };
+      }),
+    }));
+
   return (
     <Popover anchor={anchor} onClose={onClose} width={300}>
       <div className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-3.5">
@@ -204,29 +221,60 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
                 const row = ovr[adj.id];
                 const on = !row?.off;
                 return (
-                  <div key={adj.id} className="flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      title="Apply this adjustment to this column"
-                      onChange={(e) => setOvrOff(adj.id, !e.target.checked)}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-[12.5px]">{adj.label}</span>
-                    <input
-                      className={`${inputCls} w-20 text-right tabular-nums disabled:opacity-40`}
-                      type="number"
-                      step={adj.type === "percent" ? "0.5" : "100"}
-                      value={on ? (row?.text ?? "") : ""}
-                      placeholder={String(adj.value)}
-                      disabled={!on}
-                      onChange={(e) => setOvrVal(adj.id, e.target.value)}
-                    />
-                    <span className="w-3 text-[11px] text-ink-faint">{adj.type === "percent" ? "%" : "$"}</span>
+                  <div key={adj.id} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        title="Apply this adjustment to this column"
+                        onChange={(e) => setOvrOff(adj.id, !e.target.checked)}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[12.5px]">{adj.label}</span>
+                      <input
+                        className={`${inputCls} w-20 text-right tabular-nums disabled:opacity-40`}
+                        type="number"
+                        step={adj.type === "percent" ? "0.5" : "100"}
+                        value={on ? (row?.text ?? "") : ""}
+                        placeholder={String(adj.value)}
+                        disabled={!on}
+                        onChange={(e) => setOvrVal(adj.id, e.target.value)}
+                      />
+                      <span className="w-3 text-[11px] text-ink-faint">{adj.type === "percent" ? "%" : "$"}</span>
+                    </div>
+                    {/* Per-section matrix: percent adjustments can skip individual
+                        sections for this column. Hidden when the adjustment is
+                        off for the column, or it's flat, or there's one section. */}
+                    {on && adj.type === "percent" && estimate.sections.length > 1 && (
+                      <div className="flex flex-wrap gap-1 pl-5">
+                        {estimate.sections.map((s) => {
+                          const off = sectionOff(adj.id, s.id);
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              aria-pressed={!off}
+                              title={off ? `Apply ${adj.label} to ${s.name}` : `Skip ${adj.label} for ${s.name}`}
+                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                off
+                                  ? "border-hairline bg-surface text-ink-faint line-through"
+                                  : "border-ink-faint bg-paper text-ink-soft"
+                              }`}
+                              onClick={() => toggleSection(adj.id, s.id)}
+                            >
+                              {s.name || "Section"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-            <p className="mt-1 text-[11px] text-ink-faint">Blank = estimate default; uncheck to turn off for this column.</p>
+            <p className="mt-1 text-[11px] text-ink-faint">
+              Blank = estimate default; uncheck to turn off for this column. Tap a section to
+              exclude it from a percent adjustment.
+            </p>
           </div>
         )}
 
