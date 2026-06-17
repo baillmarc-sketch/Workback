@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncAccount } from "@/lib/account";
-import { fetchShared, newShareId, publishProject, shareUrl, unpublishProject } from "@/lib/cloud";
+import {
+  fetchRemoteUpdatedAt,
+  fetchShared,
+  newShareId,
+  publishProject,
+  shareUrl,
+  unpublishProject,
+} from "@/lib/cloud";
+import { NOTICE_EVENT } from "@/lib/notify";
 import { addDaysKey, addMonthsKey, durationDays, snapWorkday, todayKey } from "@/lib/dates";
 import { heartbeat, leave, readOthers } from "@/lib/presence";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
@@ -13,7 +21,7 @@ import {
   sampleProject,
   saveProject,
 } from "@/lib/storage";
-import type { WorkbackEvent } from "@/lib/types";
+import type { Project, WorkbackEvent } from "@/lib/types";
 import { uid } from "@/lib/types";
 import { useAuth } from "@/state/auth";
 import { useStore } from "@/state/store";
@@ -60,6 +68,10 @@ export default function App() {
   const [downstreamMode, setDownstreamMode] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [others, setOthers] = useState(0);
+  const [remoteAhead, setRemoteAhead] = useState<Project | null>(null);
+  const dismissedRemoteRef = useRef(0);
+  const projectRef = useRef(project);
+  projectRef.current = project;
   const clipboardRef = useRef<WorkbackEvent | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -100,6 +112,45 @@ export default function App() {
     };
     window.addEventListener("beforeprint", fit);
     return () => window.removeEventListener("beforeprint", fit);
+  }, []);
+
+  // Toasts surfaced from non-React libs (e.g. storage hitting quota).
+  useEffect(() => {
+    const onNotice = (e: Event) => showToast((e as CustomEvent<string>).detail);
+    window.addEventListener(NOTICE_EVENT, onNotice);
+    return () => window.removeEventListener(NOTICE_EVENT, onNotice);
+  }, [showToast]);
+
+  // Concurrent-edit safety: when you return to the tab or reconnect, notice if
+  // the shared copy was saved by someone else (newer than anything you have) and
+  // offer to load it — instead of silently overwriting their work on your next
+  // edit. The 2s margin avoids flagging your own just-pushed save / clock skew.
+  useEffect(() => {
+    const check = async () => {
+      const cur = projectRef.current;
+      if (!cur?.shareId) return;
+      const remoteTs = await fetchRemoteUpdatedAt(cur.shareId);
+      if (
+        remoteTs == null ||
+        remoteTs <= (projectRef.current?.updatedAt ?? 0) + 2000 ||
+        remoteTs <= dismissedRemoteRef.current
+      ) {
+        return;
+      }
+      const remote = await fetchShared(cur.shareId).catch(() => null);
+      if (remote && remote.updatedAt > (projectRef.current?.updatedAt ?? 0) + 2000) {
+        setRemoteAhead(remote);
+      }
+    };
+    const onVisible = () => document.visibilityState === "visible" && check();
+    window.addEventListener("online", check);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", check);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   // Boot: shared link in URL > share code in URL > last open > most recent > sample
@@ -493,6 +544,38 @@ export default function App() {
           <span className="h-2 w-2 rounded-full bg-[#10B981]" />
           {others} {others === 1 ? "other person is" : "other people are"} editing this shared
           calendar right now.
+        </div>
+      )}
+
+      {remoteAhead && (
+        <div className="no-print mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-ink">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+          <span>
+            <span className="font-medium">This shared calendar was updated in another session.</span>{" "}
+            Loading it replaces your current view.
+          </span>
+          <span className="flex-1" />
+          <button
+            className="rounded-md bg-ink px-2.5 py-1 text-[11.5px] font-semibold text-paper hover:opacity-85"
+            onClick={() => {
+              const r = remoteAhead;
+              dismissedRemoteRef.current = r.updatedAt;
+              saveProject(r);
+              open(r);
+              setRemoteAhead(null);
+            }}
+          >
+            Load their version
+          </button>
+          <button
+            className="rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-soft hover:text-ink"
+            onClick={() => {
+              dismissedRemoteRef.current = remoteAhead.updatedAt;
+              setRemoteAhead(null);
+            }}
+          >
+            Keep mine
+          </button>
         </div>
       )}
 

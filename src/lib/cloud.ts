@@ -50,6 +50,19 @@ export async function publishProject(project: Project): Promise<void> {
   if (!res.ok) throw new Error(`Publish failed (${res.status})`);
 }
 
+/** Cheap "head" check: just the shared doc's `updatedAt` (ms), or null. Lets us
+ *  detect that someone else saved without pulling the whole project. */
+export async function fetchRemoteUpdatedAt(shareId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${dbUrl()}/${ROOT}/${encodeURIComponent(shareId)}/updatedAt.json`);
+    if (!res.ok) return null;
+    const v = await res.json();
+    return typeof v === "number" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Delete a shared doc from the cloud — used to revoke a link (reset link). */
 export async function unpublishProject(shareId: string): Promise<void> {
   const res = await fetch(`${dbUrl()}/${ROOT}/${encodeURIComponent(shareId)}.json`, {

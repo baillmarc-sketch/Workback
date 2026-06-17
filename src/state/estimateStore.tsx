@@ -19,6 +19,8 @@ import { useAuth } from "./auth";
 export type SyncState = "idle" | "syncing" | "synced" | "offline";
 
 const HISTORY_LIMIT = 20;
+/** Re-attempt a failed cloud push after this long if nothing else triggers it. */
+const CLOUD_RETRY_MS = 8000;
 
 interface State {
   estimate: Estimate | null;
@@ -147,47 +149,95 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Auto-save: debounce writes to localStorage on every change, and push
-  // shared estimates to the cloud copy and signed-in users' estimates to
-  // their account (skipping states we already pushed, so syncs don't echo)
+  // Auto-save: debounce localStorage writes; push shared estimates to the cloud
+  // and signed-in users' estimates to their account. Pushes read the latest
+  // estimate from the ref and de-dupe on a stamp, so a retry (new edit, focus,
+  // or `online`) always syncs what's current — a failed push never stays stale.
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const lastPushedRef = useRef<string>("");
   const lastAccountPushedRef = useRef<string>("");
+  const cloudInFlight = useRef(false);
+  const accountInFlight = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const flushCloud = useCallback(() => {
+    const run = () => {
+      const e = stateRef.current.estimate;
+      if (!e?.shareId) return;
+      const stamp = `${e.id}:${e.updatedAt}`;
+      if (lastPushedRef.current === stamp) {
+        setSyncState("synced");
+        return;
+      }
+      if (cloudInFlight.current) return;
+      cloudInFlight.current = true;
+      setSyncState("syncing");
+      publishEstimate(e)
+        .then(() => {
+          lastPushedRef.current = stamp;
+          cloudInFlight.current = false;
+          const cur = stateRef.current.estimate;
+          if (cur?.shareId && `${cur.id}:${cur.updatedAt}` !== stamp) run();
+          else setSyncState("synced");
+        })
+        .catch(() => {
+          cloudInFlight.current = false;
+          setSyncState("offline");
+          if (retryTimer.current) clearTimeout(retryTimer.current);
+          retryTimer.current = setTimeout(run, CLOUD_RETRY_MS);
+        });
+    };
+    run();
+  }, []);
+
+  const flushAccount = useCallback(() => {
+    const e = stateRef.current.estimate;
+    if (!user || !e) return;
+    const stamp = `${e.id}:${e.updatedAt}`;
+    if (lastAccountPushedRef.current === stamp || accountInFlight.current) return;
+    accountInFlight.current = true;
+    const uid = user.uid;
+    getToken()
+      .then((token) => (token ? pushEstimate(uid, token, e) : undefined))
+      .then(() => {
+        lastAccountPushedRef.current = stamp;
+        accountInFlight.current = false;
+      })
+      .catch(() => {
+        accountInFlight.current = false;
+      });
+  }, [user, getToken]);
+
   useEffect(() => {
     if (!state.estimate) return;
     const e = state.estimate;
-    const t = setTimeout(() => saveEstimate(e), 250);
-    let t2: ReturnType<typeof setTimeout> | undefined;
-    let t3: ReturnType<typeof setTimeout> | undefined;
-    const stamp = `${e.id}:${e.updatedAt}`;
-    if (e.shareId && lastPushedRef.current !== stamp) {
-      t2 = setTimeout(() => {
-        setSyncState("syncing");
-        publishEstimate(e)
-          .then(() => {
-            lastPushedRef.current = stamp;
-            setSyncState("synced");
-          })
-          .catch(() => setSyncState("offline"));
-      }, 1200);
-    }
-    if (user && lastAccountPushedRef.current !== stamp) {
-      const uid = user.uid;
-      t3 = setTimeout(() => {
-        getToken()
-          .then((token) => (token ? pushEstimate(uid, token, e) : undefined))
-          .then(() => {
-            lastAccountPushedRef.current = stamp;
-          })
-          .catch(() => {}); // next edit or focus sync retries
-      }, 1200);
-    }
+    const tLocal = setTimeout(() => saveEstimate(e), 250);
+    const tCloud = setTimeout(flushCloud, 1200);
+    const tAccount = setTimeout(flushAccount, 1200);
     return () => {
-      clearTimeout(t);
-      if (t2) clearTimeout(t2);
-      if (t3) clearTimeout(t3);
+      clearTimeout(tLocal);
+      clearTimeout(tCloud);
+      clearTimeout(tAccount);
     };
-  }, [state.estimate, user, getToken]);
+  }, [state.estimate, flushCloud, flushAccount]);
+
+  useEffect(() => {
+    const retry = () => {
+      flushCloud();
+      flushAccount();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") retry();
+    };
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", retry);
+      window.removeEventListener("focus", retry);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [flushCloud, flushAccount]);
 
   const value = useMemo<Store>(
     () => ({
