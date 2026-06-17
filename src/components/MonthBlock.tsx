@@ -64,7 +64,7 @@ export default function MonthBlock({ mKey, project, showWarnings, ...rest }: Mon
           {showWarnings && <WarningsButton />}
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-hairline-strong bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+        <div className="month-grid overflow-hidden rounded-lg border border-hairline-strong bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
           <div className="grid grid-cols-7 border-b border-hairline">
             {WEEKDAYS.map((d) => (
               <div

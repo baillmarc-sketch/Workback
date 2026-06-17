@@ -75,26 +75,26 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), 2800);
   }, []);
 
-  // Print: just before the browser paginates, measure each month off-screen at
-  // the printed content width and scale it to fit exactly one landscape page.
-  // We also set the page-box height so months never split or trail a blank page.
+  // Print: most months flex to fill their page (see CSS). Just before
+  // printing, measure each month off-screen at the printed content width; only
+  // a month taller than the page gets scaled down (.print-shrink) to fit.
   useEffect(() => {
-    const PAGE_USABLE = 800; // landscape Letter (816px) minus a safety sliver
-    const PAD_V = 64; // 32px top + 32px bottom — must match .month-block padding
-    const CONTENT_H = PAGE_USABLE - PAD_V;
+    const CONTENT_H = 736; // 800px page box − 64px vertical padding
     const fit = () => {
       const root = printRef.current;
       if (!root) return;
       root.classList.add("print-measuring");
-      root.querySelectorAll<HTMLElement>(".month-scale").forEach((inner) => {
-        const block = inner.parentElement as HTMLElement | null;
+      root.querySelectorAll<HTMLElement>(".month-block").forEach((block) => {
+        const inner = block.querySelector<HTMLElement>(".month-scale");
+        if (!inner) return;
+        block.classList.remove("print-shrink");
         inner.style.transform = "none";
-        if (block) block.style.height = "auto";
         const h = inner.offsetHeight;
-        const s = h > 0 ? Math.min(1, CONTENT_H / h) : 1;
-        inner.style.transformOrigin = "top center";
-        inner.style.transform = `scale(${s})`;
-        if (block) block.style.height = `${Math.ceil(h * s) + PAD_V}px`;
+        if (h > CONTENT_H) {
+          block.classList.add("print-shrink");
+          inner.style.transformOrigin = "top center";
+          inner.style.transform = `scale(${CONTENT_H / h})`;
+        }
       });
       root.classList.remove("print-measuring");
     };
@@ -545,7 +545,7 @@ export default function App() {
       <footer className="no-print mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
         Auto-saved · tap a day to add · hold an event to drag it
       </footer>
-      <div className="pb-4 text-center text-[11px] text-ink-faint">
+      <div className="no-print pb-4 text-center text-[11px] text-ink-faint">
         ©2026. Stolen from Marc Baill.
       </div>
 
