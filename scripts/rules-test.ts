@@ -182,6 +182,19 @@ async function run() {
   // …but the self-read rule derives the key from the verified registry email, so still denied.
   await deny("forged emailKey can't read another's invite", get(ref(db(memberUid, "member@example.com"), `invites/${invitedKey}`)));
 
+  console.log("\nShared docs (open by design — the share ID is the secret)");
+  // Workback shares: anyone may read/write, but the doc must be well-formed.
+  await allow("anon reads a workback share", get(ref(db(null), "shared/s1")));
+  await allow("anon writes a valid workback share", set(ref(db(null), "shared/s1"), { id: "s1", events: { x: 1 }, updatedAt: 1 }));
+  await deny("workback share missing updatedAt is rejected", set(ref(db(null), "shared/s2"), { id: "s2", events: { x: 1 } }));
+  await deny("workback share with non-number updatedAt is rejected", set(ref(db(null), "shared/s3"), { id: "s3", events: { x: 1 }, updatedAt: "nope" }));
+  // Shared estimates: open too, plus a monotonic updatedAt guard (no stale clobber).
+  await allow("anon reads a shared estimate", get(ref(db(null), "sharedEstimates/se1")));
+  await allow("anon writes a valid shared estimate", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 5 }));
+  await allow("shared estimate updatedAt may advance", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 6 }));
+  await deny("shared estimate updatedAt may not go backwards", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 4 }));
+  await deny("shared estimate missing updatedAt is rejected", set(ref(db(null), "sharedEstimates/se2"), { id: "se2" }));
+
   console.log("\nProtected-owner guard (pinned owners can't be removed)");
   await env.clearDatabase();
   await env.withSecurityRulesDisabled(async (ctx) => {
