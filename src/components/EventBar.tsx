@@ -7,8 +7,9 @@ import type { ProjectCategory } from "@/lib/types";
 
 export const LANE_HEIGHT = 26;
 export const LANE_GAP = 2;
-/** Taller lanes in print give room for labels to wrap onto a second line */
-export const PRINT_LANE_HEIGHT = 40;
+/** Print lanes are a touch taller so a long label can wrap to a second line,
+ *  but kept tight (with a smaller font) so months stay compact on the page */
+export const PRINT_LANE_HEIGHT = 28;
 
 interface EventBarProps {
   segment: Segment;
@@ -66,9 +67,9 @@ export default function EventBar({
       {...listeners}
       {...attributes}
       data-event-id={event.id}
-      className={`event-bar group/bar absolute flex cursor-grab items-center overflow-hidden text-[12px] font-medium leading-none select-none ${
-        dragging ? "opacity-30" : ""
-      } ${justShifted ? "just-shifted" : ""}`}
+      className={`event-bar group/bar absolute flex cursor-grab items-center overflow-hidden font-medium leading-none select-none ${
+        forPrint ? "text-[10px]" : "text-[12px]"
+      } ${dragging ? "opacity-30" : ""} ${justShifted ? "just-shifted" : ""}`}
       style={
         {
           left,
@@ -141,7 +142,7 @@ export default function EventBar({
             </svg>
           </span>
         )}
-        <span className={forPrint ? "line-clamp-2 leading-[1.15]" : "truncate"}>
+        <span className={forPrint ? "line-clamp-2 leading-[1.1]" : "truncate"}>
           {event.time && <span className="opacity-70">{event.time} · </span>}
           {event.title}
         </span>

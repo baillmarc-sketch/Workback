@@ -229,12 +229,13 @@ export default function Calendar({
       onDragCancel={() => setDraggingId(null)}
     >
       <div className="flex flex-col gap-6">
-        {months.map((m) => (
+        {months.map((m, i) => (
           <MonthBlock
             key={m}
             mKey={m}
             project={displayProject}
             selectedId={selectedId}
+            showWarnings={!forPrint && i === 0}
             warnings={warnings}
             closures={closures}
             shiftedIds={shiftedIds}
