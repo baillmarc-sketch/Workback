@@ -2,6 +2,7 @@ import { dbUrl, normalizeRemote as normalizeProject } from "../cloud";
 import { normalizeRemote as normalizeEstimate } from "../estimator/cloud";
 import type { Project } from "../types";
 import type { Estimate } from "../estimator/types";
+import type { RegistryUser } from "./registry";
 
 /**
  * Read-only "view as" fetchers for the admin page. They read another user's
@@ -57,6 +58,41 @@ export async function fetchUserProjects(targetUid: string, token: string): Promi
 
 export async function fetchUserEstimates(targetUid: string, token: string): Promise<Estimate[]> {
   return toEstimates(await fetchMap(targetUid, token, "/estimates"));
+}
+
+export interface UserWork {
+  user: RegistryUser;
+  projects: Project[];
+  estimates: Estimate[];
+  /** True when that user's data couldn't be read (skipped, not fatal). */
+  failed: boolean;
+}
+
+/**
+ * Aggregate every user's calendars + estimates for the admin "All work" view.
+ * Each user is independent (Promise.allSettled): one user's read failure marks
+ * just that user `failed` instead of breaking the whole view. N users × 2
+ * requests — fine for a normal roster; lazy per-group loading is a later option
+ * if the roster grows large.
+ */
+export async function fetchAllUsersWork(
+  token: string,
+  users: RegistryUser[]
+): Promise<UserWork[]> {
+  const results = await Promise.allSettled(
+    users.map(async (user) => {
+      const [projects, estimates] = await Promise.all([
+        fetchUserProjects(user.uid, token),
+        fetchUserEstimates(user.uid, token),
+      ]);
+      return { user, projects, estimates, failed: false } satisfies UserWork;
+    })
+  );
+  return results.map((r, i) =>
+    r.status === "fulfilled"
+      ? r.value
+      : { user: users[i], projects: [], estimates: [], failed: true }
+  );
 }
 
 export interface UserTrash {

@@ -12,8 +12,9 @@ import InvitesSection from "./InvitesSection";
 import RequestsSection from "./RequestsSection";
 import TeamsSection from "./TeamsSection";
 import AuditSection from "./AuditSection";
+import AllWorkSection from "./AllWorkSection";
 
-type Section = "requests" | "users" | "invites" | "teams" | "activity";
+type Section = "requests" | "users" | "work" | "invites" | "teams" | "activity";
 
 /** Admin page shell: a sub-nav over Requests / Users / Invites / Teams /
     Activity, plus an account strip that surfaces the owner's UID and the
@@ -136,6 +137,7 @@ export default function AdminApp() {
       <div className="mb-4 flex items-center gap-1 border-b border-hairline pb-2" role="tablist">
         {navBtn("requests", "Requests", requestCount)}
         {navBtn("users", "Users")}
+        {navBtn("work", "All work")}
         {navBtn("invites", "Invites")}
         {navBtn("teams", "Teams")}
         {navBtn("activity", "Activity")}
@@ -143,6 +145,7 @@ export default function AdminApp() {
 
       {section === "requests" && <RequestsSection onCount={setRequestCount} />}
       {section === "users" && <UsersSection />}
+      {section === "work" && <AllWorkSection />}
       {section === "invites" && <InvitesSection />}
       {section === "teams" && <TeamsSection />}
       {section === "activity" && <AuditSection />}
