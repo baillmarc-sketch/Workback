@@ -6,20 +6,43 @@ import AccountButton from "../AccountButton";
 import { setApp } from "@/lib/toolkit";
 import { isOwnerUidPinned, setOwnerUid } from "@/lib/admin/users";
 import { logAudit } from "@/lib/admin/audit";
+import { listAccessRequests } from "@/lib/admin/requests";
 import UsersSection from "./UsersSection";
 import InvitesSection from "./InvitesSection";
+import RequestsSection from "./RequestsSection";
 import TeamsSection from "./TeamsSection";
 import AuditSection from "./AuditSection";
 
-type Section = "users" | "invites" | "teams" | "activity";
+type Section = "requests" | "users" | "invites" | "teams" | "activity";
 
-/** Admin page shell: a sub-nav over Users / Invites / Teams / Activity, plus an
-    account strip that surfaces the owner's UID and the UID-recovery bootstrap. */
+/** Admin page shell: a sub-nav over Requests / Users / Invites / Teams /
+    Activity, plus an account strip that surfaces the owner's UID and the
+    UID-recovery bootstrap. */
 export default function AdminApp() {
   const { user, getToken } = useAuth();
-  const [section, setSection] = useState<Section>("users");
+  const [section, setSection] = useState<Section>("requests");
   const [pinned, setPinned] = useState<boolean | null>(null);
   const [pinning, setPinning] = useState(false);
+  const [requestCount, setRequestCount] = useState<number | null>(null);
+
+  // Pending-request count for the tab badge — loaded once; RequestsSection keeps
+  // it live as the owner approves/dismisses.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await getToken();
+      if (!token || cancelled) return;
+      try {
+        const list = await listAccessRequests(token);
+        if (!cancelled) setRequestCount(list.length);
+      } catch {
+        /* a transient failure just leaves the badge off */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,14 +75,23 @@ export default function AdminApp() {
     }
   }, [user, getToken]);
 
-  const navBtn = (id: Section, label: string) => (
+  const navBtn = (id: Section, label: string, badge?: number | null) => (
     <button
-      className={`rounded-md px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
+      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] font-medium transition-colors ${
         section === id ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
       }`}
       onClick={() => setSection(id)}
     >
       {label}
+      {!!badge && (
+        <span
+          className={`min-w-[16px] rounded-full px-1 text-center text-[10.5px] font-semibold leading-[16px] ${
+            section === id ? "bg-paper text-ink" : "bg-ink text-paper"
+          }`}
+        >
+          {badge}
+        </span>
+      )}
     </button>
   );
 
@@ -102,12 +134,14 @@ export default function AdminApp() {
       )}
 
       <div className="mb-4 flex items-center gap-1 border-b border-hairline pb-2" role="tablist">
+        {navBtn("requests", "Requests", requestCount)}
         {navBtn("users", "Users")}
         {navBtn("invites", "Invites")}
         {navBtn("teams", "Teams")}
         {navBtn("activity", "Activity")}
       </div>
 
+      {section === "requests" && <RequestsSection onCount={setRequestCount} />}
       {section === "users" && <UsersSection />}
       {section === "invites" && <InvitesSection />}
       {section === "teams" && <TeamsSection />}

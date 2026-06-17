@@ -15,6 +15,7 @@ export type AuditAction =
   | "set_role"
   | "create_invite"
   | "revoke_invite"
+  | "dismiss_request"
   | "recover_project"
   | "recover_estimate"
   | "purge_trash"

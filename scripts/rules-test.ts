@@ -135,6 +135,20 @@ async function run() {
   await allow("invited user reads OWN invite (registry mirror)", get(ref(db(invitedUid, invitedEmail), `invites/${invitedKey}`)));
   await deny("member cannot read someone else's invite", get(ref(db(memberUid, "member@example.com"), `invites/${invitedKey}`)));
 
+  console.log("\nAccess requests (self-service)");
+  const reqUid = "req";
+  const reqEmail = "req@example.com";
+  await deny("anon cannot create a request", set(ref(db(null), `accessRequests/${reqUid}`), { email: reqEmail, createdAt: 1 }));
+  await allow("user creates own request (email matches token)", set(ref(db(reqUid, reqEmail), `accessRequests/${reqUid}`), { email: reqEmail, name: "Req", message: "please", createdAt: 1 }));
+  await deny("user cannot forge a different email", set(ref(db(reqUid, reqEmail), `accessRequests/${reqUid}`), { email: "someoneelse@example.com", createdAt: 1 }));
+  await deny("user cannot write another's request", set(ref(db(reqUid, reqEmail), `accessRequests/${otherUid}`), { email: reqEmail, createdAt: 1 }));
+  await allow("user reads own request", get(ref(db(reqUid, reqEmail), `accessRequests/${reqUid}`)));
+  await deny("non-admin cannot list requests", get(ref(db(reqUid, reqEmail), "accessRequests")));
+  await allow("admin lists requests", get(ref(db(adminUid, "admin@example.com"), "accessRequests")));
+  await allow("admin approves (grant estimator + clear request, atomic)", update(ref(db(adminUid, "admin@example.com"), "/"), { [`entitlements/${reqUid}/estimator`]: true, [`accessRequests/${reqUid}`]: null }));
+  await allow("user re-requests after dismissal", set(ref(db(reqUid, reqEmail), `accessRequests/${reqUid}`), { email: reqEmail, createdAt: 2 }));
+  await allow("admin dismisses a request", remove(ref(db(adminUid, "admin@example.com"), `accessRequests/${reqUid}`)));
+
   console.log("\nUser data: admin override + recovery");
   await allow("user reads own data", get(ref(db(memberUid, "member@example.com"), `users/${memberUid}`)));
   await deny("user cannot read another's data", get(ref(db(memberUid, "member@example.com"), `users/${ownerUid}`)));
