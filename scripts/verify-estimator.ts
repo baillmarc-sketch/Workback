@@ -21,6 +21,7 @@ import {
   columnSubtotalHigh,
   columnTotalHigh,
   adjustmentAmount,
+  effectiveAdjustmentValue,
   columnTotal,
   columnDelta,
   resolveActualsSource,
@@ -437,6 +438,41 @@ function check(name: string, cond: boolean, detail?: unknown) {
   saveEstimate(e);
   const loaded = loadEstimate("note-test");
   check("line note: persists", loaded?.lineItems[id]?.note === "call vendor re: rush fee", loaded?.lineItems[id]);
+}
+
+// 14. Per-column adjustment overrides
+{
+  const liA = "oA";
+  const colA = "ocA";
+  const colB = "ocB";
+  const est: Estimate = {
+    ...newEstimate("blank"),
+    id: "ovr-test",
+    adjustments: [{ id: "mk", label: "Markup", type: "percent", value: 10 }],
+    columns: [
+      { id: colA, name: "A", role: "version", order: 0 },
+      { id: colB, name: "B", role: "vendor", order: 1, adjustmentOverrides: { mk: 25 } },
+    ],
+    sections: [{ id: "s", name: "S", lineItemIds: [liA], order: 0 }],
+    lineItems: { [liA]: { id: liA, label: "X", order: 0 } },
+    cells: { [`${liA}:${colA}`]: { expr: "1000", value: 1000 }, [`${liA}:${colB}`]: { expr: "1000", value: 1000 } },
+    baselineColumnId: colA,
+  };
+  check("override: default markup 10% -> total 1100", columnTotal(est, colA) === 1100);
+  check("override: per-column markup 25% -> total 1250", columnTotal(est, colB) === 1250);
+  est.columns[1].adjustmentOverrides = { mk: null };
+  check("override: off -> no adjustment (1000)", columnTotal(est, colB) === 1000);
+  check("override: effective value off -> null", effectiveAdjustmentValue(est, colB, est.adjustments[0]) === null);
+  check("override: effective default", effectiveAdjustmentValue(est, colA, est.adjustments[0]) === 10);
+  // persistence round-trip
+  est.columns[1].adjustmentOverrides = { mk: 25 };
+  saveEstimate(est);
+  const loaded = loadEstimate("ovr-test");
+  check(
+    "override: persists + recomputes",
+    loaded?.columns[1]?.adjustmentOverrides?.mk === 25 && columnTotal(loaded!, colB) === 1250,
+    loaded?.columns[1]?.adjustmentOverrides
+  );
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);
