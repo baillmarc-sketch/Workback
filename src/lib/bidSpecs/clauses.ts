@@ -253,12 +253,15 @@ export const DEFAULT_CHECKLIST: ChecklistSeed[] = [
   { group: "production", label: "PPE / Sanitation", provider: "P" },
   { group: "production", label: "Production Insurance", provider: "A" },
   { group: "production", label: "BTS Crew — Video / Stills", provider: "P" },
-  // --- Editorial / Post ---
+  // --- Editorial / Post (full list per the AICP template's EDITORIAL/POST column) ---
   { group: "editorial", label: "Dailies", provider: "P" },
   { group: "editorial", label: "Sync Dailies", provider: "P" },
   { group: "editorial", label: "Edit — Off-Line", provider: "E" },
   { group: "editorial", label: "Edit — On-Line", provider: "E" },
   { group: "editorial", label: "EDL / Auto Conform", provider: "E" },
+  { group: "editorial", label: "FTP", provider: "E" },
+  { group: "editorial", label: "Record", provider: "O" },
+  { group: "editorial", label: "ISDN", provider: "O" },
   { group: "editorial", label: "Mix", provider: "O" },
   { group: "editorial", label: "Stock Music", provider: "O" },
   { group: "editorial", label: "Original Music", provider: "O" },
@@ -268,7 +271,8 @@ export const DEFAULT_CHECKLIST: ChecklistSeed[] = [
   { group: "editorial", label: "Animation", provider: "O" },
   { group: "editorial", label: "Color / Telecine / Conform", provider: "O" },
   { group: "editorial", label: "Master", provider: "E" },
-  { group: "editorial", label: "Protection / Generic Master", provider: "E" },
+  { group: "editorial", label: "Protection", provider: "E" },
+  { group: "editorial", label: "Generic Master", provider: "E" },
   { group: "editorial", label: "Audio Split Tracks", provider: "E" },
 ];
 
