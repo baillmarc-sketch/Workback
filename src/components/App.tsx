@@ -61,6 +61,7 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [others, setOthers] = useState(0);
   const clipboardRef = useRef<WorkbackEvent | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
@@ -72,6 +73,33 @@ export default function App() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
     toastTimer.current = setTimeout(() => setToast(null), 2800);
+  }, []);
+
+  // Print: just before the browser paginates, measure each month off-screen at
+  // the printed content width and scale it to fit exactly one landscape page.
+  // We also set the page-box height so months never split or trail a blank page.
+  useEffect(() => {
+    const PAGE_USABLE = 800; // landscape Letter (816px) minus a safety sliver
+    const PAD_V = 64; // 32px top + 32px bottom — must match .month-block padding
+    const CONTENT_H = PAGE_USABLE - PAD_V;
+    const fit = () => {
+      const root = printRef.current;
+      if (!root) return;
+      root.classList.add("print-measuring");
+      root.querySelectorAll<HTMLElement>(".month-scale").forEach((inner) => {
+        const block = inner.parentElement as HTMLElement | null;
+        inner.style.transform = "none";
+        if (block) block.style.height = "auto";
+        const h = inner.offsetHeight;
+        const s = h > 0 ? Math.min(1, CONTENT_H / h) : 1;
+        inner.style.transformOrigin = "top center";
+        inner.style.transform = `scale(${s})`;
+        if (block) block.style.height = `${Math.ceil(h * s) + PAD_V}px`;
+      });
+      root.classList.remove("print-measuring");
+    };
+    window.addEventListener("beforeprint", fit);
+    return () => window.removeEventListener("beforeprint", fit);
   }, []);
 
   // Boot: shared link in URL > share code in URL > last open > most recent > sample
@@ -493,7 +521,7 @@ export default function App() {
 
       {/* Print/PDF: every month that has events, full month, one per page —
           independent of the 1/2/3-month on-screen view */}
-      <div className={`print-only ${project.printGrayscale ? "print-grayscale" : ""}`}>
+      <div ref={printRef} className={`print-only ${project.printGrayscale ? "print-grayscale" : ""}`}>
         <Calendar
           project={project}
           selectedId={null}

@@ -228,7 +228,7 @@ export default function Calendar({
       onDragEnd={handleDragEnd}
       onDragCancel={() => setDraggingId(null)}
     >
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 print:gap-0">
         {months.map((m, i) => (
           <MonthBlock
             key={m}
