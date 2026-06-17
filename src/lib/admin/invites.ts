@@ -5,8 +5,7 @@ import { emailKey } from "./email";
  * Email invites pre-authorize access before a person's first sign-in. They're
  * keyed by emailKey and admin-only to write. On the invitee's first sign-in,
  * AccessProvider resolves the grant via the self-read invite rule (no backend
- * conversion step needed). `convertInvite` optionally pins the grant to a uid
- * once the person exists, so access no longer depends on the email mirror.
+ * conversion step needed).
  */
 export interface Invite {
   emailKey: string;
@@ -62,23 +61,4 @@ export async function createInvite(
 export async function revokeInvite(token: string, key: string): Promise<void> {
   const res = await fetch(url(`invites/${key}`, token), { method: "DELETE" });
   if (!res.ok) throw new Error(`Revoke failed (${res.status})`);
-}
-
-/** Pin an invite to a now-known uid: set the explicit grant and remove the
-    email invite, atomically. */
-export async function convertInvite(
-  token: string,
-  uid: string,
-  key: string,
-  estimator: boolean
-): Promise<void> {
-  const res = await fetch(url("", token), {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      [`entitlements/${uid}/estimator`]: estimator ? true : null,
-      [`invites/${key}`]: null,
-    }),
-  });
-  if (!res.ok) throw new Error(`Convert failed (${res.status})`);
 }

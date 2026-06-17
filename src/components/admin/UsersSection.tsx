@@ -30,6 +30,7 @@ export default function UsersSection() {
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<RegistryUser | null>(null);
   const [pending, setPending] = useState<(ConfirmOptions & { run: () => void }) | null>(null);
+  const [busyEnt, setBusyEnt] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -69,6 +70,8 @@ export default function UsersSection() {
   }
 
   async function doToggleEstimator(u: RegistryUser, next: boolean) {
+    if (busyEnt[u.uid]) return; // ignore rapid re-clicks while a write is in flight
+    setBusyEnt((b) => ({ ...b, [u.uid]: true }));
     // optimistic
     setMaps((m) => ({
       ...m,
@@ -82,6 +85,12 @@ export default function UsersSection() {
     } catch (e) {
       setError((e as Error).message || "Update failed");
       load(); // reconcile from server
+    } finally {
+      setBusyEnt((b) => {
+        const n = { ...b };
+        delete n[u.uid];
+        return n;
+      });
     }
   }
 
@@ -232,7 +241,7 @@ export default function UsersSection() {
                 <div className="flex w-20 justify-center">
                   <Toggle
                     checked={estimatorGranted}
-                    disabled={isAdmin}
+                    disabled={isAdmin || !!busyEnt[u.uid]}
                     label={`Estimator access for ${u.email}`}
                     onChange={(next) => onToggleEstimator(u, next)}
                   />

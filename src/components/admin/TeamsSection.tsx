@@ -26,6 +26,7 @@ export default function TeamsSection() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteAsk, setDeleteAsk] = useState<Team | null>(null);
+  const [busyMember, setBusyMember] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     setError(null);
@@ -115,6 +116,9 @@ export default function TeamsSection() {
   }
 
   async function toggleMember(team: Team, uid: string, inTeam: boolean) {
+    const key = `${team.id}:${uid}`;
+    if (busyMember[key]) return; // ignore rapid re-clicks while a write is in flight
+    setBusyMember((b) => ({ ...b, [key]: true }));
     // optimistic
     setTeams(
       (cur) =>
@@ -140,6 +144,12 @@ export default function TeamsSection() {
     } catch (e) {
       setError((e as Error).message || "Update failed");
       load();
+    } finally {
+      setBusyMember((b) => {
+        const n = { ...b };
+        delete n[key];
+        return n;
+      });
     }
   }
 
@@ -227,6 +237,7 @@ export default function TeamsSection() {
                           </div>
                           <Toggle
                             checked={!!team.members[u.uid]}
+                            disabled={!!busyMember[`${team.id}:${u.uid}`]}
                             label={`${u.email} in ${team.name}`}
                             onChange={(next) => toggleMember(team, u.uid, next)}
                           />
