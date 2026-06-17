@@ -61,5 +61,24 @@ render(
   React.createElement(BidSpecsToolbar, { onShare: noop, onExport: noop, onPrint: noop, onHelp: noop })
 );
 
+// N/A print: an unmarked checklist item prints "N/A" in the provider cells.
+{
+  const na = sampleBidSpec();
+  na.checklist = na.checklist.map((c, i) => (i === 0 ? { ...c, provider: "NA" } : c));
+  try {
+    const html = renderToStaticMarkup(
+      React.createElement(StoreContext.Provider, { value: mockStore(na) }, React.createElement(BidSpecsPrintView, null))
+    );
+    if (html.includes("N/A")) console.log("✓ print shows N/A for unchecked rows");
+    else {
+      failures++;
+      console.error("✗ print missing N/A for unchecked rows");
+    }
+  } catch (e) {
+    failures++;
+    console.error("✗ N/A print render", (e as Error)?.stack ?? String(e));
+  }
+}
+
 console.log(failures === 0 ? "\n✅ Bid Specs crash-smoke passed." : `\n❌ ${failures} render crash(es).`);
 process.exit(failures === 0 ? 0 : 1);

@@ -16,6 +16,8 @@ export default function BidSpecsPrintView() {
 
   const onClauses = spec.clauses.filter((c) => c.on);
   const cell = "border border-neutral-400 px-1.5 py-0.5 align-top";
+  // Denser cell for the provided-by grids so more checkbox rows fit per page.
+  const pcell = "border border-neutral-400 px-1 py-[0.5px] align-top";
 
   // Group format flags into their columns.
   const flagGroups: { name: string; flags: FormatFlag[] }[] = [];
@@ -26,12 +28,12 @@ export default function BidSpecsPrintView() {
   }
 
   const providedGrid = (label: string, items: ChecklistItem[]) => (
-    <table className="w-full text-[10px]">
+    <table className="w-full text-[8.5px] leading-[1.15]">
       <thead>
         <tr>
-          <th className={`${cell} text-left`}>{label}</th>
+          <th className={`${pcell} text-left`}>{label}</th>
           {PROVIDERS.map((p) => (
-            <th key={p} className={`${cell} w-5 text-center`}>
+            <th key={p} className={`${pcell} w-4 text-center`}>
               {p}
             </th>
           ))}
@@ -40,12 +42,19 @@ export default function BidSpecsPrintView() {
       <tbody>
         {items.map((c) => (
           <tr key={c.id}>
-            <td className={cell}>{c.label}</td>
-            {PROVIDERS.map((p) => (
-              <td key={p} className={`${cell} text-center`}>
-                {c.provider === p ? "✗" : ""}
+            <td className={pcell}>{c.label}</td>
+            {/* Nothing checked → print N/A across the provider cells. */}
+            {c.provider === "NA" ? (
+              <td className={`${pcell} text-center font-semibold tracking-wide text-neutral-500`} colSpan={4}>
+                N/A
               </td>
-            ))}
+            ) : (
+              PROVIDERS.map((p) => (
+                <td key={p} className={`${pcell} text-center`}>
+                  {c.provider === p ? "✗" : ""}
+                </td>
+              ))
+            )}
           </tr>
         ))}
       </tbody>
@@ -100,7 +109,7 @@ export default function BidSpecsPrintView() {
       )}
 
       {/* Bidding format grid */}
-      <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">Bidding format</h2>
+      <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">Bidding format</h2>
       <div className="text-[10.5px]">
         <span className="font-semibold">Bid type:</span> {spec.format.bidType === "firm" ? "Firm bid" : "Cost-plus / FF"}
         {"   "}
@@ -130,7 +139,7 @@ export default function BidSpecsPrintView() {
       {/* Commercial titles + counts */}
       {spec.specs.some((c) => c.title || c.length) && (
         <>
-          <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">Commercial title(s) & length(s)</h2>
+          <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">Commercial title(s) & length(s)</h2>
           <table className="w-full text-[10px]">
             <thead>
               <tr>
@@ -167,10 +176,10 @@ export default function BidSpecsPrintView() {
       )}
 
       {/* Provided-by grids */}
-      <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">
+      <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">
         Production requirements — A = Agency · P = Production Co. · E = Editor · O = Outside
       </h2>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5">
         {providedGrid("Production", production)}
         {providedGrid("Editorial / Post", editorial)}
       </div>
@@ -178,7 +187,7 @@ export default function BidSpecsPrintView() {
       {/* Tech specs */}
       {spec.techSpecs.some((t) => t.label || t.value) && (
         <>
-          <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">Deliverable tech specs</h2>
+          <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">Deliverable tech specs</h2>
           <table className="w-full text-[10.5px]">
             <tbody>
               {spec.techSpecs
@@ -197,7 +206,7 @@ export default function BidSpecsPrintView() {
       {/* Usage */}
       {spec.usage.some((u) => u.deliverable || u.media) && (
         <>
-          <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">Usage & rights</h2>
+          <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">Usage & rights</h2>
           <table className="w-full text-[10px]">
             <thead>
               <tr>
@@ -231,7 +240,7 @@ export default function BidSpecsPrintView() {
       {/* Terms */}
       {onClauses.length > 0 && (
         <>
-          <h2 className="mt-4 mb-1 font-display text-[13px] font-semibold">Production terms / notes</h2>
+          <h2 className="mt-3 mb-0.5 font-display text-[12px] font-semibold">Production terms / notes</h2>
           <div className="flex flex-col gap-1">
             {onClauses.map((c) => (
               <div key={c.id} className="break-inside-avoid">
