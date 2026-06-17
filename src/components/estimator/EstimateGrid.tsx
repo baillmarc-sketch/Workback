@@ -3,14 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { uid } from "@/lib/types";
 import {
-  adjustmentAmount,
   baselineColumnId,
   cellVariance,
+  columnAdjustmentAmount,
   columnDelta,
   columnSubtotal,
   columnSubtotalHigh,
   columnTotal,
   columnTotalHigh,
+  effectiveAdjustmentValue,
   sectionSubtotal,
   sectionSubtotalHigh,
 } from "@/lib/estimator/totals";
@@ -497,14 +498,31 @@ export default function EstimateGrid({ mode }: { mode: ViewMode }) {
               key={adj.id}
               label={adj.label}
               columns={visibleColumns}
-              sub={adj.type === "percent" ? () => formatPct(adj.value) : undefined}
-              cell={(col) =>
-                fmtRange(
-                  col.id,
-                  adjustmentAmount(columnSubtotal(estimate, col.id), adj),
-                  adjustmentAmount(columnSubtotalHigh(estimate, col.id), adj)
-                )
+              sub={
+                adj.type === "percent"
+                  ? (col) => {
+                      const v = effectiveAdjustmentValue(estimate, col.id, adj);
+                      return v === null ? "" : formatPct(v);
+                    }
+                  : undefined
               }
+              cell={(col) => {
+                const v = effectiveAdjustmentValue(estimate, col.id, adj);
+                if (v === null) return <span className="text-ink-faint" title="Off for this column">—</span>;
+                const overridden = v !== adj.value;
+                const txt = fmtRange(
+                  col.id,
+                  columnAdjustmentAmount(estimate, col.id, adj, false),
+                  columnAdjustmentAmount(estimate, col.id, adj, true)
+                );
+                return overridden ? (
+                  <span className="text-ink" title="Overridden for this column">
+                    {txt}*
+                  </span>
+                ) : (
+                  txt
+                );
+              }}
               muted
             />
           ))}

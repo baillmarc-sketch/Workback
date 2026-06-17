@@ -130,7 +130,11 @@ export function duplicateEstimate(id: string): Estimate | null {
     adjustments: src.adjustments.map((a) => ({ ...a })),
     sections: src.sections.map((s) => ({ ...s, lineItemIds: [...s.lineItemIds] })),
     lineItems: Object.fromEntries(Object.entries(src.lineItems).map(([k, v]) => [k, { ...v }])),
-    columns: src.columns.map((c) => ({ ...c, links: c.links?.map((l) => ({ ...l })) })),
+    columns: src.columns.map((c) => ({
+      ...c,
+      links: c.links?.map((l) => ({ ...l })),
+      adjustmentOverrides: c.adjustmentOverrides ? { ...c.adjustmentOverrides } : undefined,
+    })),
     cells: Object.fromEntries(Object.entries(src.cells).map(([k, v]) => [k, { ...v }])),
     ledger: src.ledger.map((x) => ({ ...x })),
   };
@@ -156,6 +160,16 @@ function migrateLinks(raw: unknown): ColumnLink[] | undefined {
   return links.length ? links : undefined;
 }
 
+function migrateOverrides(raw: unknown): Record<string, number | null> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, number | null> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v === null) out[k] = null;
+    else if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function migrateColumns(raw: unknown): EstimateColumn[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<EstimateColumn>[])
@@ -168,6 +182,7 @@ function migrateColumns(raw: unknown): EstimateColumn[] {
       vendor: typeof c.vendor === "string" && c.vendor ? c.vendor : undefined,
       notes: typeof c.notes === "string" && c.notes ? c.notes : undefined,
       links: migrateLinks(c.links),
+      adjustmentOverrides: migrateOverrides(c.adjustmentOverrides),
       order: num(c.order, i),
     }))
     .sort((a, b) => a.order - b.order);

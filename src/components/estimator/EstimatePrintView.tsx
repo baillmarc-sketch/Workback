@@ -2,11 +2,12 @@
 
 import { Fragment } from "react";
 import {
-  adjustmentAmount,
+  columnAdjustmentAmount,
   columnSubtotal,
   columnSubtotalHigh,
   columnTotal,
   columnTotalHigh,
+  effectiveAdjustmentValue,
   sectionSubtotal,
   sectionSubtotalHigh,
 } from "@/lib/estimator/totals";
@@ -174,7 +175,9 @@ export default function EstimatePrintView({ config }: { config: PrintConfig }) {
               </td>
               {presentCols.map((c) => (
                 <td key={c.id} className="px-2 py-0.5 text-right text-[12px] tabular-nums text-[#555]">
-                  {fmt(c.id, adjustmentAmount(columnSubtotal(estimate, c.id), adj), adjustmentAmount(columnSubtotalHigh(estimate, c.id), adj))}
+                  {effectiveAdjustmentValue(estimate, c.id, adj) === null
+                    ? ""
+                    : fmt(c.id, columnAdjustmentAmount(estimate, c.id, adj, false), columnAdjustmentAmount(estimate, c.id, adj, true))}
                 </td>
               ))}
             </tr>

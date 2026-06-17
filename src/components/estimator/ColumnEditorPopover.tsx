@@ -34,6 +34,14 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
   const [vendor, setVendor] = useState(columnProp.vendor ?? "");
   const [notes, setNotes] = useState(columnProp.notes ?? "");
   const [links, setLinks] = useState<ColumnLink[]>(columnProp.links ?? []);
+  const [ovr, setOvr] = useState<Record<string, { off: boolean; text: string }>>(() => {
+    const m: Record<string, { off: boolean; text: string }> = {};
+    for (const [k, v] of Object.entries(columnProp.adjustmentOverrides ?? {})) {
+      if (v === null) m[k] = { off: true, text: "" };
+      else if (typeof v === "number") m[k] = { off: false, text: String(v) };
+    }
+    return m;
+  });
 
   const writeLinks = (next: ColumnLink[]) => {
     setLinks(next); // keep half-typed rows visible while editing
@@ -53,6 +61,23 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
       ...e,
       columns: e.columns.map((c) => (c.id === columnId ? { ...c, ...changes } : c)),
     }));
+
+  const writeOvr = (next: Record<string, { off: boolean; text: string }>) => {
+    setOvr(next);
+    const built: Record<string, number | null> = {};
+    for (const adj of estimate.adjustments) {
+      const row = next[adj.id];
+      if (!row) continue;
+      if (row.off) built[adj.id] = null;
+      else if (row.text.trim() !== "") {
+        const n = Number(row.text);
+        if (Number.isFinite(n)) built[adj.id] = n;
+      }
+    }
+    update({ adjustmentOverrides: Object.keys(built).length ? built : undefined });
+  };
+  const setOvrVal = (id: string, text: string) => writeOvr({ ...ovr, [id]: { off: ovr[id]?.off ?? false, text } });
+  const setOvrOff = (id: string, off: boolean) => writeOvr({ ...ovr, [id]: { off, text: ovr[id]?.text ?? "" } });
 
   return (
     <Popover anchor={anchor} onClose={onClose} width={300}>
@@ -170,6 +195,40 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
             }}
           />
         </div>
+
+        {estimate.adjustments.length > 0 && (
+          <div>
+            <label className={labelCls}>Adjustment overrides</label>
+            <div className="flex flex-col gap-1.5">
+              {estimate.adjustments.map((adj) => {
+                const row = ovr[adj.id];
+                const on = !row?.off;
+                return (
+                  <div key={adj.id} className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      title="Apply this adjustment to this column"
+                      onChange={(e) => setOvrOff(adj.id, !e.target.checked)}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px]">{adj.label}</span>
+                    <input
+                      className={`${inputCls} w-20 text-right tabular-nums disabled:opacity-40`}
+                      type="number"
+                      step={adj.type === "percent" ? "0.5" : "100"}
+                      value={on ? (row?.text ?? "") : ""}
+                      placeholder={String(adj.value)}
+                      disabled={!on}
+                      onChange={(e) => setOvrVal(adj.id, e.target.value)}
+                    />
+                    <span className="w-3 text-[11px] text-ink-faint">{adj.type === "percent" ? "%" : "$"}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-ink-faint">Blank = estimate default; uncheck to turn off for this column.</p>
+          </div>
+        )}
 
         <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px]">
           <input

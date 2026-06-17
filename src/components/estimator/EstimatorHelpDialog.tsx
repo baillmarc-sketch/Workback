@@ -49,6 +49,7 @@ const concepts: { heading: string; rows: { term: string; desc: string }[] }[] = 
       { term: "✓ Awarded", desc: "The chosen vendor; feeds the Actuals estimate." },
       { term: "↔ Range", desc: "Cells hold a low–high ballpark." },
       { term: "🔗 Notes / links", desc: "Attach the treatment, full bid, reel, and notes." },
+      { term: "Overrides", desc: "In a column, override an adjustment's value or turn it off for that bid (e.g. a different markup, or insurance already included)." },
     ],
   },
   {

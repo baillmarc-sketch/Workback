@@ -28,6 +28,9 @@ export interface EstimateColumn {
   notes?: string;
   /** Links to the treatment, full bid, reel, etc. */
   links?: ColumnLink[];
+  /** Per-column overrides for estimate-level adjustments: adjustmentId -> a
+      value (override) or null (off for this column). Missing key = default. */
+  adjustmentOverrides?: Record<string, number | null>;
   order: number;
 }
 

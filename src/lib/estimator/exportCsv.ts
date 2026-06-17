@@ -3,7 +3,7 @@ import { cellKey } from "./types";
 import {
   actualsTotals,
   actualValue,
-  adjustmentAmount,
+  columnAdjustmentAmount,
   baselineColumnId,
   columnDelta,
   columnSubtotal,
@@ -11,6 +11,7 @@ import {
   columnTotal,
   columnTotalHigh,
   committedValue,
+  effectiveAdjustmentValue,
   lineEstimate,
   resolveActualsSource,
   sectionActualsTotals,
@@ -88,7 +89,9 @@ export function buildEstimateCsv(estimate: Estimate, columns: EstimateColumn[]):
       row([
         label,
         ...columns.map((c) =>
-          rng(c, adjustmentAmount(columnSubtotal(estimate, c.id), adj), adjustmentAmount(columnSubtotalHigh(estimate, c.id), adj))
+          effectiveAdjustmentValue(estimate, c.id, adj) === null
+            ? ""
+            : rng(c, columnAdjustmentAmount(estimate, c.id, adj, false), columnAdjustmentAmount(estimate, c.id, adj, true))
         ),
       ])
     );

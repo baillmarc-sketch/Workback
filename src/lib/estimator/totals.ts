@@ -55,22 +55,41 @@ export function adjustmentAmount(subtotal: number, adj: Adjustment): number {
   return adj.type === "percent" ? subtotal * (adj.value / 100) : adj.value;
 }
 
-/** Sum of all below-the-line adjustments for a column. */
+/** The value of an adjustment for a specific column: a per-column override, or
+    null when the column turns it off, or the estimate default. */
+export function effectiveAdjustmentValue(
+  est: Estimate,
+  columnId: string,
+  adj: Adjustment
+): number | null {
+  const col = est.columns.find((c) => c.id === columnId);
+  const ov = col?.adjustmentOverrides?.[adj.id];
+  if (ov === null) return null; // off for this column
+  return typeof ov === "number" && Number.isFinite(ov) ? ov : adj.value;
+}
+
+/** One adjustment's amount for a column (0 when off), low or high end. */
+export function columnAdjustmentAmount(est: Estimate, columnId: string, adj: Adjustment, high = false): number {
+  const v = effectiveAdjustmentValue(est, columnId, adj);
+  if (v === null) return 0;
+  const subtotal = high ? columnSubtotalHigh(est, columnId) : columnSubtotal(est, columnId);
+  return adjustmentAmount(subtotal, { ...adj, value: v });
+}
+
+/** Sum of all below-the-line adjustments for a column (respecting overrides). */
 export function columnAdjustments(est: Estimate, columnId: string): number {
-  const subtotal = columnSubtotal(est, columnId);
-  return est.adjustments.reduce((sum, a) => sum + adjustmentAmount(subtotal, a), 0);
+  return est.adjustments.reduce((sum, adj) => sum + columnAdjustmentAmount(est, columnId, adj), 0);
 }
 
 /** Grand total for a column: subtotal + every adjustment. */
 export function columnTotal(est: Estimate, columnId: string): number {
-  const subtotal = columnSubtotal(est, columnId);
-  return subtotal + columnAdjustments(est, columnId);
+  return columnSubtotal(est, columnId) + columnAdjustments(est, columnId);
 }
 
 /** Grand total using the high end of range cells. */
 export function columnTotalHigh(est: Estimate, columnId: string): number {
-  const subtotal = columnSubtotalHigh(est, columnId);
-  return subtotal + est.adjustments.reduce((sum, a) => sum + adjustmentAmount(subtotal, a), 0);
+  const sub = columnSubtotalHigh(est, columnId);
+  return sub + est.adjustments.reduce((s, adj) => s + columnAdjustmentAmount(est, columnId, adj, true), 0);
 }
 
 export interface Delta {
