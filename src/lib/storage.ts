@@ -3,6 +3,7 @@ import { uid } from "./types";
 import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR, humanize } from "./categories";
 import { templateById, type TemplateId } from "./templates";
 import { monthKey, todayKey, addDaysKey } from "./dates";
+import { notify } from "./notify";
 
 const INDEX_KEY = "workback:index";
 const PROJECT_PREFIX = "workback:project:";
@@ -54,6 +55,8 @@ export function loadProject(id: string): Project | null {
   }
 }
 
+let warnedTrim = false;
+
 export function saveProject(project: Project, opts: { setLastOpen?: boolean } = {}): void {
   const key = PROJECT_PREFIX + project.id;
   const data = JSON.stringify(project);
@@ -64,6 +67,13 @@ export function saveProject(project: Project, opts: { setLastOpen?: boolean } = 
       localStorage.removeItem(HISTORY_PREFIX + project.id);
     } catch {}
     trySet(key, data);
+    // Tell the user once — silently losing the undo stack is a nasty surprise.
+    if (!warnedTrim) {
+      warnedTrim = true;
+      notify(
+        "Storage was full — older undo history was cleared so your project stays saved. Export a backup (Projects → Export) to be safe."
+      );
+    }
   }
   const index = listProjects().filter((p) => p.id !== project.id);
   index.unshift({
