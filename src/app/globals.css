@@ -86,15 +86,19 @@ body {
 }
 
 /* ---- Print / PDF export ----
-   The export IS the product: clean margins, no UI chrome, header info on
-   every page, exact category colors. */
+   The export IS the product: each month is measured and scaled to fit exactly
+   one landscape page (see usePrintFit), with no browser headers/footers.
+   margin:0 is what removes the UA header/footer band — page margins are
+   re-added as padding on each month "page" instead. */
 @page {
   size: letter landscape;
-  margin: 10mm 12mm;
+  margin: 0;
 }
 
 @media print {
+  html,
   body {
+    margin: 0 !important;
     background: #fff !important;
   }
   .no-print {
@@ -103,10 +107,15 @@ body {
   .print-only {
     display: block !important;
   }
+  /* Each month is its own full page. Height is set inline by usePrintFit to
+     the scaled content height; padding supplies the page margins. */
   .month-block {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 32px 40px;
+    overflow: hidden;
     break-after: page;
     break-inside: avoid;
-    width: 100% !important;
   }
   .month-block:last-of-type {
     break-after: auto;
@@ -139,6 +148,24 @@ body {
 
 .print-only {
   display: none;
+}
+
+/* Measurement pass: usePrintFit briefly lays the hidden print tree out
+   off-screen at the printed content width (976px ≈ 1056 page − 80 padding)
+   with print visibility rules forced, so each month's natural height can be
+   read and turned into a scale factor. */
+.print-measuring {
+  display: block !important;
+  position: fixed !important;
+  left: -100000px !important;
+  top: 0 !important;
+  width: 976px !important;
+}
+.print-measuring .print-only {
+  display: block !important;
+}
+.print-measuring .no-print {
+  display: none !important;
 }
 
 /* ---- Client-ready estimate PDF ----

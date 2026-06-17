@@ -33,56 +33,59 @@ export default function MonthBlock({ mKey, project, showWarnings, ...rest }: Mon
 
   return (
     <section className="month-block">
-      {/* Print-only header: project info repeats on every exported page, with
-          the month name as a large, unmissable heading */}
-      <div className="print-only mb-3 border-b border-hairline-strong pb-2">
-        <div className="flex items-baseline gap-3">
-          <span className="text-[12px] font-medium text-ink-soft">{project.title}</span>
-          {project.subtitle && (
-            <span className="text-[11px] text-ink-faint">{project.subtitle}</span>
+      {/* Wrapper that usePrintFit scales to fit one page (transform set inline) */}
+      <div className="month-scale">
+        {/* Print-only header: project info repeats on every exported page, with
+            the month name as a large, unmissable heading */}
+        <div className="print-only mb-3 border-b border-hairline-strong pb-2">
+          <div className="flex items-baseline gap-3">
+            <span className="text-[12px] font-medium text-ink-soft">{project.title}</span>
+            {project.subtitle && (
+              <span className="text-[11px] text-ink-faint">{project.subtitle}</span>
+            )}
+          </div>
+          <h2 className="print-month-title font-display text-[26px] font-bold leading-tight tracking-tight">
+            {monthLabel(mKey)}
+          </h2>
+          {project.showLegend && (
+            <Legend categories={project.categories} events={project.events} className="mt-1.5" />
+          )}
+          {project.printNotes && project.notes.trim() && (
+            <p className="mt-1.5 max-w-[70ch] text-[11px] leading-snug whitespace-pre-wrap break-words text-ink-soft">
+              {project.notes}
+            </p>
           )}
         </div>
-        <h2 className="print-month-title font-display text-[26px] font-bold leading-tight tracking-tight">
-          {monthLabel(mKey)}
-        </h2>
-        {project.showLegend && (
-          <Legend categories={project.categories} events={project.events} className="mt-1.5" />
-        )}
-        {project.printNotes && project.notes.trim() && (
-          <p className="mt-1.5 max-w-[70ch] text-[11px] leading-snug whitespace-pre-wrap break-words text-ink-soft">
-            {project.notes}
-          </p>
-        )}
-      </div>
 
-      <div className="no-print mb-2 flex items-center gap-2 px-1">
-        <h2 className="font-display text-[17px] font-semibold tracking-tight">
-          {monthLabel(mKey)}
-        </h2>
-        {showWarnings && <WarningsButton />}
-      </div>
+        <div className="no-print mb-2 flex items-center gap-2 px-1">
+          <h2 className="font-display text-[17px] font-semibold tracking-tight">
+            {monthLabel(mKey)}
+          </h2>
+          {showWarnings && <WarningsButton />}
+        </div>
 
-      <div className="overflow-hidden rounded-lg border border-hairline-strong bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <div className="grid grid-cols-7 border-b border-hairline">
-          {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              className="border-r border-hairline px-2 py-1.5 text-center text-[10.5px] font-semibold tracking-[0.08em] text-ink-faint uppercase last:border-r-0"
-            >
-              {d}
-            </div>
+        <div className="overflow-hidden rounded-lg border border-hairline-strong bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <div className="grid grid-cols-7 border-b border-hairline">
+            {WEEKDAYS.map((d) => (
+              <div
+                key={d}
+                className="border-r border-hairline px-2 py-1.5 text-center text-[10.5px] font-semibold tracking-[0.08em] text-ink-faint uppercase last:border-r-0"
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+          {weeks.map((w) => (
+            <WeekRow
+              key={w.start}
+              days={w.days}
+              monthKey={mKey}
+              events={project.events}
+              categories={project.categories}
+              {...rest}
+            />
           ))}
         </div>
-        {weeks.map((w) => (
-          <WeekRow
-            key={w.start}
-            days={w.days}
-            monthKey={mKey}
-            events={project.events}
-            categories={project.categories}
-            {...rest}
-          />
-        ))}
       </div>
     </section>
   );
