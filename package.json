@@ -11,6 +11,7 @@
     "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts && npx -y tsx scripts/verify-bidspecs.ts",
     "stress": "npx -y tsx scripts/stress-estimator.ts",
     "smoke": "npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-ui.tsx && npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-bidspecs.tsx",
+    "test:rules": "firebase emulators:exec --only database --project demo-workback \"npx -y tsx scripts/rules-test.ts\"",
     "battle": "npm run verify && npm run stress && npm run smoke"
   },
   "dependencies": {
@@ -23,10 +24,12 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "firebase-tools": "^15.20.0",
     "postcss": "^8.5.4",
     "tailwindcss": "^4.1.8",
     "typescript": "^5.8.3"

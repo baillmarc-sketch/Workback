@@ -10,6 +10,8 @@ import AppGate from "./AppGate";
 import App from "./App";
 import EstimatorApp from "./estimator/EstimatorApp";
 import BidSpecsApp from "./bidSpecs/BidSpecsApp";
+import AdminGate from "./admin/AdminGate";
+import AdminApp from "./admin/AdminApp";
 
 /**
  * Platform shell. Workback is the default landing and is public; the Estimator
@@ -32,7 +34,11 @@ export default function Toolkit() {
   return (
     <>
       <AppBar active={active} />
-      {active === "estimator" ? (
+      {active === "admin" ? (
+        <AdminGate>
+          <AdminApp />
+        </AdminGate>
+      ) : active === "estimator" ? (
         <AppGate appId="estimator">
           <EstimateProvider>
             <EstimatorApp />

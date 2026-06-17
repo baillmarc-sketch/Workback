@@ -26,13 +26,65 @@ export async function pushEstimate(uid: string, token: string, estimate: Estimat
   if (!res.ok) throw new Error(`Account push failed (${res.status})`);
 }
 
-export async function deleteRemoteEstimate(uid: string, token: string, id: string): Promise<void> {
+/**
+ * Soft-delete: null the live doc and tombstone it (so other devices don't
+ * resurrect it), but also stash the full doc under `estimatesTrash` so it can be
+ * recovered. When `estimate` is omitted (e.g. a bulk reset) only the tombstone
+ * is written and the estimate is not recoverable — backward compatible.
+ */
+export async function deleteRemoteEstimate(
+  uid: string,
+  token: string,
+  id: string,
+  estimate?: Estimate | null
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    [`estimates/${id}`]: null,
+    [`estimatesDeleted/${id}`]: Date.now(),
+  };
+  if (estimate) updates[`estimatesTrash/${id}`] = estimate;
   const res = await fetch(userUrl(uid, token), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [`estimates/${id}`]: null, [`estimatesDeleted/${id}`]: Date.now() }),
+    body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error(`Account delete failed (${res.status})`);
+}
+
+/**
+ * Recover a soft-deleted estimate: move the trashed doc back to live (bumping
+ * updatedAt so it out-races any stale tombstone), clear the tombstone, and empty
+ * the trash slot — one atomic PATCH. Returns the recovered estimate, or null
+ * when there's no recoverable content. Authorized for the owner or any admin.
+ */
+export async function recoverRemoteEstimate(
+  uid: string,
+  token: string,
+  id: string
+): Promise<Estimate | null> {
+  const res = await fetch(userUrl(uid, token, `/estimatesTrash/${id}`));
+  if (!res.ok) throw new Error(`Trash fetch failed (${res.status})`);
+  const raw = (await res.json()) as object | null;
+  if (!raw) return null;
+  let estimate: Estimate;
+  try {
+    estimate = normalizeRemote(raw);
+  } catch {
+    return null;
+  }
+  estimate.id = id;
+  estimate.updatedAt = Date.now();
+  const put = await fetch(userUrl(uid, token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      [`estimates/${id}`]: estimate,
+      [`estimatesDeleted/${id}`]: null,
+      [`estimatesTrash/${id}`]: null,
+    }),
+  });
+  if (!put.ok) throw new Error(`Recover failed (${put.status})`);
+  return estimate;
 }
 
 export interface SyncResult {

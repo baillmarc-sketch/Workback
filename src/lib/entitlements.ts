@@ -1,24 +1,47 @@
 import type { AccountUser } from "@/state/auth";
 import type { AppId } from "./toolkit";
+import type { AccessSnapshot } from "./admin/access";
 
 /**
  * Access control for the toolkit. Workback is public; the Estimator (and any
- * future Pro app) is private to the owner's Google account. This is the single
- * place that decides who can open what — the future paywall reads billing here
- * instead of a hardcoded allowlist, and call sites in AppGate don't change.
+ * future Pro app) and the Admin page are private. Access used to be a hardcoded
+ * email allowlist; it is now data-driven — per-user grants, roles, and email
+ * invites live in the Realtime Database and are loaded into an `AccessSnapshot`
+ * by AccessProvider, which is what these functions consult.
+ *
+ * The owner email stays hardcoded as a bootstrap: the account that administers
+ * the system can never be locked out, even if its `/admins` record is wiped
+ * (the database rules let the owner re-seed it). `access` is optional so call
+ * sites that don't yet have a snapshot still resolve the owner correctly.
  */
-const ALLOWED_EMAILS = ["baillmarc@gmail.com"];
+export const OWNER_EMAILS = ["baillmarc@gmail.com"];
 
-function isAllowed(user: AccountUser | null): boolean {
-  return !!user?.email && ALLOWED_EMAILS.includes(user.email.toLowerCase());
+export function isOwner(user: AccountUser | null): boolean {
+  return !!user?.email && OWNER_EMAILS.includes(user.email.toLowerCase());
 }
 
-export function hasEntitlement(user: AccountUser | null, appId: AppId): boolean {
+export function hasEntitlement(
+  user: AccountUser | null,
+  appId: AppId,
+  access?: AccessSnapshot | null
+): boolean {
   if (appId === "workback") return true; // public, default app
-  return isAllowed(user);
+  if (appId === "admin") return isOwner(user) || !!access?.isAdmin;
+  // estimator (and any future pro app): owner, any admin, an explicit grant, a
+  // team-derived grant, or a pre-authorized email invite.
+  return (
+    isOwner(user) ||
+    !!access?.isAdmin ||
+    !!access?.estimator ||
+    !!access?.estimatorViaTeam ||
+    !!access?.invitedEstimator
+  );
 }
 
-/** True when the user can reach the private toolkit apps (drives the menu bar). */
-export function canAccessToolkit(user: AccountUser | null): boolean {
-  return isAllowed(user);
+/** True when the user can reach a private toolkit app (drives the menu bar). */
+export function canAccessToolkit(
+  user: AccountUser | null,
+  access?: AccessSnapshot | null
+): boolean {
+  return hasEntitlement(user, "estimator", access) || hasEntitlement(user, "admin", access);
 }

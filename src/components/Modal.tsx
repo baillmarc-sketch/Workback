@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 interface ModalProps {
@@ -10,7 +10,12 @@ interface ModalProps {
   width?: number;
 }
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])';
+
 export default function Modal({ title, onClose, children, width = 480 }: ModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -18,6 +23,33 @@ export default function Modal({ title, onClose, children, width = 480 }: ModalPr
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose]);
+
+  // Focus trap + restore: move focus into the dialog on open, keep Tab cycling
+  // within it, and return focus to the opener on close (accessibility).
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    const node = dialogRef.current;
+    node?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab" || !node) return;
+      const items = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (items.length === 0) return e.preventDefault();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      prev?.focus?.();
+    };
+  }, []);
 
   if (typeof document === "undefined") return null;
 
@@ -27,10 +59,12 @@ export default function Modal({ title, onClose, children, width = 480 }: ModalPr
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-[88vh] w-full overflow-y-auto rounded-xl border border-hairline bg-surface shadow-2xl sm:max-h-[78vh]"
+        tabIndex={-1}
+        className="max-h-[88vh] w-full overflow-y-auto rounded-xl border border-hairline bg-surface shadow-2xl outline-none sm:max-h-[78vh]"
         style={{ maxWidth: width }}
       >
         <div className="flex items-center justify-between border-b border-hairline px-4 py-3">

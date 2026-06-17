@@ -26,13 +26,67 @@ export async function pushProject(uid: string, token: string, project: Project):
   if (!res.ok) throw new Error(`Account push failed (${res.status})`);
 }
 
-export async function deleteRemoteProject(uid: string, token: string, id: string): Promise<void> {
+/**
+ * Soft-delete: null the live doc and tombstone it (so other devices don't
+ * resurrect it), but also stash the full doc under `projectsTrash` so it can be
+ * recovered. When `project` is omitted (e.g. a bulk reset where the local copy
+ * is already gone) only the tombstone is written and the project is not
+ * recoverable — backward compatible with old clients that never wrote trash.
+ */
+export async function deleteRemoteProject(
+  uid: string,
+  token: string,
+  id: string,
+  project?: Project | null
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    [`projects/${id}`]: null,
+    [`deleted/${id}`]: Date.now(),
+  };
+  if (project) updates[`projectsTrash/${id}`] = project;
   const res = await fetch(userUrl(uid, token), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [`projects/${id}`]: null, [`deleted/${id}`]: Date.now() }),
+    body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error(`Account delete failed (${res.status})`);
+}
+
+/**
+ * Recover a soft-deleted project: move the trashed doc back to live (bumping
+ * updatedAt to now so it out-races any stale tombstone on another device),
+ * clear the tombstone, and empty the trash slot — all in one atomic PATCH.
+ * Returns the recovered project, or null when there's no recoverable content
+ * (an old tombstone with no trashed doc). Authorized for the owner or any admin.
+ */
+export async function recoverRemoteProject(
+  uid: string,
+  token: string,
+  id: string
+): Promise<Project | null> {
+  const res = await fetch(userUrl(uid, token, `/projectsTrash/${id}`));
+  if (!res.ok) throw new Error(`Trash fetch failed (${res.status})`);
+  const raw = (await res.json()) as object | null;
+  if (!raw) return null;
+  let project: Project;
+  try {
+    project = normalizeRemote(raw);
+  } catch {
+    return null;
+  }
+  project.id = id;
+  project.updatedAt = Date.now();
+  const put = await fetch(userUrl(uid, token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      [`projects/${id}`]: project,
+      [`deleted/${id}`]: null,
+      [`projectsTrash/${id}`]: null,
+    }),
+  });
+  if (!put.ok) throw new Error(`Recover failed (${put.status})`);
+  return project;
 }
 
 export interface SyncResult {
