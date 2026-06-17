@@ -134,6 +134,7 @@ export function duplicateEstimate(id: string): Estimate | null {
       ...c,
       links: c.links?.map((l) => ({ ...l })),
       adjustmentOverrides: c.adjustmentOverrides ? { ...c.adjustmentOverrides } : undefined,
+      adjustmentSectionsOff: c.adjustmentSectionsOff ? { ...c.adjustmentSectionsOff } : undefined,
     })),
     cells: Object.fromEntries(Object.entries(src.cells).map(([k, v]) => [k, { ...v }])),
     ledger: src.ledger.map((x) => ({ ...x })),
@@ -170,6 +171,16 @@ function migrateOverrides(raw: unknown): Record<string, number | null> | undefin
   return Object.keys(out).length ? out : undefined;
 }
 
+/** Per-(adjustment × section) opt-outs: keep only truthy flags. */
+function migrateSectionsOff(raw: unknown): Record<string, true> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, true> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (v) out[k] = true;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function migrateColumns(raw: unknown): EstimateColumn[] {
   if (!Array.isArray(raw)) return [];
   return (raw as Partial<EstimateColumn>[])
@@ -183,6 +194,8 @@ function migrateColumns(raw: unknown): EstimateColumn[] {
       notes: typeof c.notes === "string" && c.notes ? c.notes : undefined,
       links: migrateLinks(c.links),
       adjustmentOverrides: migrateOverrides(c.adjustmentOverrides),
+      adjustmentSectionsOff: migrateSectionsOff(c.adjustmentSectionsOff),
+      width: typeof c.width === "number" && Number.isFinite(c.width) && c.width > 0 ? c.width : undefined,
       order: num(c.order, i),
     }))
     .sort((a, b) => a.order - b.order);
