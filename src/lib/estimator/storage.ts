@@ -16,6 +16,7 @@ import type {
   TeamMember,
 } from "./types";
 import { uid } from "../types";
+import { migrateAuthor } from "../author";
 import { bumpVersion } from "../storage";
 import { evalOrZero } from "./formula";
 import { estimateTemplateById, type EstimateTemplateId } from "./templates";
@@ -386,6 +387,7 @@ export function migrate(data: unknown): Estimate {
         ? e.actualsSourceColumnId
         : undefined,
     shareId: typeof e.shareId === "string" && e.shareId ? e.shareId : undefined,
+    createdBy: migrateAuthor(e.createdBy),
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),
   };

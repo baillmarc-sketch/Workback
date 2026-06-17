@@ -137,6 +137,23 @@ async function run() {
   await deny("estimatorViaTeam must be boolean", set(ref(db(adminUid, "admin@example.com"), `entitlements/${memberUid}/estimatorViaTeam`), 1));
   await allow("user reads own estimatorViaTeam", get(ref(db(memberUid, "member@example.com"), `entitlements/${memberUid}/estimatorViaTeam`)));
 
+  console.log("\nTeam workspaces (member-gated shared docs)");
+  // memberUid is a member of t1 (added above). "stranger" is a fresh signed-in
+  // account that is neither a member nor an admin (otherUid was made admin
+  // earlier in this suite, so it would pass via the admin override).
+  const stranger = "stranger";
+  const strangerEmail = "stranger@example.com";
+  const wbDoc = { id: "twp1", events: { x: 1 }, updatedAt: 1 };
+  await deny("non-member cannot read a team workspace", get(ref(db(stranger, strangerEmail), "teamWorkspaces/t1/docs/workback")));
+  await deny("non-member cannot write a team doc", set(ref(db(stranger, strangerEmail), "teamWorkspaces/t1/docs/workback/twp1"), wbDoc));
+  await allow("member writes a team doc", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/workback/twp1"), wbDoc));
+  await allow("member reads the team workspace", get(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/workback")));
+  await deny("team doc must have id + updatedAt", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/workback/bad"), { events: { x: 1 } }));
+  await allow("admin reads any team workspace (override)", get(ref(db(adminUid, "admin@example.com"), "teamWorkspaces/t1/docs/workback")));
+  await allow("member writes presence", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/presence/workback/twp1/sess1"), { name: "Mia", t: 1 }));
+  await deny("non-member cannot write presence", set(ref(db(stranger, strangerEmail), "teamWorkspaces/t1/presence/workback/twp1/sess1"), { name: "X", t: 1 }));
+  await allow("member soft-deletes via trash (atomic)", update(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1"), { "docs/workback/twp1": null, "trash/workback/twp1": wbDoc }));
+
   console.log("\nInvites");
   await deny("non-admin cannot create an invite (no self-escalation)", set(ref(db(memberUid, "member@example.com"), "invites/x@example,com"), { email: "x@example.com", estimator: true }));
   await allow("admin creates an invite", set(ref(db(adminUid, "admin@example.com"), "invites/new@example,com"), { email: "new@example.com", estimator: true, createdAt: 1, invitedBy: "admin" }));

@@ -6,6 +6,8 @@
  * typed plus its evaluated dollar amount.
  */
 
+import type { Author } from "../author";
+
 export type ColumnRole = "version" | "vendor";
 
 /** A reference link on a column — the treatment, the full bid PDF, a reel, etc.
@@ -167,6 +169,8 @@ export interface Estimate {
   ledger: LedgerEntry[];
   /** Set when published to the shared cloud copy — the link channel ID */
   shareId?: string;
+  /** Who created this file (team-workspace attribution; absent for old/personal docs) */
+  createdBy?: Author;
   createdAt: number;
   updatedAt: number;
 }
