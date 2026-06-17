@@ -127,6 +127,15 @@ async function run() {
   await allow("admin creates a team", set(ref(db(adminUid, "admin@example.com"), "teams/t1"), { name: "Crew", createdAt: 1 }));
   await allow("admin adds a member", set(ref(db(adminUid, "admin@example.com"), `teams/t1/members/${memberUid}`), true));
   await deny("non-admin cannot write teams", set(ref(db(memberUid, "member@example.com"), "teams/t2"), { name: "X" }));
+  await allow("admin sets a team Estimator grant", set(ref(db(adminUid, "admin@example.com"), "teams/t1/apps/estimator"), true));
+  await deny("team apps.estimator must be boolean", set(ref(db(adminUid, "admin@example.com"), "teams/t1/apps/estimator"), "yes"));
+  await deny("team apps rejects unknown keys", set(ref(db(adminUid, "admin@example.com"), "teams/t1/apps/workback"), true));
+
+  console.log("\nTeam-derived entitlement (estimatorViaTeam)");
+  await allow("admin denormalizes a team grant to a user", set(ref(db(adminUid, "admin@example.com"), `entitlements/${memberUid}/estimatorViaTeam`), true));
+  await deny("user cannot self-set estimatorViaTeam", set(ref(db(memberUid, "member@example.com"), `entitlements/${memberUid}/estimatorViaTeam`), true));
+  await deny("estimatorViaTeam must be boolean", set(ref(db(adminUid, "admin@example.com"), `entitlements/${memberUid}/estimatorViaTeam`), 1));
+  await allow("user reads own estimatorViaTeam", get(ref(db(memberUid, "member@example.com"), `entitlements/${memberUid}/estimatorViaTeam`)));
 
   console.log("\nInvites");
   await deny("non-admin cannot create an invite (no self-escalation)", set(ref(db(memberUid, "member@example.com"), "invites/x@example,com"), { email: "x@example.com", estimator: true }));

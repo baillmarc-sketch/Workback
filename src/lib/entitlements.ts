@@ -27,12 +27,13 @@ export function hasEntitlement(
 ): boolean {
   if (appId === "workback") return true; // public, default app
   if (appId === "admin") return isOwner(user) || !!access?.isAdmin;
-  // estimator (and any future pro app): owner, any admin, an explicit grant, or
-  // a pre-authorized email invite.
+  // estimator (and any future pro app): owner, any admin, an explicit grant, a
+  // team-derived grant, or a pre-authorized email invite.
   return (
     isOwner(user) ||
     !!access?.isAdmin ||
     !!access?.estimator ||
+    !!access?.estimatorViaTeam ||
     !!access?.invitedEstimator
   );
 }

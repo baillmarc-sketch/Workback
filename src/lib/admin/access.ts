@@ -11,8 +11,11 @@ export type Role = "owner" | "admin" | "member";
 export interface AccessSnapshot {
   isAdmin: boolean;
   role: Role | null;
-  /** Explicit per-user Estimator grant (/entitlements/{uid}). */
+  /** Explicit per-user Estimator grant (/entitlements/{uid}/estimator). */
   estimator: boolean;
+  /** Estimator granted via team membership (/entitlements/{uid}/estimatorViaTeam,
+      denormalized by the admin when team membership/grants change). */
+  estimatorViaTeam: boolean;
   /** Estimator granted by an email invite (/invites/{emailKey}). */
   invitedEstimator: boolean;
 }
@@ -21,6 +24,7 @@ export const EMPTY_ACCESS: AccessSnapshot = {
   isAdmin: false,
   role: null,
   estimator: false,
+  estimatorViaTeam: false,
   invitedEstimator: false,
 };
 
@@ -38,8 +42,8 @@ async function getJson(path: string, token: string): Promise<unknown> {
   }
 }
 
-function hasEstimatorFlag(val: unknown): boolean {
-  return !!(val && typeof val === "object" && (val as { estimator?: unknown }).estimator === true);
+function hasFlag(val: unknown, key: string): boolean {
+  return !!(val && typeof val === "object" && (val as Record<string, unknown>)[key] === true);
 }
 
 /**
@@ -65,7 +69,8 @@ export async function loadAccess(
   return {
     isAdmin: adminVal === true,
     role,
-    estimator: hasEstimatorFlag(entVal),
-    invitedEstimator: hasEstimatorFlag(inviteVal),
+    estimator: hasFlag(entVal, "estimator"),
+    estimatorViaTeam: hasFlag(entVal, "estimatorViaTeam"),
+    invitedEstimator: hasFlag(inviteVal, "estimator"),
   };
 }

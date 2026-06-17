@@ -23,6 +23,7 @@ export type AuditAction =
   | "delete_team"
   | "rename_team"
   | "set_team_membership"
+  | "set_team_grant"
   | "view_user_data"
   | "remove_user";
 

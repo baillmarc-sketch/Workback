@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   delete_team: "Deleted team",
   rename_team: "Renamed team",
   set_team_membership: "Changed team membership",
+  set_team_grant: "Changed team access",
   view_user_data: "Viewed user data",
   remove_user: "Removed user",
 };

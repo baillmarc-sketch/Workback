@@ -58,6 +58,7 @@
         ".read": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
         ".write": "root.child('admins').child(auth.uid).exists()",
         "estimator": { ".validate": "newData.isBoolean()" },
+        "estimatorViaTeam": { ".validate": "newData.isBoolean()" },
         "$other": { ".validate": false }
       }
     },
@@ -80,6 +81,10 @@
         "createdAt": { ".validate": "newData.isNumber()" },
         "members": {
           "$uid": { ".validate": "newData.isBoolean()" }
+        },
+        "apps": {
+          "estimator": { ".validate": "newData.isBoolean()" },
+          "$other": { ".validate": false }
         },
         "$other": { ".validate": false }
       }

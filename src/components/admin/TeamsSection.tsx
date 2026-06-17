@@ -8,6 +8,8 @@ import {
   listTeams,
   renameTeam,
   setMembership,
+  setTeamGrant,
+  syncTeamEntitlements,
   type Team,
 } from "@/lib/admin/teams";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
@@ -84,10 +86,31 @@ export default function TeamsSection() {
       if (token) {
         await deleteTeam(token, team.id);
         if (user) await logAudit(token, user, "delete_team", team.name);
+        // If the team granted access, recompute its former members so the grant
+        // they had via this team is withdrawn (unless held elsewhere).
+        if (team.grantsEstimator) await syncTeamEntitlements(token, Object.keys(team.members));
       }
       setTeams((cur) => cur?.filter((t) => t.id !== team.id) ?? null);
     } catch (e) {
       setError((e as Error).message || "Delete failed");
+    }
+  }
+
+  async function toggleGrant(team: Team, grants: boolean) {
+    // optimistic
+    setTeams((cur) => cur?.map((t) => (t.id === team.id ? { ...t, grantsEstimator: grants } : t)) ?? null);
+    try {
+      const token = await getToken();
+      if (token) {
+        await setTeamGrant(token, team.id, grants);
+        await syncTeamEntitlements(token, Object.keys(team.members));
+        if (user) {
+          await logAudit(token, user, "set_team_grant", team.name, grants ? "Estimator on" : "Estimator off");
+        }
+      }
+    } catch (e) {
+      setError((e as Error).message || "Update failed");
+      load();
     }
   }
 
@@ -107,6 +130,8 @@ export default function TeamsSection() {
       const token = await getToken();
       if (token) {
         await setMembership(token, team.id, uid, inTeam);
+        // Keep the member's team-derived Estimator grant in sync with membership.
+        if (team.grantsEstimator) await syncTeamEntitlements(token, [uid]);
         if (user) {
           const who = registry.find((r) => r.uid === uid)?.email ?? uid;
           await logAudit(token, user, "set_team_membership", team.name, `${inTeam ? "added" : "removed"} ${who}`);
@@ -121,8 +146,8 @@ export default function TeamsSection() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[12.5px] text-ink-soft">
-        Group users into teams. In this version teams are organizational labels — they don&apos;t
-        change what anyone can access on their own.
+        Group users into teams. Turn on <strong>Grants Estimator</strong> for a team and every
+        member gets Estimator access for as long as they&apos;re in it.
       </p>
 
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2.5">
@@ -165,6 +190,14 @@ export default function TeamsSection() {
                   <span className="shrink-0 text-[11.5px] text-ink-faint">
                     {count} member{count === 1 ? "" : "s"}
                   </span>
+                  <label className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-soft">
+                    <Toggle
+                      checked={team.grantsEstimator}
+                      label={`${team.name} grants Estimator`}
+                      onChange={(g) => toggleGrant(team, g)}
+                    />
+                    <span className="hidden sm:inline">Grants Estimator</span>
+                  </label>
                   <button
                     className="shrink-0 rounded-md border border-hairline px-2 py-1 text-[11.5px] font-medium text-ink-soft hover:bg-paper hover:text-ink"
                     onClick={() => setExpanded(open ? null : team.id)}
