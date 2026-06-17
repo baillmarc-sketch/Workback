@@ -31,6 +31,8 @@ import {
   lineVariance,
   remainingAmount,
   outstandingAmount,
+  committedValue,
+  actualValue,
   actualsTotals,
   sectionActualsTotals,
 } from "../src/lib/estimator/totals.ts";
@@ -551,6 +553,52 @@ function check(name: string, cond: boolean, detail?: unknown) {
   } else {
     check("scope: duplicate created", false);
   }
+}
+
+// 16. Actuals: adjustments as trackable lines (ledger keyed by adjustment id)
+{
+  const li = "al1";
+  const col = "ac1";
+  const adjId = "ins";
+  const est: Estimate = {
+    ...newEstimate("blank"),
+    id: "actuals-adj",
+    adjustments: [{ id: adjId, label: "Insurance", type: "percent", value: 2 }],
+    columns: [{ id: col, name: "Awarded", role: "vendor", order: 0 }],
+    sections: [{ id: "s", name: "S", lineItemIds: [li], order: 0 }],
+    lineItems: { [li]: { id: li, label: "Crew", order: 0 } },
+    cells: { [`${li}:${col}`]: { expr: "100000", value: 100000 } },
+    baselineColumnId: col,
+    awardedColumnId: col,
+    actualsSourceColumnId: col,
+    ledger: [
+      { id: "e1", lineItemId: li, kind: "po", amount: 100000, ref: "PO-1" },
+      { id: "e2", lineItemId: li, kind: "invoice", amount: 98000, ref: "INV-1" },
+      // PO + invoice booked directly against the insurance adjustment line:
+      { id: "e3", lineItemId: adjId, kind: "po", amount: 2000, ref: "PO-INS" },
+      { id: "e4", lineItemId: adjId, kind: "invoice", amount: 1900, ref: "INV-INS" },
+    ],
+  };
+  const adj = est.adjustments[0];
+  check("actuals adj: estimate = 2% of 100k = 2000", columnAdjustmentAmount(est, col, adj) === 2000);
+  check("actuals adj: committed by adj id = 2000", committedValue(est, adjId) === 2000);
+  check("actuals adj: actual by adj id = 1900", actualValue(est, adjId) === 1900);
+  // Adjustment ledger must NOT leak into the line-item rollup.
+  const g = actualsTotals(est, col);
+  check("actuals adj: line totals exclude adj ledger", g.committed === 100000 && g.actual === 98000);
+  // Total incl. adjustments mirrors the grid math.
+  const totalEst = g.estimate + columnAdjustmentAmount(est, col, adj);
+  const totalActual = g.actual + actualValue(est, adjId);
+  check("actuals adj: total estimate incl insurance = 102000", totalEst === 102000);
+  check("actuals adj: total actual incl insurance = 99900", totalActual === 99900);
+  // Round-trips (adjustment ledger entries survive save/load).
+  saveEstimate(est);
+  const loaded = loadEstimate("actuals-adj");
+  check(
+    "actuals adj: adj ledger persists",
+    committedValue(loaded!, adjId) === 2000 && actualValue(loaded!, adjId) === 1900,
+    loaded?.ledger
+  );
 }
 
 console.log(failures === 0 ? "\nAll estimator checks passed." : `\n${failures} estimator check(s) FAILED.`);

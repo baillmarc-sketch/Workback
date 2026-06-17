@@ -4,13 +4,15 @@ import { useState } from "react";
 import {
   actualsTotals,
   actualValue,
+  columnAdjustmentAmount,
   committedValue,
+  effectiveAdjustmentValue,
   lineEntries,
   lineEstimate,
   resolveActualsSource,
   sectionActualsTotals,
 } from "@/lib/estimator/totals";
-import { formatCurrency, formatCurrencySigned } from "@/lib/estimator/format";
+import { formatCurrency, formatCurrencySigned, formatPct } from "@/lib/estimator/format";
 import type { LedgerKind } from "@/lib/estimator/types";
 import { useEstimate } from "@/state/estimateStore";
 import LedgerPopover from "./LedgerPopover";
@@ -31,7 +33,7 @@ const COL_W = 140;
  */
 export default function ActualsGrid() {
   const { estimate, patch } = useEstimate();
-  const [edit, setEdit] = useState<{ lineItemId: string; kind: LedgerKind; anchor: Anchor } | null>(null);
+  const [edit, setEdit] = useState<{ id: string; label: string; kind: LedgerKind; anchor: Anchor } | null>(null);
   if (!estimate) return null;
 
   const currency = estimate.currency;
@@ -57,14 +59,15 @@ export default function ActualsGrid() {
   );
 
   // A clickable Committed/Actual cell: shows the summed value + entry count,
-  // opens the PO/invoice ledger.
-  const ledgerCell = (lineItemId: string, kind: LedgerKind, value: number) => {
-    const count = lineEntries(estimate, lineItemId, kind).length;
+  // opens the PO/invoice ledger. Works for line items and for adjustments
+  // (ledger entries keyed by the adjustment's id).
+  const ledgerCell = (id: string, label: string, kind: LedgerKind, value: number) => {
+    const count = lineEntries(estimate, id, kind).length;
     return (
       <button
         className="flex h-9 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 text-right tabular-nums hover:bg-paper"
         style={{ width: COL_W }}
-        onClick={(e) => setEdit({ lineItemId, kind, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
+        onClick={(e) => setEdit({ id, label, kind, anchor: rectToAnchor(e.currentTarget.getBoundingClientRect()) })}
       >
         {count > 0 ? (
           <>
@@ -82,8 +85,27 @@ export default function ActualsGrid() {
   };
 
   const headers = ["Estimate", "Committed", "Actual", "Outstanding", "Remaining"];
-  const grand = actualsTotals(estimate, sourceId);
-  const grandOver = grand.actual - grand.estimate;
+  // Line items roll up to a net subtotal; project adjustments (markup,
+  // insurance, tax) sit below as their own trackable lines — Estimate from the
+  // percent on the source column, Committed/Actual logged via the ledger keyed
+  // by the adjustment id. Total = net subtotal + adjustments.
+  const lineGrand = actualsTotals(estimate, sourceId);
+  const adjLines = estimate.adjustments.map((adj) => {
+    const est = columnAdjustmentAmount(estimate, sourceId, adj);
+    const committed = committedValue(estimate, adj.id);
+    const act = actualValue(estimate, adj.id);
+    return { adj, est, committed, act, outstanding: committed - act, remaining: est - act };
+  });
+  const adjSum = adjLines.reduce(
+    (a, r) => ({ est: a.est + r.est, committed: a.committed + r.committed, act: a.act + r.act }),
+    { est: 0, committed: 0, act: 0 }
+  );
+  const totalEst = lineGrand.estimate + adjSum.est;
+  const totalCommitted = lineGrand.committed + adjSum.committed;
+  const totalActual = lineGrand.actual + adjSum.act;
+  const totalOutstanding = totalCommitted - totalActual;
+  const totalRemaining = totalEst - totalActual;
+  const grandOver = totalActual - totalEst;
 
   return (
     <div>
@@ -144,8 +166,8 @@ export default function ActualsGrid() {
                     <div key={liId} className="flex border-b border-hairline">
                       {labelCell(<span className="truncate text-[13px]">{li.label || "Line item"}</span>, "h-9")}
                       {numCell(est ? formatCurrency(est, currency) : <span className="text-ink-faint">—</span>, "text-ink-soft")}
-                      {ledgerCell(liId, "po", committed)}
-                      {ledgerCell(liId, "invoice", act)}
+                      {ledgerCell(liId, li.label || "Line item", "po", committed)}
+                      {ledgerCell(liId, li.label || "Line item", "invoice", act)}
                       {numCell(outstanding ? formatCurrency(outstanding, currency) : <span className="text-ink-faint">—</span>)}
                       {numCell(formatCurrency(remaining, currency), remaining < 0 ? "text-danger" : "text-ink")}
                     </div>
@@ -176,10 +198,60 @@ export default function ActualsGrid() {
             );
           })}
 
-          {/* Grand total */}
+          {/* Net subtotal (line items) */}
+          <div className="flex border-b border-hairline bg-paper/40">
+            {labelCell(<span className="text-[12.5px] font-medium">Net Subtotal</span>, "h-9")}
+            {[lineGrand.estimate, lineGrand.committed, lineGrand.actual, lineGrand.outstanding, lineGrand.remaining].map((n, i) => (
+              <div
+                key={i}
+                className={`flex h-9 shrink-0 items-center justify-end border-l border-hairline px-3 text-[12.5px] font-medium tabular-nums ${
+                  i === 4 && n < 0 ? "text-danger" : ""
+                }`}
+                style={{ width: COL_W }}
+              >
+                {formatCurrency(n, currency)}
+              </div>
+            ))}
+          </div>
+
+          {/* Adjustments — Estimate from the %, Committed/Actual are trackable */}
+          {adjLines.length > 0 && (
+            <>
+              <div className="flex border-b border-hairline bg-paper/60">
+                {labelCell(
+                  <span className="text-[11px] font-medium tracking-wide text-ink-faint uppercase">Adjustments</span>,
+                  "h-8"
+                )}
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="shrink-0 border-l border-hairline" style={{ width: COL_W }} />
+                ))}
+              </div>
+              {adjLines.map(({ adj, est, committed, act, outstanding, remaining }) => {
+                const rate = adj.type === "percent" ? effectiveAdjustmentValue(estimate, sourceId, adj) : null;
+                return (
+                  <div key={adj.id} className="flex border-b border-hairline">
+                    {labelCell(
+                      <span className="truncate text-[13px]">
+                        {adj.label}
+                        {rate !== null && <span className="ml-1 text-[11px] text-ink-faint">({formatPct(rate)})</span>}
+                      </span>,
+                      "h-9"
+                    )}
+                    {numCell(est ? formatCurrency(est, currency) : <span className="text-ink-faint">—</span>, "text-ink-soft")}
+                    {ledgerCell(adj.id, adj.label, "po", committed)}
+                    {ledgerCell(adj.id, adj.label, "invoice", act)}
+                    {numCell(outstanding ? formatCurrency(outstanding, currency) : <span className="text-ink-faint">—</span>)}
+                    {numCell(formatCurrency(remaining, currency), remaining < 0 ? "text-danger" : "text-ink")}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* Grand total incl. adjustments */}
           <div className="flex bg-paper/70">
             {labelCell(<span className="font-display text-[14px] font-semibold">Total</span>, "h-11")}
-            {[grand.estimate, grand.committed, grand.actual, grand.outstanding].map((n, i) => (
+            {[totalEst, totalCommitted, totalActual, totalOutstanding].map((n, i) => (
               <div
                 key={i}
                 className="flex h-11 shrink-0 items-center justify-end border-l border-hairline px-3 text-[14px] font-semibold tabular-nums"
@@ -191,11 +263,11 @@ export default function ActualsGrid() {
             {/* Remaining + over/under */}
             <div
               className={`flex h-11 shrink-0 flex-col items-end justify-center border-l border-hairline px-3 tabular-nums ${
-                grand.remaining < 0 ? "text-danger" : ""
+                totalRemaining < 0 ? "text-danger" : ""
               }`}
               style={{ width: COL_W }}
             >
-              <span className="text-[14px] font-semibold">{formatCurrency(grand.remaining, currency)}</span>
+              <span className="text-[14px] font-semibold">{formatCurrency(totalRemaining, currency)}</span>
               <span
                 className={`text-[9.5px] ${
                   grandOver > 0 ? "text-danger" : grandOver < 0 ? "text-[#15803d]" : "text-ink-faint"
@@ -208,11 +280,11 @@ export default function ActualsGrid() {
         </div>
       </div>
 
-      {edit && estimate.lineItems[edit.lineItemId] && (
+      {edit && (
         <LedgerPopover
-          lineItemId={edit.lineItemId}
+          lineItemId={edit.id}
           kind={edit.kind}
-          lineItemLabel={estimate.lineItems[edit.lineItemId].label}
+          lineItemLabel={edit.label}
           currency={currency}
           anchor={edit.anchor}
           onClose={() => setEdit(null)}

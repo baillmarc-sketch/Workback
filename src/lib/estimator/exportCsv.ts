@@ -142,8 +142,28 @@ export function buildActualsCsv(estimate: Estimate): string {
   }
 
   const g = actualsTotals(estimate, sourceId);
-  lines.push(row(["Total", g.estimate, g.committed, g.actual, g.outstanding, g.remaining]));
-  lines.push(row(["Over / (under)", "", "", "", "", g.actual - g.estimate]));
+  lines.push(row(["Net Subtotal", g.estimate, g.committed, g.actual, g.outstanding, g.remaining]));
+
+  // Project adjustments as their own trackable lines (Estimate from the %,
+  // Committed/Actual from ledger entries keyed by the adjustment id).
+  let adjEst = 0;
+  let adjCommitted = 0;
+  let adjActual = 0;
+  for (const adj of estimate.adjustments) {
+    const est = columnAdjustmentAmount(estimate, sourceId, adj);
+    const committed = committedValue(estimate, adj.id);
+    const act = actualValue(estimate, adj.id);
+    adjEst += est;
+    adjCommitted += committed;
+    adjActual += act;
+    lines.push(row([adj.label, est, committed, act, committed - act, est - act]));
+  }
+
+  const tEst = g.estimate + adjEst;
+  const tCommitted = g.committed + adjCommitted;
+  const tActual = g.actual + adjActual;
+  lines.push(row(["Total", tEst, tCommitted, tActual, tCommitted - tActual, tEst - tActual]));
+  lines.push(row(["Over / (under)", "", "", "", "", tActual - tEst]));
 
   if (estimate.ledger.length) {
     lines.push("");
