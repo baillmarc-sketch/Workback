@@ -1,4 +1,12 @@
-import type { BidSpec } from "./types";
+import type { BidSpec, Provider } from "./types";
+
+const PROVIDER_LABEL: Record<Provider, string> = {
+  A: "Agency",
+  P: "Production Co.",
+  E: "Editor",
+  O: "Outside",
+  NA: "N/A",
+};
 
 /** Render a bid spec as a plain-text / Markdown document for copy or download. */
 export function specToText(spec: BidSpec): string {
@@ -19,7 +27,18 @@ export function specToText(spec: BidSpec): string {
 
   if (spec.specs.some((c) => c.title || c.length || c.versions)) {
     h("Commercial specs");
-    for (const c of spec.specs) if (c.title || c.length || c.versions) out.push(`- ${c.title} · ${c.length}${c.versions ? ` · ${c.versions}` : ""}`);
+    for (const c of spec.specs) {
+      if (!(c.title || c.length || c.versions)) continue;
+      const counts = [
+        c.ocp && `${c.ocp} OCP`,
+        c.exb && `${c.exb} EXB`,
+        c.vo && `${c.vo} VO`,
+        c.nonUnionExb && `${c.nonUnionExb} non-union EXB`,
+        c.hm && `${c.hm} HM`,
+        c.specialContract && `special: ${c.specialContract}`,
+      ].filter(Boolean);
+      out.push(`- ${c.title} · ${c.length}${c.versions ? ` · ${c.versions}` : ""}${counts.length ? ` — ${counts.join(", ")}` : ""}`);
+    }
   }
 
   h("Bidding format");
@@ -30,9 +49,15 @@ export function specToText(spec: BidSpec): string {
   const flags = spec.format.flags.filter((f) => f.on).map((f) => f.label);
   if (flags.length) out.push(`- Flags: ${flags.join(" · ")}`);
 
-  h("Agency vs production provided");
-  out.push("Agency provided: " + (spec.checklist.filter((c) => c.provider === "A").map((c) => c.label).join(", ") || "—"));
-  out.push("Production provided: " + (spec.checklist.filter((c) => c.provider === "P").map((c) => c.label).join(", ") || "—"));
+  const provided = (label: string, group: "production" | "editorial") => {
+    const items = spec.checklist.filter((c) => c.group === group && (c.label || c.provider !== "NA"));
+    if (!items.length) return;
+    out.push("", `**${label}**`);
+    for (const c of items) out.push(`- ${c.label}: ${PROVIDER_LABEL[c.provider]}`);
+  };
+  h("Provided by (A=Agency · P=Production Co. · E=Editor · O=Outside)");
+  provided("Production", "production");
+  provided("Editorial / Post", "editorial");
 
   if (spec.techSpecs.some((t) => t.label || t.value)) {
     h("Deliverable tech specs");
@@ -65,9 +90,15 @@ function csvCell(v: string): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-/** Render the provided-by checklist as CSV (Element, Provided by). */
+/** Render the provided-by checklist as CSV (Group, Element, Provided by). */
 export function checklistToCsv(spec: BidSpec): string {
-  const label: Record<string, string> = { A: "Agency", P: "Production Co.", NA: "N/A" };
-  const rows = [["Element", "Provided by"], ...spec.checklist.map((c) => [c.label, label[c.provider] ?? c.provider])];
+  const rows = [
+    ["Group", "Element", "Provided by"],
+    ...spec.checklist.map((c) => [
+      c.group === "editorial" ? "Editorial/Post" : "Production",
+      c.label,
+      PROVIDER_LABEL[c.provider] ?? c.provider,
+    ]),
+  ];
   return rows.map((r) => r.map(csvCell).join(",")).join("\n");
 }

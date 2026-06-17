@@ -27,23 +27,42 @@ export interface SpecContact {
   contact: string;
 }
 
-/** A commercial in the package: title, length, and cutdown/lift versions. */
+/** A commercial in the package: title, length, cutdown/lift versions, and the
+    talent counts that drive the bid (on-camera principals, extras, voiceovers,
+    non-union extras, hand models, plus any special-contract note). */
 export interface CommercialSpec {
   id: string;
   title: string;
   length: string;
   versions: string;
+  /** # On-Camera Principals */
+  ocp: string;
+  /** # Extras (union) */
+  exb: string;
+  /** # Voiceovers */
+  vo: string;
+  /** # Non-union Extras */
+  nonUnionExb: string;
+  /** # Hand Models */
+  hm: string;
+  /** Special contract note */
+  specialContract: string;
 }
 
-/** Who supplies a given element: the (A)gency, the (P)roduction company, or
-    not applicable. Mirrors the agency-provided / production-provided split on a
-    real bid specs sheet. */
-export type Provider = "A" | "P" | "NA";
+/** Who supplies a given element: the (A)gency, the (P)roduction company, the
+    (E)ditor, an (O)utside facility, or not applicable. Mirrors the
+    A / P / E / O columns on a classic AICP-style bid specs sheet. */
+export type Provider = "A" | "P" | "E" | "O" | "NA";
+
+/** Which grid a checklist item belongs to on the sheet. */
+export type ChecklistGroup = "production" | "editorial";
 
 export interface ChecklistItem {
   id: string;
   label: string;
   provider: Provider;
+  /** Production grid vs Editorial/Post grid. */
+  group: ChecklistGroup;
   note?: string;
 }
 
@@ -77,11 +96,13 @@ export interface Clause {
   order: number;
 }
 
-/** A named on/off flag in the bidding format (Film, HD, Bid as Package, …). */
+/** A named on/off flag in the bidding format (35mm, HDTV, Network, …). `group`
+    buckets it into a column of the format grid (Gauge, Capture, Sound, …). */
 export interface FormatFlag {
   id: string;
   label: string;
   on: boolean;
+  group: string;
 }
 
 export type BidType = "firm" | "costPlus";

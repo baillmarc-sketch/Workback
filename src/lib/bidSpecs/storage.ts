@@ -156,14 +156,25 @@ function migrateSpecs(raw: unknown): CommercialSpec[] {
       title: str(s!.title, ""),
       length: str(s!.length, ""),
       versions: str(s!.versions, ""),
+      ocp: str(s!.ocp, ""),
+      exb: str(s!.exb, ""),
+      vo: str(s!.vo, ""),
+      nonUnionExb: str(s!.nonUnionExb, ""),
+      hm: str(s!.hm, ""),
+      specialContract: str(s!.specialContract, ""),
     }));
 }
 
 function migrateFlags(raw: unknown): FormatFlag[] {
-  if (!Array.isArray(raw)) return DEFAULT_FORMAT_FLAGS.map((f) => ({ id: uid(), label: f.label, on: f.on }));
+  if (!Array.isArray(raw)) return defaultFlags();
   return (raw as Partial<FormatFlag>[])
     .filter((f) => f && typeof f.label === "string")
-    .map((f) => ({ id: str(f!.id, "") || uid(), label: str(f!.label, ""), on: f!.on === true }));
+    .map((f) => ({
+      id: str(f!.id, "") || uid(),
+      label: str(f!.label, ""),
+      on: f!.on === true,
+      group: str(f!.group, "Format"),
+    }));
 }
 
 function migrateFormat(raw: unknown): BiddingFormat {
@@ -178,7 +189,7 @@ function migrateFormat(raw: unknown): BiddingFormat {
 }
 
 function migrateProvider(v: unknown): Provider {
-  return v === "P" ? "P" : v === "NA" ? "NA" : "A";
+  return v === "P" || v === "E" || v === "O" || v === "NA" ? v : "A";
 }
 
 function migrateChecklist(raw: unknown): ChecklistItem[] {
@@ -189,6 +200,7 @@ function migrateChecklist(raw: unknown): ChecklistItem[] {
       id: str(c!.id, "") || uid(),
       label: str(c!.label, ""),
       provider: migrateProvider(c!.provider),
+      group: c!.group === "editorial" ? "editorial" : "production",
       note: typeof c!.note === "string" && c!.note ? c!.note : undefined,
     }));
 }
@@ -266,11 +278,15 @@ function defaultClauses(): Clause[] {
 }
 
 function defaultChecklist(): ChecklistItem[] {
-  return DEFAULT_CHECKLIST.map((c) => ({ id: uid(), label: c.label, provider: c.provider }));
+  return DEFAULT_CHECKLIST.map((c) => ({ id: uid(), label: c.label, provider: c.provider, group: c.group }));
 }
 
 function defaultTechSpecs(): TechSpec[] {
   return DEFAULT_TECH_SPECS.map(([label, value]) => ({ id: uid(), label, value }));
+}
+
+function defaultFlags(): FormatFlag[] {
+  return DEFAULT_FORMAT_FLAGS.map((f) => ({ id: uid(), label: f.label, on: f.on, group: f.group }));
 }
 
 function defaultFormat(): BiddingFormat {
@@ -279,8 +295,13 @@ function defaultFormat(): BiddingFormat {
     aicpForm: "AICP Bid Form (Jan 2023)",
     union: "SAG-AFTRA · DGA · IATSE",
     bidders: "3 (triple bid)",
-    flags: DEFAULT_FORMAT_FLAGS.map((f) => ({ id: uid(), label: f.label, on: f.on })),
+    flags: defaultFlags(),
   };
+}
+
+/** An empty commercial-spec row with the talent-count columns. */
+function emptySpec(): CommercialSpec {
+  return { id: uid(), title: "", length: "", versions: "", ocp: "", exb: "", vo: "", nonUnionExb: "", hm: "", specialContract: "" };
 }
 
 /** Build a new, empty-but-pre-structured bid spec ready to fill in. */
@@ -295,20 +316,25 @@ export function newBidSpec(): BidSpec {
     fields: [
       ["Client", ""],
       ["Product / Division", ""],
+      ["Category", ""],
       ["Job #", ""],
       ["Agency", ""],
       ["Bid Due (date & time)", ""],
       ["Q&A Deadline", ""],
       ["Award Date", ""],
-      ["Shoot Date(s)", ""],
+      ["Shoot Date(s) / Week Of", ""],
+      ["Ship Date", ""],
+      ["Air Date", ""],
       ["# Shoot Days", ""],
       ["# Locations", ""],
     ].map(([label, value]) => ({ id: uid(), label, value })),
     contacts: [
       { id: uid(), role: "Agency Producer", name: "", contact: "" },
-      { id: uid(), role: "Business Manager", name: "", contact: "" },
+      { id: uid(), role: "Business Affairs / Manager", name: "", contact: "" },
+      { id: uid(), role: "Production Co. / Director", name: "", contact: "" },
+      { id: uid(), role: "Editorial Co. / Editor", name: "", contact: "" },
     ],
-    specs: [{ id: uid(), title: "", length: "", versions: "" }],
+    specs: [emptySpec()],
     format: defaultFormat(),
     checklist: defaultChecklist(),
     techSpecs: defaultTechSpecs(),
@@ -331,30 +357,36 @@ export function sampleBidSpec(): BidSpec {
   return {
     ...base,
     title: "[Client] — Commercial Bid Specs",
-    subtitle: "[Product] · :30 + cutdowns · Big Game",
+    subtitle: "[Product] · :30 + cutdowns",
     fields: [
       ["Client", "[Client]"],
-      ["Product / Division", "[Product] — Big Game"],
+      ["Product / Division", "[Product]"],
+      ["Category", "[Category]"],
       ["Job #", ""],
       ["Agency", "[Agency]"],
       ["Bid Due (date & time)", "ASAP"],
       ["Q&A Deadline", "—"],
       ["Award Date", "[Award Date]"],
-      ["Shoot Date(s)", "[Shoot Date]"],
+      ["Shoot Date(s) / Week Of", "[Shoot Date]"],
+      ["Ship Date", "[Ship Date]"],
+      ["Air Date", "[Air Date]"],
       ["# Shoot Days", "1"],
       ["# Locations", "1"],
     ].map(([label, value]) => ({ id: uid(), label, value })),
     contacts: [
       { id: uid(), role: "Agency Producer", name: "[Producer Name]", contact: "[phone]" },
-      { id: uid(), role: "Business Manager", name: "[Business Manager]", contact: "[phone]" },
+      { id: uid(), role: "Business Affairs / Manager", name: "[Business Manager]", contact: "[phone]" },
       { id: uid(), role: "Agency CCO / ECD", name: "[Creative Lead]", contact: "" },
       { id: uid(), role: "Production Co. / Director", name: "[Production Co.] / [Director]", contact: "[email]" },
+      { id: uid(), role: "Editorial Co. / Editor", name: "[Editorial Co.] / [Editor]", contact: "[email]" },
     ],
-    specs: [{ id: uid(), title: "Big Game Party", length: ":30", versions: ":15L, :06L" }],
+    specs: [
+      { ...emptySpec(), title: "Brand Anthem", length: ":30", versions: ":15L, :06L", ocp: "6", exb: "8", vo: "1", nonUnionExb: "", hm: "1", specialContract: "" },
+    ],
     usage: [
       {
         id: uid(),
-        deliverable: "Big Game Party (:30 + :15L, :06L)",
+        deliverable: "Brand Anthem (:30 + :15L, :06L)",
         media: "TV / Internet / Industrial",
         territory: "US",
         term: "2 Months",
