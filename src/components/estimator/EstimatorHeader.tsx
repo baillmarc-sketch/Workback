@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { duplicateEstimate, saveEstimate } from "@/lib/estimator/storage";
 import { useEstimate } from "@/state/estimateStore";
 import AccountButton from "../AccountButton";
 
 export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: () => void }) {
-  const { estimate, commit } = useEstimate();
+  const { estimate, open, commit } = useEstimate();
   const [notesOpen, setNotesOpen] = useState(false);
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   if (!estimate) return null;
+
+  // Make an independent copy of the current estimate (version-bumped) and open
+  // it — handy for spinning up an alternate cut without touching the original.
+  const onDuplicate = () => {
+    saveEstimate(estimate, { setLastOpen: false }); // flush past the autosave debounce
+    const copy = duplicateEstimate(estimate.id);
+    if (copy) open(copy);
+  };
 
   return (
     <header className="no-print mb-5">
@@ -30,6 +39,13 @@ export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: 
           />
         </div>
         <div className="flex shrink-0 items-start gap-2">
+          <button
+            className="mt-1.5 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
+            onClick={onDuplicate}
+            title="Make an independent copy of this estimate (a new version)"
+          >
+            Duplicate
+          </button>
           <button
             className="mt-1.5 rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
             onClick={onOpenEstimates}
