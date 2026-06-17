@@ -153,6 +153,9 @@ export default function SpecEditor() {
                 {p.label}
               </span>
             ))}
+            <span className="w-8 text-center text-[10px] font-semibold text-ink-faint" title="Not applicable">
+              N/A
+            </span>
             <span className="w-4" />
           </div>
           {items.map((c) => (
@@ -176,6 +179,16 @@ export default function SpecEditor() {
                   {c.provider === p.key ? "✓" : "·"}
                 </button>
               ))}
+              <button
+                className={`flex h-5 w-8 items-center justify-center rounded text-[10px] font-semibold ${
+                  c.provider === "NA" ? "bg-ink text-paper" : "text-ink-faint hover:bg-paper"
+                }`}
+                title="Mark not applicable"
+                aria-pressed={c.provider === "NA"}
+                onClick={() => setItem(c.id, { provider: "NA" as Provider })}
+              >
+                N/A
+              </button>
               <button className={removeBtn} title="Remove element" onClick={() => removeItem(c.id)}>
                 ×
               </button>
