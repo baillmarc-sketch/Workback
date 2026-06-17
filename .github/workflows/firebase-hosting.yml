@@ -13,7 +13,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      # The security-rules tests run in the Realtime Database emulator (a Java process).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
       - run: npm ci
+      # Deploy guard: never publish a ruleset that fails the security-rules tests.
+      - run: npm run test:rules
       - run: npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

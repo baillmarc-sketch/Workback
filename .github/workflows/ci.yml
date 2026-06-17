@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # The Realtime Database emulator (for the security-rules tests) is a Java process.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run verify
+      - run: npm run smoke
+      # Security rules are the only access enforcement (static export, no server),
+      # so a rule regression must fail CI. Runs database.rules.json in the emulator.
+      - run: npm run test:rules

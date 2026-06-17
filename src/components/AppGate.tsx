@@ -1,20 +1,24 @@
 "use client";
 
 import { useAuth } from "@/state/auth";
-import { hasEntitlement } from "@/lib/entitlements";
+import { useAccess } from "@/state/access";
 import { appInfo, setApp, type AppId } from "@/lib/toolkit";
 import AccountButton from "./AccountButton";
 
 /**
- * Gates a private app behind the owner's account. Workback is public and always
- * passes; the Estimator requires the authorized Google account. The future
- * paywall changes only entitlements.ts and this fallback — call sites don't.
+ * Gates a private app behind a granted account. Workback is public and always
+ * passes; the Estimator requires an account that has been granted access (owner,
+ * admin, explicit grant, or invite — resolved in entitlements.ts). Access is
+ * data-driven via useAccess, so we wait for its snapshot before declaring an app
+ * private, to avoid a flash of "private" for an entitled non-owner.
  */
 export default function AppGate({ appId, children }: { appId: AppId; children: React.ReactNode }) {
-  const { user, ready } = useAuth();
+  const { user, ready: authReady } = useAuth();
+  const { can, ready: accessReady } = useAccess();
   const info = appInfo(appId);
+  const ready = authReady && accessReady;
 
-  if (hasEntitlement(user, appId)) return <>{children}</>;
+  if (can(appId)) return <>{children}</>;
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
@@ -23,8 +27,8 @@ export default function AppGate({ appId, children }: { appId: AppId; children: R
         {!ready
           ? "Checking your account…"
           : user
-            ? "This app is restricted to the owner's account. You're signed in with a different account."
-            : "Sign in with the authorized Google account to open this app."}
+            ? "This app is private. Your account hasn't been granted access — ask the owner to enable it for you."
+            : "Sign in to open this app. Access is granted per account."}
       </p>
       <div className="mt-5 flex items-center gap-2">
         <button

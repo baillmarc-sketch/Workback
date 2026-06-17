@@ -112,11 +112,14 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
                   <button
                     className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
                     onClick={() => {
-                      if (confirm(`Delete “${s.title || "Untitled Estimate"}”? This can't be undone.`)) {
+                      if (confirm(`Delete “${s.title || "Untitled Estimate"}”? You can recover it from the admin trash.`)) {
+                        // Capture the doc before the local delete so the remote
+                        // soft-delete can stash it for recovery.
+                        const doc = loadEstimate(s.id);
                         deleteEstimate(s.id);
                         if (user) {
                           getToken()
-                            .then((t) => (t ? deleteRemoteEstimate(user.uid, t, s.id) : undefined))
+                            .then((t) => (t ? deleteRemoteEstimate(user.uid, t, s.id, doc) : undefined))
                             .catch(() => {});
                         }
                         bump((n) => n + 1);
