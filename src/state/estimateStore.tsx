@@ -14,7 +14,9 @@ import type { Estimate } from "@/lib/estimator/types";
 import { saveEstimate } from "@/lib/estimator/storage";
 import { newShareId, publishEstimate } from "@/lib/estimator/cloud";
 import { pushEstimate } from "@/lib/estimator/account";
+import { saveTeamDoc } from "@/lib/teamWorkspace";
 import { useAuth } from "./auth";
+import type { Workspace } from "./store";
 
 export type SyncState = "idle" | "syncing" | "synced" | "offline";
 
@@ -76,7 +78,11 @@ interface Store {
   canRedo: boolean;
   /** Cloud sync status for estimates with a shareId */
   syncState: SyncState;
+  /** Which workspace the open estimate belongs to (drives where saves go). */
+  workspace: Workspace;
   open: (estimate: Estimate) => void;
+  /** Open an estimate that lives in a team's shared workspace. */
+  openInWorkspace: (estimate: Estimate, workspace: Workspace) => void;
   close: () => void;
   /** Undoable mutation — pushes onto the history stack */
   commit: (up: (e: Estimate) => Estimate) => void;
@@ -106,7 +112,20 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const open = useCallback((estimate: Estimate) => dispatch({ type: "open", estimate }), []);
+  const [workspace, setWorkspace] = useState<Workspace>({ kind: "personal" });
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+
+  const open = useCallback((estimate: Estimate) => {
+    workspaceRef.current = { kind: "personal" };
+    setWorkspace({ kind: "personal" });
+    dispatch({ type: "open", estimate });
+  }, []);
+  const openInWorkspace = useCallback((estimate: Estimate, ws: Workspace) => {
+    workspaceRef.current = ws;
+    setWorkspace(ws);
+    dispatch({ type: "open", estimate });
+  }, []);
   const close = useCallback(() => dispatch({ type: "close" }), []);
 
   const commit = useCallback((up: (e: Estimate) => Estimate) => {
@@ -131,12 +150,54 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
-  // Flush the latest state to localStorage the instant the tab is hidden or
-  // closed, so the autosave debounce can't drop the last edit.
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const lastPushedRef = useRef<string>("");
+  const lastAccountPushedRef = useRef<string>("");
+  const cloudInFlight = useRef(false);
+  const accountInFlight = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Team-workspace save (routes to /teamWorkspaces instead of local+account).
+  const teamStampRef = useRef<string>("");
+  const teamInFlight = useRef(false);
+  const flushTeam = useCallback(() => {
+    const e = stateRef.current.estimate;
+    const ws = workspaceRef.current;
+    if (!e || ws.kind !== "team") return;
+    const stamp = `${e.id}:${e.updatedAt}`;
+    if (teamStampRef.current === stamp) {
+      setSyncState("synced");
+      return;
+    }
+    if (teamInFlight.current) return;
+    const teamId = ws.teamId;
+    teamInFlight.current = true;
+    setSyncState("syncing");
+    getToken()
+      .then((token) => (token ? saveTeamDoc(teamId, "estimator", e, token) : Promise.reject(new Error("no token"))))
+      .then(() => {
+        teamStampRef.current = stamp;
+        teamInFlight.current = false;
+        const cur = stateRef.current.estimate;
+        if (cur && `${cur.id}:${cur.updatedAt}` !== stamp) flushTeam();
+        else setSyncState("synced");
+      })
+      .catch(() => {
+        teamInFlight.current = false;
+        setSyncState("offline");
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(flushTeam, CLOUD_RETRY_MS);
+      });
+  }, [getToken]);
+
+  // Flush the latest state on tab hide/close so the autosave debounce can't drop
+  // the last edit — to the team path for team docs, else localStorage.
   useEffect(() => {
     const flush = () => {
       const e = stateRef.current.estimate;
-      if (e) saveEstimate(e, { setLastOpen: false });
+      if (!e) return;
+      if (workspaceRef.current.kind === "team") flushTeam();
+      else saveEstimate(e, { setLastOpen: false });
     };
     const onVisible = () => {
       if (document.visibilityState === "hidden") flush();
@@ -147,19 +208,12 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [flushTeam]);
 
   // Auto-save: debounce localStorage writes; push shared estimates to the cloud
   // and signed-in users' estimates to their account. Pushes read the latest
   // estimate from the ref and de-dupe on a stamp, so a retry (new edit, focus,
   // or `online`) always syncs what's current — a failed push never stays stale.
-  const [syncState, setSyncState] = useState<SyncState>("idle");
-  const lastPushedRef = useRef<string>("");
-  const lastAccountPushedRef = useRef<string>("");
-  const cloudInFlight = useRef(false);
-  const accountInFlight = useRef(false);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
   const flushCloud = useCallback(() => {
     const run = () => {
       const e = stateRef.current.estimate;
@@ -211,6 +265,12 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.estimate) return;
     const e = state.estimate;
+    // Team estimates save only to the shared team path — never the personal
+    // index or the user's account.
+    if (workspace.kind === "team") {
+      const tTeam = setTimeout(flushTeam, 600);
+      return () => clearTimeout(tTeam);
+    }
     const tLocal = setTimeout(() => saveEstimate(e), 250);
     const tCloud = setTimeout(flushCloud, 1200);
     const tAccount = setTimeout(flushAccount, 1200);
@@ -219,12 +279,13 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(tCloud);
       clearTimeout(tAccount);
     };
-  }, [state.estimate, flushCloud, flushAccount]);
+  }, [state.estimate, workspace.kind, flushCloud, flushAccount, flushTeam]);
 
   useEffect(() => {
     const retry = () => {
       flushCloud();
       flushAccount();
+      flushTeam();
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") retry();
@@ -237,7 +298,7 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", retry);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [flushCloud, flushAccount]);
+  }, [flushCloud, flushAccount, flushTeam]);
 
   const value = useMemo<Store>(
     () => ({
@@ -245,14 +306,16 @@ export function EstimateProvider({ children }: { children: React.ReactNode }) {
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
       syncState,
+      workspace,
       open,
+      openInWorkspace,
       close,
       commit,
       patch,
       undo,
       redo,
     }),
-    [state.estimate, state.past.length, state.future.length, syncState, open, close, commit, patch, undo, redo]
+    [state.estimate, state.past.length, state.future.length, syncState, workspace, open, openInWorkspace, close, commit, patch, undo, redo]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

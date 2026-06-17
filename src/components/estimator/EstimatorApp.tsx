@@ -5,6 +5,7 @@ import { useAuth } from "@/state/auth";
 import { useEstimate } from "@/state/estimateStore";
 import { estimateShareUrl, fetchEstimate, newShareId } from "@/lib/estimator/cloud";
 import { syncEstimates } from "@/lib/estimator/account";
+import { teamHeartbeat, teamLeave, teamReadOthers } from "@/lib/teamWorkspace";
 import {
   lastOpenId,
   listEstimates,
@@ -27,13 +28,24 @@ import type { ViewMode } from "./ViewToggle";
 
 type Dialog = "estimates" | "export" | "adjustments" | "print" | "help" | null;
 
+/** "Alex" · "Alex and Sam" · "Alex, Sam and 2 others" — for the live viewers line. */
+function formatViewers(names: string[]): string {
+  const u = [...new Set(names)];
+  if (u.length === 1) return u[0];
+  if (u.length === 2) return `${u[0]} and ${u[1]}`;
+  return `${u[0]}, ${u[1]} and ${u.length - 2} other${u.length - 2 === 1 ? "" : "s"}`;
+}
+
 export default function EstimatorApp() {
-  const { estimate, open, patch, undo, redo } = useEstimate();
+  const { estimate, open, patch, undo, redo, workspace } = useEstimate();
   const { user, getToken } = useAuth();
   const [mode, setMode] = useState<ViewMode>("all");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [printConfig, setPrintConfig] = useState<PrintConfig | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [viewers, setViewers] = useState<string[]>([]);
+  const sessionIdRef = useRef<string>("");
+  if (!sessionIdRef.current) sessionIdRef.current = newShareId();
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -108,6 +120,36 @@ export default function EstimatorApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Live presence on team estimates: who else is viewing, by name (member-gated).
+  const teamId = workspace.kind === "team" ? workspace.teamId : null;
+  const docId = estimate?.id ?? null;
+  useEffect(() => {
+    if (!teamId || !docId) {
+      setViewers([]);
+      return;
+    }
+    const sid = sessionIdRef.current;
+    const name = (user?.name || user?.email || "A teammate").trim();
+    let cancelled = false;
+    const tick = async () => {
+      const token = await getToken();
+      if (!token) return;
+      await teamHeartbeat(teamId, "estimator", docId, sid, name, token);
+      const list = await teamReadOthers(teamId, "estimator", docId, sid, token);
+      if (!cancelled) setViewers(list.map((p) => p.name));
+    };
+    tick();
+    const iv = setInterval(tick, 12_000);
+    const onBye = () => getToken().then((t) => t && teamLeave(teamId, "estimator", docId, sid, t));
+    window.addEventListener("pagehide", onBye);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      window.removeEventListener("pagehide", onBye);
+      getToken().then((t) => t && teamLeave(teamId, "estimator", docId, sid, t));
+    };
+  }, [teamId, docId, user, getToken]);
+
   // Undo/redo + help keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -166,6 +208,12 @@ export default function EstimatorApp() {
             setDialog("print");
           }}
         />
+        {viewers.length > 0 && (
+          <div className="mb-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] text-ink-soft">
+            <span className="h-2 w-2 rounded-full bg-[#10B981]" />
+            {formatViewers(viewers)} {viewers.length === 1 ? "is" : "are"} viewing this team estimate right now.
+          </div>
+        )}
         <ProjectDetailsPanel key={estimate.id} />
         {mode === "actuals" ? <ActualsGrid /> : <EstimateGrid mode={mode} />}
 

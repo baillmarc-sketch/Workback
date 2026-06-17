@@ -13,6 +13,7 @@ import {
 import { NOTICE_EVENT } from "@/lib/notify";
 import { addDaysKey, addMonthsKey, durationDays, snapWorkday, todayKey } from "@/lib/dates";
 import { heartbeat, leave, readOthers } from "@/lib/presence";
+import { teamHeartbeat, teamLeave, teamReadOthers } from "@/lib/teamWorkspace";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
 import {
   lastOpenId,
@@ -57,8 +58,16 @@ function rectToAnchor(r: DOMRect): Anchor {
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 }
 
+/** "Alex" · "Alex and Sam" · "Alex, Sam and 2 others" — for the live viewers line. */
+function formatViewers(names: string[]): string {
+  const u = [...new Set(names)];
+  if (u.length === 1) return u[0];
+  if (u.length === 2) return `${u[0]} and ${u[1]}`;
+  return `${u[0]}, ${u[1]} and ${u.length - 2} other${u.length - 2 === 1 ? "" : "s"}`;
+}
+
 export default function App() {
-  const { project, open, commit, patch, undo, redo } = useStore();
+  const { project, open, commit, patch, undo, redo, workspace } = useStore();
   const { user, getToken } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editAnchor, setEditAnchor] = useState<Anchor | null>(null);
@@ -67,7 +76,7 @@ export default function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [downstreamMode, setDownstreamMode] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [others, setOthers] = useState(0);
+  const [viewers, setViewers] = useState<string[]>([]);
   const [remoteAhead, setRemoteAhead] = useState<Project | null>(null);
   const dismissedRemoteRef = useRef(0);
   const projectRef = useRef(project);
@@ -337,34 +346,59 @@ export default function App() {
     showToast("Link reset — old links no longer work");
   }, [project, patch, showToast]);
 
-  // Live presence on shared projects: heartbeat + poll for other open tabs
+  // Live presence: who else is viewing this calendar right now, by name.
+  // Team workspaces use the member-gated team presence (full names, trusted);
+  // a shared link uses the open /shared presence (first name only, since anyone
+  // with the link can read it).
+  const teamId = workspace.kind === "team" ? workspace.teamId : null;
+  const docId = project?.id ?? null;
+  const shareId = project?.shareId ?? null;
   useEffect(() => {
-    const shareId = project?.shareId;
-    if (!shareId) {
-      setOthers(0);
-      return;
-    }
     const sid = sessionIdRef.current;
-    // Only a first name goes into the shared doc — never the email (anyone with
-    // the link can read presence)
-    const name = (user?.name || "").trim().split(/\s+/)[0] || "A collaborator";
     let cancelled = false;
-    const tick = async () => {
-      await heartbeat(shareId, sid, name);
-      const list = await readOthers(shareId, sid);
-      if (!cancelled) setOthers(list.length);
-    };
-    tick();
-    const iv = setInterval(tick, 12_000);
-    const onBye = () => leave(shareId, sid);
-    window.addEventListener("pagehide", onBye);
-    return () => {
-      cancelled = true;
-      clearInterval(iv);
-      window.removeEventListener("pagehide", onBye);
-      leave(shareId, sid);
-    };
-  }, [project?.shareId, user]);
+
+    if (teamId && docId) {
+      const name = (user?.name || user?.email || "A teammate").trim();
+      const tick = async () => {
+        const token = await getToken();
+        if (!token) return;
+        await teamHeartbeat(teamId, "workback", docId, sid, name, token);
+        const list = await teamReadOthers(teamId, "workback", docId, sid, token);
+        if (!cancelled) setViewers(list.map((p) => p.name));
+      };
+      tick();
+      const iv = setInterval(tick, 12_000);
+      const onBye = () => getToken().then((t) => t && teamLeave(teamId, "workback", docId, sid, t));
+      window.addEventListener("pagehide", onBye);
+      return () => {
+        cancelled = true;
+        clearInterval(iv);
+        window.removeEventListener("pagehide", onBye);
+        getToken().then((t) => t && teamLeave(teamId, "workback", docId, sid, t));
+      };
+    }
+
+    if (shareId) {
+      const name = (user?.name || "").trim().split(/\s+/)[0] || "A collaborator";
+      const tick = async () => {
+        await heartbeat(shareId, sid, name);
+        const list = await readOthers(shareId, sid);
+        if (!cancelled) setViewers(list.map((p) => p.name));
+      };
+      tick();
+      const iv = setInterval(tick, 12_000);
+      const onBye = () => leave(shareId, sid);
+      window.addEventListener("pagehide", onBye);
+      return () => {
+        cancelled = true;
+        clearInterval(iv);
+        window.removeEventListener("pagehide", onBye);
+        leave(shareId, sid);
+      };
+    }
+
+    setViewers([]);
+  }, [teamId, docId, shareId, user, getToken]);
 
   // Months that actually contain events — what Print/PDF renders (one per page)
   const activeMonths = useMemo(() => {
@@ -539,11 +573,11 @@ export default function App() {
         onHistory={() => setDialog("history")}
       />
 
-      {others > 0 && (
+      {viewers.length > 0 && (
         <div className="no-print mb-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] text-ink-soft">
           <span className="h-2 w-2 rounded-full bg-[#10B981]" />
-          {others} {others === 1 ? "other person is" : "other people are"} editing this shared
-          calendar right now.
+          {formatViewers(viewers)} {viewers.length === 1 ? "is" : "are"} viewing this{" "}
+          {workspace.kind === "team" ? "team file" : "shared calendar"} right now.
         </div>
       )}
 

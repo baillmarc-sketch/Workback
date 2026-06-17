@@ -10,6 +10,7 @@ import {
   setMembership,
   setTeamGrant,
   syncTeamEntitlements,
+  syncUserTeams,
   type Team,
 } from "@/lib/admin/teams";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
@@ -72,6 +73,8 @@ export default function TeamsSection() {
       const token = await getToken();
       if (token) {
         await renameTeam(token, id, n);
+        // Refresh the name in each member's /userTeams mirror.
+        await syncUserTeams(token, Object.keys(teams?.find((t) => t.id === id)?.members ?? {}));
         if (user) await logAudit(token, user, "rename_team", n, prevName ? `was "${prevName}"` : undefined);
       }
       setTeams((cur) => cur?.map((t) => (t.id === id ? { ...t, name: n } : t)) ?? null);
@@ -87,8 +90,9 @@ export default function TeamsSection() {
       if (token) {
         await deleteTeam(token, team.id);
         if (user) await logAudit(token, user, "delete_team", team.name);
-        // If the team granted access, recompute its former members so the grant
-        // they had via this team is withdrawn (unless held elsewhere).
+        // Drop the team from former members' mirror, and recompute their
+        // team-derived Estimator grant (it may have come from this team).
+        await syncUserTeams(token, Object.keys(team.members));
         if (team.grantsEstimator) await syncTeamEntitlements(token, Object.keys(team.members));
       }
       setTeams((cur) => cur?.filter((t) => t.id !== team.id) ?? null);
@@ -134,7 +138,8 @@ export default function TeamsSection() {
       const token = await getToken();
       if (token) {
         await setMembership(token, team.id, uid, inTeam);
-        // Keep the member's team-derived Estimator grant in sync with membership.
+        // Keep the member's team list mirror + team-derived grant in sync.
+        await syncUserTeams(token, [uid]);
         if (team.grantsEstimator) await syncTeamEntitlements(token, [uid]);
         if (user) {
           const who = registry.find((r) => r.uid === uid)?.email ?? uid;

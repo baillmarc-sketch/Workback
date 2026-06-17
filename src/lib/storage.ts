@@ -1,5 +1,6 @@
 import type { Closure, Project, ProjectCategory, ProjectSummary } from "./types";
 import { uid } from "./types";
+import { migrateAuthor } from "./author";
 import { DEFAULT_CATEGORIES, PLACEHOLDER_COLOR, humanize } from "./categories";
 import { templateById, type TemplateId } from "./templates";
 import { monthKey, todayKey, addDaysKey } from "./dates";
@@ -241,6 +242,7 @@ export function migrate(data: unknown): Project {
     printNotes: p.printNotes ? true : undefined,
     printGrayscale: p.printGrayscale ? true : undefined,
     shareId: typeof p.shareId === "string" && p.shareId ? p.shareId : undefined,
+    createdBy: migrateAuthor(p.createdBy),
     createdAt: p.createdAt ?? Date.now(),
     updatedAt: p.updatedAt ?? Date.now(),
   };

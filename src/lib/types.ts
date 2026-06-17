@@ -1,3 +1,5 @@
+import type { Author } from "./author";
+
 export type CategoryId = string;
 
 /** A per-project label: events reference the id, so renames never touch events */
@@ -63,6 +65,8 @@ export interface Project {
   printGrayscale?: boolean;
   /** Set when published to the shared cloud copy — the link channel ID */
   shareId?: string;
+  /** Who created this file (team-workspace attribution; absent for old/personal docs) */
+  createdBy?: Author;
   createdAt: number;
   updatedAt: number;
 }

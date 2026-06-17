@@ -15,9 +15,14 @@ import { saveProject } from "@/lib/storage";
 import { describeChange, pushHistory } from "@/lib/history";
 import { newShareId, publishProject } from "@/lib/cloud";
 import { pushProject } from "@/lib/account";
+import { saveTeamDoc } from "@/lib/teamWorkspace";
 import { useAuth } from "./auth";
 
 export type SyncState = "idle" | "syncing" | "synced" | "offline";
+
+/** Where the open project lives: the user's personal space, or a team's shared
+ *  workspace (saves route to /teamWorkspaces/{teamId} instead of local+account). */
+export type Workspace = { kind: "personal" } | { kind: "team"; teamId: string };
 
 const HISTORY_LIMIT = 20;
 /** How long to wait before re-attempting a failed cloud push when nothing else
@@ -78,7 +83,11 @@ interface Store {
   canRedo: boolean;
   /** Cloud sync status for projects with a shareId */
   syncState: SyncState;
+  /** Which workspace the open project belongs to (drives where saves go). */
+  workspace: Workspace;
   open: (project: Project) => void;
+  /** Open a project that lives in a team's shared workspace. */
+  openInWorkspace: (project: Project, workspace: Workspace) => void;
   close: () => void;
   /** Undoable mutation — pushes onto the history stack */
   commit: (up: (p: Project) => Project) => void;
@@ -104,7 +113,22 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const open = useCallback((project: Project) => dispatch({ type: "open", project }), []);
+  // Active workspace. The ref mirrors it so the flush callbacks (which run off a
+  // stable closure) always see the current workspace synchronously after open.
+  const [workspace, setWorkspace] = useState<Workspace>({ kind: "personal" });
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+
+  const open = useCallback((project: Project) => {
+    workspaceRef.current = { kind: "personal" };
+    setWorkspace({ kind: "personal" });
+    dispatch({ type: "open", project });
+  }, []);
+  const openInWorkspace = useCallback((project: Project, ws: Workspace) => {
+    workspaceRef.current = ws;
+    setWorkspace(ws);
+    dispatch({ type: "open", project });
+  }, []);
   const close = useCallback(() => dispatch({ type: "close" }), []);
 
   const commit = useCallback((up: (p: Project) => Project) => {
@@ -134,12 +158,54 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
-  // Flush the latest state to localStorage the instant the tab is hidden or
-  // closed, so the 250ms autosave debounce can't drop the last edit.
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const lastPushedRef = useRef<string>("");
+  const lastAccountPushedRef = useRef<string>("");
+  const cloudInFlight = useRef(false);
+  const accountInFlight = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Team-workspace save (routes to /teamWorkspaces instead of local+account),
+  // mirroring flushCloud's de-dupe/retry shape.
+  const teamStampRef = useRef<string>("");
+  const teamInFlight = useRef(false);
+  const flushTeam = useCallback(() => {
+    const p = stateRef.current.project;
+    const ws = workspaceRef.current;
+    if (!p || ws.kind !== "team") return;
+    const stamp = `${p.id}:${p.updatedAt}`;
+    if (teamStampRef.current === stamp) {
+      setSyncState("synced");
+      return;
+    }
+    if (teamInFlight.current) return;
+    const teamId = ws.teamId;
+    teamInFlight.current = true;
+    setSyncState("syncing");
+    getToken()
+      .then((token) => (token ? saveTeamDoc(teamId, "workback", p, token) : Promise.reject(new Error("no token"))))
+      .then(() => {
+        teamStampRef.current = stamp;
+        teamInFlight.current = false;
+        const cur = stateRef.current.project;
+        if (cur && `${cur.id}:${cur.updatedAt}` !== stamp) flushTeam();
+        else setSyncState("synced");
+      })
+      .catch(() => {
+        teamInFlight.current = false;
+        setSyncState("offline");
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(flushTeam, CLOUD_RETRY_MS);
+      });
+  }, [getToken]);
+
   useEffect(() => {
     const flush = () => {
       const p = stateRef.current.project;
-      if (p) saveProject(p, { setLastOpen: false });
+      if (!p) return;
+      // Team docs save to the cloud (best-effort on hide); personal to localStorage.
+      if (workspaceRef.current.kind === "team") flushTeam();
+      else saveProject(p, { setLastOpen: false });
     };
     const onVisible = () => {
       if (document.visibilityState === "hidden") flush();
@@ -150,20 +216,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [flushTeam]);
 
   // Auto-save: debounce writes to localStorage on every change, and push shared
   // projects to the cloud copy and signed-in users' projects to their account.
   // The push helpers read the latest project from the ref and de-dupe on a
   // per-state stamp, so a retry (new edit, regained focus, or `online`) always
   // syncs whatever is current — a failed push never stays silently stale.
-  const [syncState, setSyncState] = useState<SyncState>("idle");
-  const lastPushedRef = useRef<string>("");
-  const lastAccountPushedRef = useRef<string>("");
-  const cloudInFlight = useRef(false);
-  const accountInFlight = useRef(false);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
   const flushCloud = useCallback(() => {
     const run = () => {
       const p = stateRef.current.project;
@@ -216,6 +275,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.project) return;
     const p = state.project;
+    // Team docs save only to the shared team path — never the personal index or
+    // the user's account (they'd otherwise leak into "My calendars").
+    if (workspace.kind === "team") {
+      const tTeam = setTimeout(flushTeam, 600);
+      return () => clearTimeout(tTeam);
+    }
     const tLocal = setTimeout(() => saveProject(p), 250);
     const tCloud = setTimeout(flushCloud, 1200);
     const tAccount = setTimeout(flushAccount, 1200);
@@ -224,7 +289,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(tCloud);
       clearTimeout(tAccount);
     };
-  }, [state.project, flushCloud, flushAccount]);
+  }, [state.project, workspace.kind, flushCloud, flushAccount, flushTeam]);
 
   // Retry pending pushes the moment connectivity or focus returns — not only on
   // the next edit. This is what keeps "saved" honest after a transient failure.
@@ -232,6 +297,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const retry = () => {
       flushCloud();
       flushAccount();
+      flushTeam();
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") retry();
@@ -244,7 +310,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", retry);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [flushCloud, flushAccount]);
+  }, [flushCloud, flushAccount, flushTeam]);
 
   const value = useMemo<Store>(
     () => ({
@@ -252,14 +318,16 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
       syncState,
+      workspace,
       open,
+      openInWorkspace,
       close,
       commit,
       patch,
       undo,
       redo,
     }),
-    [state.project, state.past.length, state.future.length, syncState, open, close, commit, patch, undo, redo]
+    [state.project, state.past.length, state.future.length, syncState, workspace, open, openInWorkspace, close, commit, patch, undo, redo]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
