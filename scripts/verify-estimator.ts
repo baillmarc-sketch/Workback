@@ -527,6 +527,14 @@ function check(name: string, cond: boolean, detail?: unknown) {
   // Totals: A = 2000 + 200 + 500 = 2700; B = 2000 + 100 + 500 = 2600.
   check("scope: total A = 2700", columnTotal(est, colA) === 2700);
   check("scope: total B = 2600", columnTotal(est, colB) === 2600);
+  // Excluding EVERY section zeroes a percent adjustment (the grid flags this).
+  est.columns[1].adjustmentSectionsOff = { "mk:sP": true, "mk:sO": true };
+  check("scope: all sections off -> markup 0", columnAdjustmentAmount(est, colB, markup) === 0);
+  check(
+    "scope: all sections off -> total = subtotal + flat",
+    columnTotal(est, colB) === 2500
+  );
+  est.columns[1].adjustmentSectionsOff = { "mk:sO": true }; // restore for later checks
 
   // Width + section opt-out persistence round-trip.
   est.columns[1].width = 240;

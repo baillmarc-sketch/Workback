@@ -13,7 +13,7 @@
       "$shareId": {
         ".read": true,
         ".write": true,
-        ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber()"
+        ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
       }
     },
     "users": {
@@ -32,7 +32,7 @@
         },
         "estimates": {
           "$eid": {
-            ".validate": "newData.hasChildren(['id', 'updatedAt'])"
+            ".validate": "newData.hasChildren(['id', 'updatedAt']) && (!data.exists() || !data.hasChild('updatedAt') || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
           }
         },
         "estimatesDeleted": {
