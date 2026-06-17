@@ -8,9 +8,9 @@
     "build:pages": "PAGES_BASE=/Workback next build && rm -rf docs && cp -r out docs && touch docs/.nojekyll",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts",
+    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts && npx -y tsx scripts/verify-bidspecs.ts",
     "stress": "npx -y tsx scripts/stress-estimator.ts",
-    "smoke": "npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-ui.tsx",
+    "smoke": "npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-ui.tsx && npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-bidspecs.tsx",
     "battle": "npm run verify && npm run stress && npm run smoke"
   },
   "dependencies": {

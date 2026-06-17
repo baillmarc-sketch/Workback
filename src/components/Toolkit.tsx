@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { parseAppFromHash, type AppId } from "@/lib/toolkit";
 import { ProjectProvider } from "@/state/store";
 import { EstimateProvider } from "@/state/estimateStore";
+import { BidSpecsProvider } from "@/state/bidSpecsStore";
 import AppBar from "./AppBar";
 import AppGate from "./AppGate";
 import App from "./App";
 import EstimatorApp from "./estimator/EstimatorApp";
+import BidSpecsApp from "./bidSpecs/BidSpecsApp";
 
 /**
  * Platform shell. Workback is the default landing and is public; the Estimator
@@ -35,6 +37,12 @@ export default function Toolkit() {
           <EstimateProvider>
             <EstimatorApp />
           </EstimateProvider>
+        </AppGate>
+      ) : active === "bid-specs" ? (
+        <AppGate appId="bid-specs">
+          <BidSpecsProvider>
+            <BidSpecsApp />
+          </BidSpecsProvider>
         </AppGate>
       ) : (
         <ProjectProvider>
