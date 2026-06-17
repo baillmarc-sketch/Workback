@@ -20,7 +20,10 @@ export type AuditAction =
   | "recover_estimate"
   | "purge_trash"
   | "create_team"
-  | "delete_team";
+  | "delete_team"
+  | "rename_team"
+  | "set_team_membership"
+  | "view_user_data";
 
 export interface AuditEntry {
   id: string;

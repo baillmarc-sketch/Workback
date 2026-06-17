@@ -17,6 +17,9 @@ const LABELS: Record<string, string> = {
   purge_trash: "Emptied trash",
   create_team: "Created team",
   delete_team: "Deleted team",
+  rename_team: "Renamed team",
+  set_team_membership: "Changed team membership",
+  view_user_data: "Viewed user data",
 };
 
 /** Read-only feed of admin actions (append-only; immutable per the rules). */

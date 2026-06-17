@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/users";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
 import { logAudit } from "@/lib/admin/audit";
+import ConfirmDialog, { type ConfirmOptions } from "../ConfirmDialog";
 import Toggle from "./Toggle";
 import UserDataDrawer from "./UserDataDrawer";
 
@@ -27,6 +28,7 @@ export default function UsersSection() {
   const [maps, setMaps] = useState<AccessMaps>(EMPTY_MAPS);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<RegistryUser | null>(null);
+  const [pending, setPending] = useState<(ConfirmOptions & { run: () => void }) | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -45,7 +47,27 @@ export default function UsersSection() {
     load();
   }, [load]);
 
-  async function onToggleEstimator(u: RegistryUser, next: boolean) {
+  function onToggleEstimator(u: RegistryUser, next: boolean) {
+    // Granting is one-click; revoking access is gated behind a confirm.
+    if (!next) {
+      setPending({
+        title: "Revoke Estimator",
+        danger: true,
+        confirmLabel: "Revoke",
+        body: (
+          <>
+            Revoke Estimator access for <strong>{u.email}</strong>? Their own estimates stay intact;
+            they just lose access until re-granted.
+          </>
+        ),
+        run: () => doToggleEstimator(u, false),
+      });
+      return;
+    }
+    doToggleEstimator(u, true);
+  }
+
+  async function doToggleEstimator(u: RegistryUser, next: boolean) {
     // optimistic
     setMaps((m) => ({
       ...m,
@@ -62,7 +84,27 @@ export default function UsersSection() {
     }
   }
 
-  async function onChangeRole(u: RegistryUser, role: Role) {
+  function onChangeRole(u: RegistryUser, role: Role) {
+    // Demoting an admin to member removes their elevated access — confirm it.
+    const wasAdmin = !!maps.admins[u.uid] || (maps.roles[u.uid] ?? "member") !== "member";
+    if (role === "member" && wasAdmin) {
+      setPending({
+        title: "Remove admin",
+        danger: true,
+        confirmLabel: "Demote to member",
+        body: (
+          <>
+            Demote <strong>{u.email}</strong> to member? They lose admin access to this panel.
+          </>
+        ),
+        run: () => doChangeRole(u, role),
+      });
+      return;
+    }
+    doChangeRole(u, role);
+  }
+
+  async function doChangeRole(u: RegistryUser, role: Role) {
     const prev = maps;
     setMaps((m) => ({
       ...m,
@@ -177,6 +219,17 @@ export default function UsersSection() {
             );
           })}
         </div>
+      )}
+
+      {pending && (
+        <ConfirmDialog
+          title={pending.title}
+          body={pending.body}
+          confirmLabel={pending.confirmLabel}
+          danger={pending.danger}
+          onConfirm={pending.run}
+          onClose={() => setPending(null)}
+        />
       )}
     </div>
   );

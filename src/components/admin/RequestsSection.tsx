@@ -9,6 +9,7 @@ import {
   type AccessRequest,
 } from "@/lib/admin/requests";
 import { logAudit } from "@/lib/admin/audit";
+import ConfirmDialog from "../ConfirmDialog";
 
 /** Pending self-service access requests. Approve grants Estimator (and clears
     the request); Dismiss declines without granting. Both are logged. */
@@ -17,6 +18,7 @@ export default function RequestsSection({ onCount }: { onCount?: (n: number) => 
   const [requests, setRequests] = useState<AccessRequest[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [dismissAsk, setDismissAsk] = useState<AccessRequest | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -106,7 +108,7 @@ export default function RequestsSection({ onCount }: { onCount?: (n: number) => 
                 <button
                   className="rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger disabled:opacity-50"
                   disabled={busy === r.uid}
-                  onClick={() => resolve(r, false)}
+                  onClick={() => setDismissAsk(r)}
                 >
                   Dismiss
                 </button>
@@ -114,6 +116,22 @@ export default function RequestsSection({ onCount }: { onCount?: (n: number) => 
             </div>
           ))}
         </div>
+      )}
+
+      {dismissAsk && (
+        <ConfirmDialog
+          title="Dismiss request"
+          danger
+          confirmLabel="Dismiss"
+          body={
+            <>
+              Dismiss the access request from <strong>{dismissAsk.email}</strong> without granting
+              it? They can request again later.
+            </>
+          }
+          onConfirm={() => resolve(dismissAsk, false)}
+          onClose={() => setDismissAsk(null)}
+        />
       )}
     </div>
   );

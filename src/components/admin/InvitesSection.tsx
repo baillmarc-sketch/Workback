@@ -5,6 +5,7 @@ import { useAuth } from "@/state/auth";
 import { createInvite, listInvites, revokeInvite, type Invite } from "@/lib/admin/invites";
 import { listRegistry } from "@/lib/admin/registry";
 import { logAudit } from "@/lib/admin/audit";
+import ConfirmDialog from "../ConfirmDialog";
 import Toggle from "./Toggle";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -19,6 +20,7 @@ export default function InvitesSection() {
   const [estimator, setEstimator] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [revokeAsk, setRevokeAsk] = useState<Invite | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -125,13 +127,31 @@ export default function InvitesSection() {
               </div>
               <button
                 className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
-                onClick={() => revoke(i.emailKey)}
+                onClick={() => setRevokeAsk(i)}
               >
                 Revoke
               </button>
             </div>
           ))}
         </div>
+      )}
+
+      {revokeAsk && (
+        <ConfirmDialog
+          title="Revoke invite"
+          danger
+          confirmLabel="Revoke"
+          body={
+            <>
+              Revoke the invite for <strong>{revokeAsk.email}</strong>?{" "}
+              {knownKeys.has(revokeAsk.emailKey)
+                ? "They've already signed in — revoking the invite won't remove an entitlement they've been granted directly."
+                : "They won't get access on first sign-in."}
+            </>
+          }
+          onConfirm={() => revoke(revokeAsk.emailKey)}
+          onClose={() => setRevokeAsk(null)}
+        />
       )}
     </div>
   );

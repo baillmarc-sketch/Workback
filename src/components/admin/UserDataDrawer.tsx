@@ -10,6 +10,7 @@ import { fetchUserEstimates, fetchUserProjects, fetchUserTrash, purgeUserTrash }
 import { recoverRemoteProject } from "@/lib/account";
 import { recoverRemoteEstimate } from "@/lib/estimator/account";
 import { logAudit } from "@/lib/admin/audit";
+import ConfirmDialog from "../ConfirmDialog";
 import { ReadOnlyEstimateView, ReadOnlyProjectView } from "./ReadOnlyStores";
 
 type Tab = "calendars" | "estimates" | "trash";
@@ -41,8 +42,24 @@ export default function UserDataDrawer({
   const [openEstimate, setOpenEstimate] = useState<Estimate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [purgeAsk, setPurgeAsk] = useState<{ beforeMs?: number } | null>(null);
 
   const backToList = openProject || openEstimate;
+
+  // Opening a user's data is itself an auditable event (admin reading someone
+  // else's projects/estimates), logged once per open.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await getToken();
+      if (cancelled || !token || !actor) return;
+      logAudit(token, actor, "view_user_data", user.email);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.uid]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,8 +123,6 @@ export default function UserDataDrawer({
   }
 
   async function purge(beforeMs?: number) {
-    const label = beforeMs ? "older than 30 days" : "all";
-    if (!confirm(`Permanently delete ${label} trashed items for ${user.email}? This can't be undone.`)) return;
     setBusy("purge");
     setError(null);
     try {
@@ -228,14 +243,14 @@ export default function UserDataDrawer({
           <button
             className="rounded-md border border-hairline px-2.5 py-1 text-[11.5px] font-medium text-ink-soft hover:text-ink disabled:opacity-50"
             disabled={busy === "purge"}
-            onClick={() => purge(Date.now() - 30 * 24 * 60 * 60 * 1000)}
+            onClick={() => setPurgeAsk({ beforeMs: Date.now() - 30 * 24 * 60 * 60 * 1000 })}
           >
             Purge &gt; 30 days
           </button>
           <button
             className="rounded-md px-2.5 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger disabled:opacity-50"
             disabled={busy === "purge"}
-            onClick={() => purge()}
+            onClick={() => setPurgeAsk({})}
           >
             {busy === "purge" ? "Emptying…" : "Empty trash"}
           </button>
@@ -331,6 +346,22 @@ export default function UserDataDrawer({
       <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
         <div className="mx-auto max-w-[1400px]">{body()}</div>
       </div>
+
+      {purgeAsk && (
+        <ConfirmDialog
+          title="Permanently delete trash"
+          danger
+          confirmLabel="Delete permanently"
+          body={
+            <>
+              Permanently delete {purgeAsk.beforeMs ? "trashed items older than 30 days" : "all trashed items"} for{" "}
+              <strong>{user.email}</strong>? This frees storage but can&apos;t be undone.
+            </>
+          }
+          onConfirm={() => purge(purgeAsk.beforeMs)}
+          onClose={() => setPurgeAsk(null)}
+        />
+      )}
     </div>,
     document.body
   );

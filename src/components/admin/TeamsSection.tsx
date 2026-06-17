@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/teams";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
 import { logAudit } from "@/lib/admin/audit";
+import ConfirmDialog from "../ConfirmDialog";
 import Toggle from "./Toggle";
 
 export default function TeamsSection() {
@@ -22,6 +23,7 @@ export default function TeamsSection() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteAsk, setDeleteAsk] = useState<Team | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -62,25 +64,28 @@ export default function TeamsSection() {
   async function rename(id: string, next: string) {
     const n = next.trim();
     if (!n) return;
-    try {
-      const token = await getToken();
-      if (token) await renameTeam(token, id, n);
-      setTeams((cur) => cur?.map((t) => (t.id === id ? { ...t, name: n } : t)) ?? null);
-    } catch (e) {
-      setError((e as Error).message || "Rename failed");
-    }
-  }
-
-  async function remove(id: string) {
-    if (!confirm("Delete this team? Members keep their own access; only the team is removed.")) return;
+    const prevName = teams?.find((t) => t.id === id)?.name;
     try {
       const token = await getToken();
       if (token) {
-        const removed = teams?.find((t) => t.id === id);
-        await deleteTeam(token, id);
-        if (user) await logAudit(token, user, "delete_team", removed?.name ?? id);
+        await renameTeam(token, id, n);
+        if (user) await logAudit(token, user, "rename_team", n, prevName ? `was "${prevName}"` : undefined);
       }
-      setTeams((cur) => cur?.filter((t) => t.id !== id) ?? null);
+      setTeams((cur) => cur?.map((t) => (t.id === id ? { ...t, name: n } : t)) ?? null);
+    } catch (e) {
+      setError((e as Error).message || "Rename failed");
+      load(); // roll back the optimistic rename from the server
+    }
+  }
+
+  async function remove(team: Team) {
+    try {
+      const token = await getToken();
+      if (token) {
+        await deleteTeam(token, team.id);
+        if (user) await logAudit(token, user, "delete_team", team.name);
+      }
+      setTeams((cur) => cur?.filter((t) => t.id !== team.id) ?? null);
     } catch (e) {
       setError((e as Error).message || "Delete failed");
     }
@@ -100,7 +105,13 @@ export default function TeamsSection() {
     );
     try {
       const token = await getToken();
-      if (token) await setMembership(token, team.id, uid, inTeam);
+      if (token) {
+        await setMembership(token, team.id, uid, inTeam);
+        if (user) {
+          const who = registry.find((r) => r.uid === uid)?.email ?? uid;
+          await logAudit(token, user, "set_team_membership", team.name, `${inTeam ? "added" : "removed"} ${who}`);
+        }
+      }
     } catch (e) {
       setError((e as Error).message || "Update failed");
       load();
@@ -162,7 +173,7 @@ export default function TeamsSection() {
                   </button>
                   <button
                     className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
-                    onClick={() => remove(team.id)}
+                    onClick={() => setDeleteAsk(team)}
                   >
                     Delete
                   </button>
@@ -195,6 +206,22 @@ export default function TeamsSection() {
             );
           })}
         </div>
+      )}
+
+      {deleteAsk && (
+        <ConfirmDialog
+          title="Delete team"
+          danger
+          confirmLabel="Delete team"
+          body={
+            <>
+              Delete <strong>{deleteAsk.name}</strong>? Members keep their own access — only the
+              team grouping is removed.
+            </>
+          }
+          onConfirm={() => remove(deleteAsk)}
+          onClose={() => setDeleteAsk(null)}
+        />
       )}
     </div>
   );

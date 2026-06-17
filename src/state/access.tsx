@@ -68,6 +68,34 @@ export function AccessProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, authReady, getToken, nonce]);
 
+  // Silent re-check on focus / tab-visible so a revoked grant (or a newly
+  // granted one) takes effect without a full reload. Deliberately does NOT
+  // toggle `ready` — only the snapshot updates, which flips can()/isAdmin if
+  // access actually changed, with no gate flash for an unaffected user.
+  useEffect(() => {
+    if (!authReady || !user) return;
+    let inFlight = false;
+    const revalidate = async () => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      try {
+        const token = await getToken();
+        if (!token) return;
+        setSnapshot(await loadAccess(user.uid, token, user.email));
+      } catch {
+        // keep the last good snapshot on a transient failure
+      } finally {
+        inFlight = false;
+      }
+    };
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", revalidate);
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      document.removeEventListener("visibilitychange", revalidate);
+    };
+  }, [authReady, user, getToken]);
+
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
 
   const can = useCallback(
