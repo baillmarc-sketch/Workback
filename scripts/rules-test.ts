@@ -137,6 +137,12 @@ async function run() {
   await deny("estimatorViaTeam must be boolean", set(ref(db(adminUid, "admin@example.com"), `entitlements/${memberUid}/estimatorViaTeam`), 1));
   await allow("user reads own estimatorViaTeam", get(ref(db(memberUid, "member@example.com"), `entitlements/${memberUid}/estimatorViaTeam`)));
 
+  console.log("\nUser-teams mirror (member-readable team list)");
+  await allow("admin writes a user's team list", set(ref(db(adminUid, "admin@example.com"), `userTeams/${memberUid}/t1`), { name: "Crew" }));
+  await allow("member reads own team list", get(ref(db(memberUid, "member@example.com"), `userTeams/${memberUid}`)));
+  await deny("member cannot write own team list", set(ref(db(memberUid, "member@example.com"), `userTeams/${memberUid}/t1`), { name: "Hacked" }));
+  await deny("member cannot read another's team list", get(ref(db(memberUid, "member@example.com"), `userTeams/${otherUid}`)));
+
   console.log("\nTeam workspaces (member-gated shared docs)");
   // memberUid is a member of t1 (added above). "stranger" is a fresh signed-in
   // account that is neither a member nor an admin (otherUid was made admin

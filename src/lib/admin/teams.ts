@@ -78,6 +78,53 @@ export async function setMembership(
   await send("PATCH", `teams/${teamId}/members`, token, { [uid]: inTeam ? true : null });
 }
 
+export interface MyTeam {
+  id: string;
+  name: string;
+}
+
+/**
+ * A member's own teams, read from the /userTeams/{uid} mirror (the /teams tree
+ * is admin-only, so members discover their teams here). Maintained by
+ * syncUserTeams whenever membership or a team name changes.
+ */
+export async function listMyTeams(uid: string, token: string): Promise<MyTeam[]> {
+  try {
+    const res = await fetch(url(`userTeams/${uid}`, token));
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, { name?: string }> | null;
+    if (!data) return [];
+    return Object.entries(data)
+      .map(([id, v]) => ({ id, name: typeof v?.name === "string" ? v.name : "Team" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Rewrite the /userTeams mirror for the given users so each lists exactly the
+ * teams they're in (id → name). Re-reads teams so it reflects the just-made
+ * change; call after a membership / rename / delete. Mirrors syncTeamEntitlements.
+ */
+export async function syncUserTeams(token: string, uids: string[]): Promise<void> {
+  const unique = [...new Set(uids)];
+  if (unique.length === 0) return;
+  const teams = await listTeams(token);
+  const updates: Record<string, unknown> = {};
+  for (const uid of unique) {
+    const mine: Record<string, { name: string }> = {};
+    for (const t of teams) if (t.members[uid]) mine[t.id] = { name: t.name };
+    updates[`userTeams/${uid}`] = Object.keys(mine).length ? mine : null;
+  }
+  const res = await fetch(url("", token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error(`User-teams sync failed (${res.status})`);
+}
+
 /** Toggle whether a team grants the Estimator to its members. */
 export async function setTeamGrant(token: string, teamId: string, estimator: boolean): Promise<void> {
   await send("PATCH", `teams/${teamId}/apps`, token, { estimator: estimator ? true : null });
