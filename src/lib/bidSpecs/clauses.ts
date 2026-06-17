@@ -147,62 +147,129 @@ export const DEFAULT_CLAUSES: ClauseSeed[] = [
     body: "Crew is to be paid through the designated payroll service. A completed W-9 and a signed master services agreement (MSA) are required prior to first payment.",
     on: false,
   },
+  {
+    group: "Bid & Overages",
+    title: "Weather contingency",
+    body: "A weather-contingency bid must be submitted for all outdoor location shoots.",
+    on: false,
+  },
+  {
+    group: "Payment",
+    title: "Paperwork before final payment",
+    body: "All paperwork — approved overage reports, rehearsal/shoot dates, the A.D. report for each pre-light, prop/wardrobe inventories, and talent documents — must be received by the Agency business manager before the final 25% of the contract price is processed and paid.",
+    on: false,
+  },
+  {
+    group: "Bid & Overages",
+    title: "AICP & Client Guidelines",
+    body: "Where applicable, and absent Client Guidelines to the contrary, AICP Guidelines apply. In the event of a conflict, Client Guidelines control. The terms and conditions of the Agency's Television Commercial Contract apply; a copy is available on request.",
+    on: false,
+  },
+  {
+    group: "Post & VFX",
+    title: "Editorial subcontract",
+    body: "Editorial may or may not be subcontracted through the Production Company. Unless otherwise noted, payment will be made directly to the editorial company by the Agency. If a foreign shoot uses a local subcontractor, include a copy of the subcontractor's bid in US$ with the US bid.",
+    on: false,
+  },
+  {
+    group: "Security",
+    title: "PR & distribution consent",
+    body: "Any supplier request for PR must be cleared through the Agency before information is passed to the media. No distribution of any supplied or produced materials — including on supplier reels, websites, or promotional outlets — without express written Agency (and Client) consent.",
+    on: false,
+  },
+  {
+    group: "Talent",
+    title: "Talent releases & images",
+    body: "The Production Company is responsible for complete and accurate preparation of all talent releases and talent reports. A digital image of talent in costume must be attached to each release; completed releases and reports are returned to the business manager.",
+    on: false,
+  },
 ];
 
-/** Default firm/HD bidding-format flags (the "X" checkboxes on a spec sheet). */
+/** Default bidding-format flags (the "X" checkboxes on a spec sheet), grouped
+    into the columns of the format grid (Gauge / Capture / Color / Sound /
+    Distribution), mirroring the classic AICP header. */
 export interface FlagSeed {
   label: string;
   on: boolean;
+  group: string;
 }
 
 export const DEFAULT_FORMAT_FLAGS: FlagSeed[] = [
-  { label: "Film", on: false },
-  { label: "HD / Digital", on: true },
-  { label: "Bid as Package", on: true },
-  { label: "Provide Treatment", on: true },
-  { label: "Bid Through Dailies", on: true },
-  { label: "VFX Treatment Required", on: false },
+  { group: "Gauge", label: "35mm", on: false },
+  { group: "Gauge", label: "16mm", on: false },
+  { group: "Gauge", label: "HDTV", on: true },
+  { group: "Capture", label: "Videotape", on: false },
+  { group: "Capture", label: "Digital Video", on: true },
+  { group: "Capture", label: "Animation", on: false },
+  { group: "Color", label: "Color", on: true },
+  { group: "Color", label: "B&W", on: false },
+  { group: "Sound", label: "Sync Sound", on: true },
+  { group: "Sound", label: "Wild Sound", on: false },
+  { group: "Sound", label: "MOS", on: false },
+  { group: "Distribution", label: "Network", on: false },
+  { group: "Distribution", label: "Spot", on: false },
+  { group: "Distribution", label: "Cable", on: false },
+  { group: "Distribution", label: "Cinema", on: false },
+  { group: "Distribution", label: "Internet", on: true },
+  { group: "Distribution", label: "Global", on: false },
 ];
 
-/** Default agency-vs-production-provided checklist. */
+/** Default provided-by checklist. Each item names who supplies it
+    (A=Agency, P=Production Co., E=Editor, O=Outside facility) and which grid it
+    sits in (Production vs Editorial/Post), per the AICP-style template. */
 export interface ChecklistSeed {
   label: string;
-  provider: "A" | "P" | "NA";
+  provider: "A" | "P" | "E" | "O" | "NA";
+  group: "production" | "editorial";
 }
 
 export const DEFAULT_CHECKLIST: ChecklistSeed[] = [
-  { label: "Casting", provider: "A" },
-  { label: "Talent Payment", provider: "A" },
-  { label: "Talent Travel & Per Diem", provider: "A" },
-  { label: "Stylist", provider: "A" },
-  { label: "Wardrobe", provider: "A" },
-  { label: "Hair Stylist", provider: "A" },
-  { label: "Makeup", provider: "A" },
-  { label: "Script Supervisor", provider: "A" },
-  { label: "Stunt Coordinator", provider: "A" },
-  { label: "Set Design & Construction", provider: "P" },
-  { label: "Location Search & Permits", provider: "P" },
-  { label: "Props", provider: "P" },
-  { label: "Sound / SFX", provider: "P" },
-  { label: "Copyrighted / Licensed Materials", provider: "P" },
-  { label: "Stock Footage", provider: "P" },
-  { label: "Titles Layout / Art", provider: "P" },
-  { label: "Animation", provider: "P" },
-  { label: "VO", provider: "P" },
-  { label: "Agency Transportation (Local)", provider: "P" },
-  { label: "Agency Travel", provider: "P" },
-  { label: "Music Tracks", provider: "P" },
-  { label: "Video Conferencing", provider: "P" },
-  { label: "Transcoding", provider: "P" },
-  { label: "VTR with Playback", provider: "P" },
-  { label: "Dailies (2 sets)", provider: "P" },
-  { label: "Sync Dailies", provider: "P" },
-  { label: "Shooting Boards / Pre-Pro", provider: "P" },
-  { label: "Outlined Shot List", provider: "P" },
-  { label: "Production Insurance", provider: "A" },
-  { label: "Visual Effects / Telecine / Conform", provider: "P" },
-  { label: "BTS Crew — Video", provider: "P" },
-  { label: "BTS Crew — Stills", provider: "P" },
+  // --- Production ---
+  { group: "production", label: "Casting — On-Camera", provider: "A" },
+  { group: "production", label: "Casting — Hand Model", provider: "A" },
+  { group: "production", label: "Casting — VO", provider: "A" },
+  { group: "production", label: "Talent Payment — OCPs", provider: "A" },
+  { group: "production", label: "Talent Payment — Union EXBs", provider: "A" },
+  { group: "production", label: "Talent Payment — Non-Union EXBs", provider: "A" },
+  { group: "production", label: "Talent Payment — VO", provider: "A" },
+  { group: "production", label: "Talent Payment — Hand Model", provider: "A" },
+  { group: "production", label: "Talent Travel / Per Diem", provider: "A" },
+  { group: "production", label: "Location Search & Photos", provider: "P" },
+  { group: "production", label: "Sets", provider: "P" },
+  { group: "production", label: "Props", provider: "P" },
+  { group: "production", label: "Picture Vehicles", provider: "P" },
+  { group: "production", label: "Stylist", provider: "P" },
+  { group: "production", label: "Wardrobe", provider: "P" },
+  { group: "production", label: "Hair & Makeup", provider: "P" },
+  { group: "production", label: "Food Stylist / Home Economist", provider: "P" },
+  { group: "production", label: "Animals / Trainers", provider: "P" },
+  { group: "production", label: "Celebrity Service", provider: "A" },
+  { group: "production", label: "Nurse / Medic", provider: "P" },
+  { group: "production", label: "Teacher / Social Worker", provider: "P" },
+  { group: "production", label: "Baby Wrangler", provider: "P" },
+  { group: "production", label: "Still Photographer", provider: "P" },
+  { group: "production", label: "VTR w/ Playback", provider: "P" },
+  { group: "production", label: "Stock Footage", provider: "P" },
+  { group: "production", label: "PPE / Sanitation", provider: "P" },
+  { group: "production", label: "Production Insurance", provider: "A" },
+  { group: "production", label: "BTS Crew — Video / Stills", provider: "P" },
+  // --- Editorial / Post ---
+  { group: "editorial", label: "Dailies", provider: "P" },
+  { group: "editorial", label: "Sync Dailies", provider: "P" },
+  { group: "editorial", label: "Edit — Off-Line", provider: "E" },
+  { group: "editorial", label: "Edit — On-Line", provider: "E" },
+  { group: "editorial", label: "EDL / Auto Conform", provider: "E" },
+  { group: "editorial", label: "Mix", provider: "O" },
+  { group: "editorial", label: "Stock Music", provider: "O" },
+  { group: "editorial", label: "Original Music", provider: "O" },
+  { group: "editorial", label: "Sound FX / Sound Design", provider: "O" },
+  { group: "editorial", label: "Titles", provider: "E" },
+  { group: "editorial", label: "Graphics", provider: "E" },
+  { group: "editorial", label: "Animation", provider: "O" },
+  { group: "editorial", label: "Color / Telecine / Conform", provider: "O" },
+  { group: "editorial", label: "Master", provider: "E" },
+  { group: "editorial", label: "Protection / Generic Master", provider: "E" },
+  { group: "editorial", label: "Audio Split Tracks", provider: "E" },
 ];
 
 /** Default deliverable technical specs (sensible modern broadcast/social set). */

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { uid } from "@/lib/types";
 import type {
+  ChecklistGroup,
   ChecklistItem,
   Clause,
   CommercialSpec,
@@ -20,6 +21,14 @@ const input =
 const headCls = "px-2 pb-1 text-[10px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 const removeBtn = "shrink-0 px-1 text-[13px] leading-none text-ink-faint hover:text-danger";
 const addBtn = "self-start text-[12px] font-medium text-ink-soft hover:text-ink";
+
+/** The four provider columns on the provided-by grid, plus a clear (—). */
+const PROVIDERS: { key: Provider; label: string; title: string }[] = [
+  { key: "A", label: "A", title: "Agency provided" },
+  { key: "P", label: "P", title: "Production company provided" },
+  { key: "E", label: "E", title: "Editor provided" },
+  { key: "O", label: "O", title: "Outside facility provided" },
+];
 
 /** A collapsible titled section card. */
 function Section({
@@ -70,23 +79,26 @@ export default function SpecEditor() {
   const setSpec = (id: string, patch: Partial<CommercialSpec>) =>
     commit((s) => ({ ...s, specs: s.specs.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
   const addSpec = () =>
-    commit((s) => ({ ...s, specs: [...s.specs, { id: uid(), title: "", length: "", versions: "" }] }));
+    commit((s) => ({
+      ...s,
+      specs: [...s.specs, { id: uid(), title: "", length: "", versions: "", ocp: "", exb: "", vo: "", nonUnionExb: "", hm: "", specialContract: "" }],
+    }));
   const removeSpec = (id: string) => commit((s) => ({ ...s, specs: s.specs.filter((c) => c.id !== id) }));
 
   // --- bidding format ---
   const setFormat = (patch: Partial<typeof spec.format>) => commit((s) => ({ ...s, format: { ...s.format, ...patch } }));
   const setFlag = (id: string, patch: Partial<FormatFlag>) =>
     commit((s) => ({ ...s, format: { ...s.format, flags: s.format.flags.map((f) => (f.id === id ? { ...f, ...patch } : f)) } }));
-  const addFlag = () =>
-    commit((s) => ({ ...s, format: { ...s.format, flags: [...s.format.flags, { id: uid(), label: "", on: true }] } }));
+  const addFlag = (group: string) =>
+    commit((s) => ({ ...s, format: { ...s.format, flags: [...s.format.flags, { id: uid(), label: "", on: true, group }] } }));
   const removeFlag = (id: string) =>
     commit((s) => ({ ...s, format: { ...s.format, flags: s.format.flags.filter((f) => f.id !== id) } }));
 
   // --- checklist ---
   const setItem = (id: string, patch: Partial<ChecklistItem>) =>
     commit((s) => ({ ...s, checklist: s.checklist.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
-  const addItem = () =>
-    commit((s) => ({ ...s, checklist: [...s.checklist, { id: uid(), label: "", provider: "P" as Provider }] }));
+  const addItem = (group: ChecklistGroup) =>
+    commit((s) => ({ ...s, checklist: [...s.checklist, { id: uid(), label: "", provider: "P" as Provider, group }] }));
   const removeItem = (id: string) => commit((s) => ({ ...s, checklist: s.checklist.filter((c) => c.id !== id) }));
 
   // --- tech specs ---
@@ -117,7 +129,65 @@ export default function SpecEditor() {
 
   const fmt = spec.format;
   const onCount = spec.clauses.filter((c) => c.on).length;
-  const apCount = `${spec.checklist.filter((c) => c.provider === "A").length}A · ${spec.checklist.filter((c) => c.provider === "P").length}P`;
+  const counts = (g: Provider) => spec.checklist.filter((c) => c.provider === g).length;
+  const apCount = `${counts("A")}A · ${counts("P")}P · ${counts("E")}E · ${counts("O")}O`;
+
+  // Group the format flags into their grid columns, preserving first-seen order.
+  const flagGroups: { name: string; flags: FormatFlag[] }[] = [];
+  for (const f of fmt.flags) {
+    let g = flagGroups.find((x) => x.name === (f.group || "Format"));
+    if (!g) flagGroups.push((g = { name: f.group || "Format", flags: [] }));
+    g.flags.push(f);
+  }
+
+  const checklistGrid = (group: ChecklistGroup, label: string) => {
+    const items = spec.checklist.filter((c) => c.group === group);
+    return (
+      <div>
+        <div className="mb-1 text-[11px] font-semibold tracking-[0.06em] text-ink-faint uppercase">{label}</div>
+        <div className="overflow-hidden rounded-md border border-hairline">
+          <div className="flex items-center gap-1 border-b border-hairline bg-paper px-2 py-1">
+            <span className="min-w-0 flex-1 text-[10px] font-semibold tracking-[0.06em] text-ink-faint uppercase">Element</span>
+            {PROVIDERS.map((p) => (
+              <span key={p.key} className="w-6 text-center text-[10px] font-semibold text-ink-faint" title={p.title}>
+                {p.label}
+              </span>
+            ))}
+            <span className="w-4" />
+          </div>
+          {items.map((c) => (
+            <div key={c.id} className="flex items-center gap-1 border-b border-hairline px-2 py-1 last:border-b-0">
+              <input
+                className="min-w-0 flex-1 border-none bg-transparent text-[12.5px] outline-none placeholder:text-ink-faint"
+                value={c.label}
+                placeholder="Element"
+                onChange={(e) => setItem(c.id, { label: e.target.value })}
+              />
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.key}
+                  className={`flex h-5 w-6 items-center justify-center rounded text-[11px] font-semibold ${
+                    c.provider === p.key ? "bg-ink text-paper" : "text-ink-faint hover:bg-paper"
+                  }`}
+                  title={p.title}
+                  aria-pressed={c.provider === p.key}
+                  onClick={() => setItem(c.id, { provider: c.provider === p.key ? ("NA" as Provider) : p.key })}
+                >
+                  {c.provider === p.key ? "✓" : "·"}
+                </button>
+              ))}
+              <button className={removeBtn} title="Remove element" onClick={() => removeItem(c.id)}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <button className={`${addBtn} mt-1.5`} onClick={() => addItem(group)}>
+          + Element
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -176,27 +246,45 @@ export default function SpecEditor() {
 
       {/* COMMERCIAL SPECS */}
       <Section title="Commercial specs" subtitle={`${spec.specs.length} spot${spec.specs.length === 1 ? "" : "s"}`} defaultOpen>
-        <div className="flex gap-1.5 pb-1">
-          <span className={`${headCls} flex-1`}>Title</span>
-          <span className={`${headCls} w-20`}>Length</span>
-          <span className={`${headCls} flex-1`}>Versions</span>
-          <span className="w-4" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          {spec.specs.map((c) => (
-            <div key={c.id} className="flex items-center gap-1.5">
-              <input className={`${input} min-w-0 flex-1`} value={c.title} placeholder="Title" onChange={(e) => setSpec(c.id, { title: e.target.value })} />
-              <input className={`${input} w-20`} value={c.length} placeholder=":30" onChange={(e) => setSpec(c.id, { length: e.target.value })} />
-              <input className={`${input} min-w-0 flex-1`} value={c.versions} placeholder=":15L, :06L" onChange={(e) => setSpec(c.id, { versions: e.target.value })} />
-              <button className={removeBtn} title="Remove spot" onClick={() => removeSpec(c.id)}>
-                ×
-              </button>
+        <div className="overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="flex gap-1.5 pb-1">
+              <span className={`${headCls} flex-[1.6]`}>Title & length</span>
+              <span className={`${headCls} flex-1`}>Versions</span>
+              <span className={`${headCls} w-12 text-center`}>#OCP</span>
+              <span className={`${headCls} w-12 text-center`}>#EXB</span>
+              <span className={`${headCls} w-12 text-center`}>#VO</span>
+              <span className={`${headCls} w-14 text-center`}>#N-U</span>
+              <span className={`${headCls} w-12 text-center`}>#HM</span>
+              <span className={`${headCls} flex-1`}>Special</span>
+              <span className="w-4" />
             </div>
-          ))}
-          <button className={addBtn} onClick={addSpec}>
-            + Spot
-          </button>
+            <div className="flex flex-col gap-1.5">
+              {spec.specs.map((c) => (
+                <div key={c.id} className="flex items-center gap-1.5">
+                  <input className={`${input} min-w-0 flex-[1.1]`} value={c.title} placeholder="Title" onChange={(e) => setSpec(c.id, { title: e.target.value })} />
+                  <input className={`${input} w-16`} value={c.length} placeholder=":30" onChange={(e) => setSpec(c.id, { length: e.target.value })} />
+                  <input className={`${input} min-w-0 flex-1`} value={c.versions} placeholder=":15L, :06L" onChange={(e) => setSpec(c.id, { versions: e.target.value })} />
+                  <input className={`${input} w-12 text-center tabular-nums`} value={c.ocp} placeholder="0" inputMode="numeric" onChange={(e) => setSpec(c.id, { ocp: e.target.value })} />
+                  <input className={`${input} w-12 text-center tabular-nums`} value={c.exb} placeholder="0" inputMode="numeric" onChange={(e) => setSpec(c.id, { exb: e.target.value })} />
+                  <input className={`${input} w-12 text-center tabular-nums`} value={c.vo} placeholder="0" inputMode="numeric" onChange={(e) => setSpec(c.id, { vo: e.target.value })} />
+                  <input className={`${input} w-14 text-center tabular-nums`} value={c.nonUnionExb} placeholder="0" inputMode="numeric" onChange={(e) => setSpec(c.id, { nonUnionExb: e.target.value })} />
+                  <input className={`${input} w-12 text-center tabular-nums`} value={c.hm} placeholder="0" inputMode="numeric" onChange={(e) => setSpec(c.id, { hm: e.target.value })} />
+                  <input className={`${input} min-w-0 flex-1`} value={c.specialContract} placeholder="—" onChange={(e) => setSpec(c.id, { specialContract: e.target.value })} />
+                  <button className={removeBtn} title="Remove spot" onClick={() => removeSpec(c.id)}>
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+        <p className="mt-2 text-[10.5px] text-ink-faint">
+          OCP on-camera principals · EXB union extras · VO voiceovers · N-U non-union extras · HM hand models
+        </p>
+        <button className={`${addBtn} mt-1`} onClick={addSpec}>
+          + Spot
+        </button>
       </Section>
 
       {/* BIDDING FORMAT */}
@@ -206,7 +294,7 @@ export default function SpecEditor() {
             Bid type
             <select className={`${input} font-normal normal-case tracking-normal`} value={fmt.bidType} onChange={(e) => setFormat({ bidType: e.target.value as "firm" | "costPlus" })}>
               <option value="firm">Firm bid</option>
-              <option value="costPlus">Cost-plus / actualized</option>
+              <option value="costPlus">Cost-plus / FF</option>
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[11px] font-semibold tracking-[0.04em] text-ink-faint uppercase">
@@ -222,54 +310,42 @@ export default function SpecEditor() {
             <input className={`${input} font-normal normal-case tracking-normal`} value={fmt.bidders} placeholder="3 (triple bid)" onChange={(e) => setFormat({ bidders: e.target.value })} />
           </label>
         </div>
-        <div className="mt-4">
-          <span className={headCls}>Format flags</span>
-          <div className="mt-1 flex flex-col gap-1.5">
-            {fmt.flags.map((f) => (
-              <div key={f.id} className="flex items-center gap-2">
-                <input type="checkbox" checked={f.on} onChange={(e) => setFlag(f.id, { on: e.target.checked })} aria-label={f.label} />
-                <input className={`${input} min-w-0 flex-1`} value={f.label} placeholder="Flag" onChange={(e) => setFlag(f.id, { label: e.target.value })} />
-                <button className={removeBtn} title="Remove flag" onClick={() => removeFlag(f.id)}>
-                  ×
+        <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-5">
+          {flagGroups.map((g) => (
+            <div key={g.name}>
+              <div className={headCls}>{g.name}</div>
+              <div className="mt-1 flex flex-col gap-1">
+                {g.flags.map((f) => (
+                  <div key={f.id} className="flex items-center gap-1.5">
+                    <input type="checkbox" checked={f.on} onChange={(e) => setFlag(f.id, { on: e.target.checked })} aria-label={f.label} />
+                    <input
+                      className="min-w-0 flex-1 border-none bg-transparent text-[12.5px] outline-none placeholder:text-ink-faint"
+                      value={f.label}
+                      placeholder="Flag"
+                      onChange={(e) => setFlag(f.id, { label: e.target.value })}
+                    />
+                    <button className={removeBtn} title="Remove flag" onClick={() => removeFlag(f.id)}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button className="self-start text-[11px] font-medium text-ink-soft hover:text-ink" onClick={() => addFlag(g.name)}>
+                  + Add
                 </button>
               </div>
-            ))}
-            <button className={addBtn} onClick={addFlag}>
-              + Flag
-            </button>
-          </div>
+            </div>
+          ))}
         </div>
       </Section>
 
       {/* CHECKLIST */}
-      <Section title="Agency vs production provided" subtitle={apCount} defaultOpen>
-        <p className="mb-2 text-[11.5px] text-ink-soft">
-          Mark who supplies each element: <b>A</b> = Agency provided · <b>P</b> = Production company provided · <b>—</b> = N/A.
+      <Section title="Provided by" subtitle={apCount} defaultOpen>
+        <p className="mb-3 text-[11.5px] text-ink-soft">
+          Tap a column to mark who supplies each element — <b>A</b> Agency · <b>P</b> Production Co. · <b>E</b> Editor · <b>O</b> Outside facility.
         </p>
-        <div className="flex flex-col gap-1.5">
-          {spec.checklist.map((c) => (
-            <div key={c.id} className="flex items-center gap-1.5">
-              <div className="flex shrink-0 overflow-hidden rounded-md border border-hairline">
-                {(["A", "P", "NA"] as Provider[]).map((p) => (
-                  <button
-                    key={p}
-                    className={`px-2 py-1 text-[11px] font-semibold ${c.provider === p ? "bg-ink text-paper" : "text-ink-soft hover:bg-paper"}`}
-                    onClick={() => setItem(c.id, { provider: p })}
-                    title={p === "A" ? "Agency provided" : p === "P" ? "Production provided" : "N/A"}
-                  >
-                    {p === "NA" ? "—" : p}
-                  </button>
-                ))}
-              </div>
-              <input className={`${input} min-w-0 flex-1`} value={c.label} placeholder="Element" onChange={(e) => setItem(c.id, { label: e.target.value })} />
-              <button className={removeBtn} title="Remove element" onClick={() => removeItem(c.id)}>
-                ×
-              </button>
-            </div>
-          ))}
-          <button className={addBtn} onClick={addItem}>
-            + Element
-          </button>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {checklistGrid("production", "Production")}
+          {checklistGrid("editorial", "Editorial / Post")}
         </div>
       </Section>
 

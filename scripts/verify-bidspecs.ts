@@ -46,12 +46,21 @@ function check(name: string, cond: boolean, detail?: unknown) {
   check("newBidSpec has format flags", s.format.flags.length > 0);
   check("newBidSpec default firm bid", s.format.bidType === "firm");
   check("newBidSpec ids are unique", new Set(s.clauses.map((c) => c.id)).size === s.clauses.length);
+  // grid model: both checklist groups present; flags carry a group; specs carry counts
+  check("checklist has production group", s.checklist.some((c) => c.group === "production"));
+  check("checklist has editorial group", s.checklist.some((c) => c.group === "editorial"));
+  check("checklist uses E/O providers", s.checklist.some((c) => c.provider === "E" || c.provider === "O"));
+  check("format flags carry a group", s.format.flags.every((f) => typeof f.group === "string" && f.group));
+  check("commercial spec has talent-count fields", s.specs.every((c) => "ocp" in c && "hm" in c));
 }
 
-// 2. Sample is scrubbed — no real brand/agency/contact names
+// 2. Sample is scrubbed — no real brand/agency/contact names (both templates) + no "big game"
 {
   const text = specToText(sampleBidSpec()).toLowerCase();
-  for (const banned of ["fanduel", "bartle", "hegarty", "bbh", "hungryman", "dewitt", "caputo", "mackler"]) {
+  for (const banned of [
+    "fanduel", "bartle", "hegarty", "bbh", "hungryman", "dewitt", "caputo", "mackler",
+    "unilever", "edelman", "groth", "big game",
+  ]) {
     check(`sample scrubbed of "${banned}"`, !text.includes(banned), banned);
   }
   check("sample uses placeholders", text.includes("[client]") && text.includes("[agency]"));
@@ -82,6 +91,19 @@ function check(name: string, cond: boolean, detail?: unknown) {
   const bad = migrate({ clauses: "nope", fields: 5, format: { bidType: "weird" } });
   check("migrate tolerates wrong types", Array.isArray(bad.clauses) && Array.isArray(bad.fields));
   check("migrate normalizes bad bidType to firm", bad.format.bidType === "firm");
+
+  // Forward-compat: a legacy A/P-only spec widens cleanly and backfills new fields.
+  const legacy = migrate({
+    id: "leg",
+    updatedAt: 1,
+    checklist: [{ id: "c1", label: "Casting", provider: "A" }],
+    specs: [{ id: "sp1", title: "Old Spot", length: ":30", versions: "" }],
+    format: { flags: [{ id: "f1", label: "HDTV", on: true }] },
+  });
+  check("legacy checklist keeps provider", legacy.checklist[0].provider === "A");
+  check("legacy checklist gets group", legacy.checklist[0].group === "production");
+  check("legacy spec backfills counts", legacy.specs[0].ocp === "" && legacy.specs[0].hm === "");
+  check("legacy flag backfills group", typeof legacy.format.flags[0].group === "string" && !!legacy.format.flags[0].group);
 }
 
 // 5. Duplicate is independent + version-bumped
@@ -121,10 +143,12 @@ function check(name: string, cond: boolean, detail?: unknown) {
 {
   const s = sampleBidSpec();
   const csv = checklistToCsv(s);
-  check("csv has header", csv.startsWith("Element,Provided by"));
+  check("csv has header", csv.startsWith("Group,Element,Provided by"));
   check("csv has agency rows", csv.includes("Agency"));
+  check("csv has editorial group", csv.includes("Editorial/Post"));
   const text = specToText(s);
   check("text has production terms section", text.includes("## Production terms"));
+  check("text has talent counts", text.includes("OCP"));
   check("text excludes off clauses", !text.includes("Sustainable production")); // off by default
 }
 
