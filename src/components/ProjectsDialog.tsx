@@ -150,12 +150,16 @@ export default function ProjectsDialog({ onClose }: { onClose: () => void }) {
                   <button
                     className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
                     onClick={() => {
-                      if (confirm(`Delete “${s.title || "Untitled Workback"}”? This can't be undone.`)) {
+                      if (confirm(`Delete “${s.title || "Untitled Workback"}”? You can recover it from the admin trash.`)) {
+                        // Capture the doc before the local delete so the remote
+                        // soft-delete can stash it for recovery.
+                        const doc = loadProject(s.id);
                         deleteProject(s.id);
                         if (user) {
-                          // Tombstone the remote copy so other devices don't resurrect it
+                          // Tombstone + stash the remote copy so other devices don't
+                          // resurrect it but it stays recoverable
                           getToken()
-                            .then((t) => (t ? deleteRemoteProject(user.uid, t, s.id) : undefined))
+                            .then((t) => (t ? deleteRemoteProject(user.uid, t, s.id, doc) : undefined))
                             .catch(() => {});
                         }
                         bump((n) => n + 1);

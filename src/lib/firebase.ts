@@ -18,11 +18,43 @@ export const FIREBASE_CONFIG = {
 
 export const DB_URL = FIREBASE_CONFIG.databaseURL;
 
-let app: FirebaseApp | null = null;
+/**
+ * Optional Firebase App Check (off by default — leave this empty to disable).
+ * To enable: register the site for reCAPTCHA v3, add the Web app under Firebase
+ * App Check, paste the reCAPTCHA site key here, then turn on enforcement for the
+ * Realtime Database in the console. App Check binds DB access to your real app,
+ * mitigating scripted abuse of the open `/shared` + `/sharedEstimates` and the
+ * `/accessRequests` endpoints. See docs/ADMIN_RUNBOOK.md.
+ */
+const APP_CHECK_SITE_KEY = "";
 
-export function getFirebaseAuth(): Auth {
+let app: FirebaseApp | null = null;
+let appCheckStarted = false;
+
+/** Start App Check once, only when configured and in the browser. Dynamically
+    imported so it adds zero bundle weight until a site key is set; failures are
+    swallowed since App Check is a hardening layer, not a hard dependency. */
+function maybeStartAppCheck(instance: FirebaseApp): void {
+  if (appCheckStarted || !APP_CHECK_SITE_KEY || typeof window === "undefined") return;
+  appCheckStarted = true;
+  import("firebase/app-check")
+    .then(({ initializeAppCheck, ReCaptchaV3Provider }) => {
+      initializeAppCheck(instance, {
+        provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+    })
+    .catch(() => {});
+}
+
+function getApp(): FirebaseApp {
   if (!app) {
     app = getApps()[0] ?? initializeApp(FIREBASE_CONFIG);
+    maybeStartAppCheck(app);
   }
-  return getAuth(app);
+  return app;
+}
+
+export function getFirebaseAuth(): Auth {
+  return getAuth(getApp());
 }
