@@ -11,6 +11,7 @@ import {
   type AccessMaps,
 } from "@/lib/admin/users";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
+import { logAudit } from "@/lib/admin/audit";
 import Toggle from "./Toggle";
 import UserDataDrawer from "./UserDataDrawer";
 
@@ -54,6 +55,7 @@ export default function UsersSection() {
       const token = await getToken();
       if (!token) throw new Error("Not signed in");
       await setEntitlement(u.uid, token, "estimator", next);
+      if (user) await logAudit(token, user, next ? "grant_estimator" : "revoke_estimator", u.email);
     } catch (e) {
       setError((e as Error).message || "Update failed");
       load(); // reconcile from server
@@ -71,6 +73,7 @@ export default function UsersSection() {
       const token = await getToken();
       if (!token) throw new Error("Not signed in");
       await setRole(u.uid, token, role);
+      if (user) await logAudit(token, user, "set_role", u.email, role);
     } catch (e) {
       setError((e as Error).message || "Update failed");
       setMaps(prev);

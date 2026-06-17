@@ -18,10 +18,20 @@
       }
     },
 
+    "config": {
+      "ownerUids": {
+        ".read": "auth != null",
+        "$uid": {
+          ".write": "root.child('admins').child(auth.uid).exists()",
+          ".validate": "newData.isBoolean()"
+        }
+      }
+    },
+
     "admins": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "root.child('admins').child(auth.uid).exists() || (auth.uid === $uid && auth.token.email != null && auth.token.email.toLowerCase() === 'baillmarc@gmail.com')",
+        ".write": "(root.child('admins').child(auth.uid).exists() || (auth.uid === $uid && (root.child('config').child('ownerUids').child(auth.uid).exists() || (auth.token.email != null && auth.token.email.toLowerCase() === 'baillmarc@gmail.com')))) && (newData.exists() || !root.child('config').child('ownerUids').child($uid).exists())",
         ".validate": "newData.isBoolean()"
       }
     },
@@ -79,12 +89,28 @@
       ".read": "root.child('admins').child(auth.uid).exists()",
       ".write": "root.child('admins').child(auth.uid).exists()",
       "$emailKey": {
-        ".read": "auth != null && (root.child('admins').child(auth.uid).exists() || root.child('registry').child(auth.uid).child('emailKey').val() === $emailKey)",
+        ".read": "auth != null && (root.child('admins').child(auth.uid).exists() || (root.child('registry').child(auth.uid).child('email').exists() && $emailKey === root.child('registry').child(auth.uid).child('email').val().toLowerCase().replace('.', ',').replace('.', ',').replace('.', ',').replace('.', ',').replace('.', ',').replace('.', ',')))",
         ".validate": "newData.hasChildren(['email'])",
         "email": { ".validate": "newData.isString()" },
         "estimator": { ".validate": "newData.isBoolean()" },
         "createdAt": { ".validate": "newData.isNumber()" },
         "invitedBy": { ".validate": "newData.isString()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "auditLog": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      ".indexOn": ["ts"],
+      "$entry": {
+        ".write": "root.child('admins').child(auth.uid).exists() && !data.exists() && newData.exists()",
+        ".validate": "newData.hasChildren(['ts', 'actorUid', 'action']) && newData.child('ts').isNumber() && newData.child('actorUid').val() === auth.uid && newData.child('action').isString()",
+        "ts": { ".validate": "newData.isNumber()" },
+        "actorUid": { ".validate": "newData.isString()" },
+        "actorEmail": { ".validate": "newData.isString() || newData.val() == null" },
+        "action": { ".validate": "newData.isString()" },
+        "target": { ".validate": "newData.isString() || newData.val() == null" },
+        "detail": { ".validate": "newData.isString() || newData.val() == null" },
         "$other": { ".validate": false }
       }
     },

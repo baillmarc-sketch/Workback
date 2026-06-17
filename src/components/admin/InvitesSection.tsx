@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/state/auth";
 import { createInvite, listInvites, revokeInvite, type Invite } from "@/lib/admin/invites";
 import { listRegistry } from "@/lib/admin/registry";
+import { logAudit } from "@/lib/admin/audit";
 import Toggle from "./Toggle";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -48,6 +49,7 @@ export default function InvitesSection() {
       const token = await getToken();
       if (!token) throw new Error("Not signed in");
       await createInvite(token, e, estimator, user?.email ?? "");
+      if (user) await logAudit(token, user, "create_invite", e, estimator ? "Estimator" : undefined);
       setEmail("");
       await load();
     } catch (err) {
@@ -60,7 +62,10 @@ export default function InvitesSection() {
   async function revoke(key: string) {
     try {
       const token = await getToken();
-      if (token) await revokeInvite(token, key);
+      if (token) {
+        await revokeInvite(token, key);
+        if (user) await logAudit(token, user, "revoke_invite", key);
+      }
       setInvites((cur) => cur?.filter((i) => i.emailKey !== key) ?? null);
     } catch (e) {
       setError((e as Error).message || "Revoke failed");

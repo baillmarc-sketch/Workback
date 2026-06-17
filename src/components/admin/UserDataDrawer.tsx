@@ -6,9 +6,10 @@ import { useAuth } from "@/state/auth";
 import type { Project } from "@/lib/types";
 import type { Estimate } from "@/lib/estimator/types";
 import type { RegistryUser } from "@/lib/admin/registry";
-import { fetchUserEstimates, fetchUserProjects, fetchUserTrash } from "@/lib/admin/viewAs";
+import { fetchUserEstimates, fetchUserProjects, fetchUserTrash, purgeUserTrash } from "@/lib/admin/viewAs";
 import { recoverRemoteProject } from "@/lib/account";
 import { recoverRemoteEstimate } from "@/lib/estimator/account";
+import { logAudit } from "@/lib/admin/audit";
 import { ReadOnlyEstimateView, ReadOnlyProjectView } from "./ReadOnlyStores";
 
 type Tab = "calendars" | "estimates" | "trash";
@@ -30,7 +31,7 @@ export default function UserDataDrawer({
   user: RegistryUser;
   onClose: () => void;
 }) {
-  const { getToken } = useAuth();
+  const { user: actor, getToken } = useAuth();
   const [tab, setTab] = useState<Tab>("calendars");
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [estimates, setEstimates] = useState<Estimate[] | null>(null);
@@ -88,15 +89,40 @@ export default function UserDataDrawer({
       if (!token) throw new Error("Not signed in");
       if (kind === "project") {
         await recoverRemoteProject(user.uid, token, id);
+        if (actor) await logAudit(token, actor, "recover_project", user.email, id);
         setTrashProjects((cur) => cur?.filter((p) => p.id !== id) ?? null);
         setProjects(null); // refetch the live list next time it's shown
       } else {
         await recoverRemoteEstimate(user.uid, token, id);
+        if (actor) await logAudit(token, actor, "recover_estimate", user.email, id);
         setTrashEstimates((cur) => cur?.filter((e) => e.id !== id) ?? null);
         setEstimates(null);
       }
     } catch (e) {
       setError((e as Error).message || "Recover failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function purge(beforeMs?: number) {
+    const label = beforeMs ? "older than 30 days" : "all";
+    if (!confirm(`Permanently delete ${label} trashed items for ${user.email}? This can't be undone.`)) return;
+    setBusy("purge");
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not signed in");
+      const n = await purgeUserTrash(user.uid, token, beforeMs);
+      if (actor) {
+        await logAudit(token, actor, "purge_trash", user.email, `${n.projects} calendars, ${n.estimates} estimates`);
+      }
+      // reload the trash view
+      const t = await fetchUserTrash(user.uid, token);
+      setTrashProjects(t.projects);
+      setTrashEstimates(t.estimates);
+    } catch (e) {
+      setError((e as Error).message || "Purge failed");
     } finally {
       setBusy(null);
     }
@@ -195,6 +221,25 @@ export default function UserDataDrawer({
       return <Empty>Trash is empty.</Empty>;
     return (
       <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="mr-auto text-[11.5px] text-ink-faint">
+            Recovered items return to the user. Purging frees storage but is permanent.
+          </span>
+          <button
+            className="rounded-md border border-hairline px-2.5 py-1 text-[11.5px] font-medium text-ink-soft hover:text-ink disabled:opacity-50"
+            disabled={busy === "purge"}
+            onClick={() => purge(Date.now() - 30 * 24 * 60 * 60 * 1000)}
+          >
+            Purge &gt; 30 days
+          </button>
+          <button
+            className="rounded-md px-2.5 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger disabled:opacity-50"
+            disabled={busy === "purge"}
+            onClick={() => purge()}
+          >
+            {busy === "purge" ? "Emptying…" : "Empty trash"}
+          </button>
+        </div>
         <Section label="Deleted calendars">
           {trashProjects.length === 0 ? (
             <Empty>None.</Empty>

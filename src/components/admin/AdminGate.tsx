@@ -6,6 +6,7 @@ import { useAccess } from "@/state/access";
 import { isOwner } from "@/lib/entitlements";
 import { setApp } from "@/lib/toolkit";
 import { setAdmin } from "@/lib/admin/users";
+import { logAudit } from "@/lib/admin/audit";
 import AccountButton from "../AccountButton";
 
 /**
@@ -36,6 +37,7 @@ export default function AdminGate({ children }: { children: React.ReactNode }) {
       const token = await getToken();
       if (!token) throw new Error("Not signed in");
       await setAdmin(user.uid, token, true);
+      await logAudit(token, user, "claim_owner", user.uid);
       refresh();
     } catch (e) {
       setError((e as Error).message || "Could not claim access");

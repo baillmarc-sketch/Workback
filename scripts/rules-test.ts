@@ -95,6 +95,7 @@ async function run() {
 
   console.log("\nBootstrap / admins");
   await allow("owner self-seeds own /admins", set(ref(db(ownerUid, OWNER_EMAIL), `admins/${ownerUid}`), true));
+  await allow("owner bootstrap is case-insensitive", set(ref(db("owner2", "BaillMarc@Gmail.Com"), "admins/owner2"), true));
   await deny("member cannot make self admin", set(ref(db(memberUid, "member@example.com"), `admins/${memberUid}`), true));
   await deny("member cannot make owner admin", set(ref(db(memberUid, "member@example.com"), `admins/${ownerUid}`), true));
   await deny("non-owner cannot self-seed admin", set(ref(db(otherUid, "other@example.com"), `admins/${otherUid}`), true));
@@ -147,6 +148,37 @@ async function run() {
   await deny("anon cannot read a user's data", get(ref(db(null), `users/${memberUid}`)));
   await deny("anon cannot read admins", get(ref(db(null), "admins")));
   await deny("anon cannot write registry", set(ref(db(null), `registry/${memberUid}`), { email: "x", lastSeen: 1 }));
+
+  console.log("\nAudit log (append-only, actor-bound)");
+  await deny("non-admin cannot read audit log", get(ref(db(memberUid, "member@example.com"), "auditLog")));
+  await allow("admin appends an entry", set(ref(db(adminUid, "admin@example.com"), "auditLog/a1"), { ts: 1, actorUid: adminUid, action: "grant_estimator" }));
+  await deny("admin cannot forge a different actor", set(ref(db(adminUid, "admin@example.com"), "auditLog/a2"), { ts: 1, actorUid: memberUid, action: "x" }));
+  await deny("audit entries are immutable", set(ref(db(adminUid, "admin@example.com"), "auditLog/a1"), { ts: 2, actorUid: adminUid, action: "tamper" }));
+  await allow("admin reads audit log", get(ref(db(adminUid, "admin@example.com"), "auditLog")));
+
+  console.log("\nConfig / owner UIDs");
+  await deny("non-admin cannot pin an owner uid", set(ref(db(memberUid, "member@example.com"), `config/ownerUids/${memberUid}`), true));
+  await allow("admin pins an owner uid", set(ref(db(adminUid, "admin@example.com"), `config/ownerUids/${memberUid}`), true));
+
+  console.log("\nInvite forge is closed");
+  // Forge: member points their registry emailKey mirror at the invited user's key…
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await set(ref(ctx.database(), `registry/${memberUid}/emailKey`), invitedKey);
+  });
+  // …but the self-read rule derives the key from the verified registry email, so still denied.
+  await deny("forged emailKey can't read another's invite", get(ref(db(memberUid, "member@example.com"), `invites/${invitedKey}`)));
+
+  console.log("\nProtected-owner guard (pinned owners can't be removed)");
+  await env.clearDatabase();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await set(ref(ctx.database(), "/"), {
+      admins: { boss: true, helper: true },
+      config: { ownerUids: { boss: true } },
+    });
+  });
+  await deny("a pinned owner can't remove itself from admins", remove(ref(db("boss"), "admins/boss")));
+  await deny("another admin can't remove a pinned owner", remove(ref(db("helper"), "admins/boss")));
+  await allow("a non-pinned admin can be removed", remove(ref(db("boss"), "admins/helper")));
 
   await env.cleanup();
 

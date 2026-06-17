@@ -48,6 +48,27 @@ export async function setAdmin(uid: string, token: string, isAdmin: boolean): Pr
   else await send("DELETE", `admins/${uid}`, token);
 }
 
+/**
+ * Pin a UID as a bootstrap owner. Once set, that account can re-seed itself into
+ * /admins by UID even if /admins is wiped — a robust, immutable alternative to
+ * the hardcoded-email bootstrap. Admin-only to write (so only an existing admin
+ * can designate bootstrap owners).
+ */
+export async function setOwnerUid(uid: string, token: string): Promise<void> {
+  await send("PUT", `config/ownerUids/${uid}`, token, true);
+}
+
+/** Whether a UID is pinned as a bootstrap owner. */
+export async function isOwnerUidPinned(uid: string, token: string): Promise<boolean> {
+  try {
+    const res = await fetch(url(`config/ownerUids/${uid}`, token));
+    if (!res.ok) return false;
+    return (await res.json()) === true;
+  } catch {
+    return false;
+  }
+}
+
 export interface AccessMaps {
   admins: Record<string, boolean>;
   roles: Record<string, Role>;

@@ -71,3 +71,57 @@ export async function fetchUserTrash(targetUid: string, token: string): Promise<
   ]);
   return { projects: toProjects(pt), estimates: toEstimates(et) };
 }
+
+async function fetchTombstones(targetUid: string, token: string, path: string): Promise<Record<string, number>> {
+  const res = await fetch(url(targetUid, token, path));
+  if (!res.ok) throw new Error(`Fetch failed (${res.status})`);
+  const data = (await res.json()) as Record<string, number> | null;
+  return data ?? {};
+}
+
+/**
+ * Permanently drop trashed content for a user (retention). The numeric
+ * tombstones are left intact so cross-device delete still propagates — purged
+ * items simply become non-recoverable (the same state as a pre-soft-delete
+ * tombstone). When `beforeMs` is given, only items deleted before that time are
+ * purged (using the tombstone timestamp). Returns how many of each were purged.
+ *
+ * Note: a static export can't run a scheduled sweep, so this is an admin-invoked
+ * action; automatic retention would need a scheduled Cloud Function.
+ */
+export async function purgeUserTrash(
+  targetUid: string,
+  token: string,
+  beforeMs?: number
+): Promise<{ projects: number; estimates: number }> {
+  const [trashP, trashE, delP, delE] = await Promise.all([
+    fetchMap(targetUid, token, "/projectsTrash"),
+    fetchMap(targetUid, token, "/estimatesTrash"),
+    fetchTombstones(targetUid, token, "/deleted"),
+    fetchTombstones(targetUid, token, "/estimatesDeleted"),
+  ]);
+  const updates: Record<string, null> = {};
+  let projects = 0;
+  let estimates = 0;
+  for (const id of Object.keys(trashP)) {
+    if (beforeMs === undefined || (delP[id] ?? 0) < beforeMs) {
+      updates[`projectsTrash/${id}`] = null;
+      projects++;
+    }
+  }
+  for (const id of Object.keys(trashE)) {
+    if (beforeMs === undefined || (delE[id] ?? 0) < beforeMs) {
+      updates[`estimatesTrash/${id}`] = null;
+      estimates++;
+    }
+  }
+  if (projects + estimates > 0) {
+    const res = await fetch(url(targetUid, token, ""), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error(`Purge failed (${res.status})`);
+  }
+  return { projects, estimates };
+}

@@ -11,10 +11,11 @@ import {
   type Team,
 } from "@/lib/admin/teams";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
+import { logAudit } from "@/lib/admin/audit";
 import Toggle from "./Toggle";
 
 export default function TeamsSection() {
-  const { getToken } = useAuth();
+  const { user, getToken } = useAuth();
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [registry, setRegistry] = useState<RegistryUser[]>([]);
   const [name, setName] = useState("");
@@ -48,6 +49,7 @@ export default function TeamsSection() {
       const token = await getToken();
       if (!token) throw new Error("Not signed in");
       await createTeam(token, n);
+      if (user) await logAudit(token, user, "create_team", n);
       setName("");
       await load();
     } catch (e) {
@@ -73,7 +75,11 @@ export default function TeamsSection() {
     if (!confirm("Delete this team? Members keep their own access; only the team is removed.")) return;
     try {
       const token = await getToken();
-      if (token) await deleteTeam(token, id);
+      if (token) {
+        const removed = teams?.find((t) => t.id === id);
+        await deleteTeam(token, id);
+        if (user) await logAudit(token, user, "delete_team", removed?.name ?? id);
+      }
       setTeams((cur) => cur?.filter((t) => t.id !== id) ?? null);
     } catch (e) {
       setError((e as Error).message || "Delete failed");
