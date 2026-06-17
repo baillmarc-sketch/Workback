@@ -30,7 +30,7 @@ const concepts: { heading: string; rows: { term: string; desc: string }[] }[] = 
       { term: "All", desc: "Every column — your versions and vendor bids together." },
       { term: "Versions", desc: "Just your internal scenario columns." },
       { term: "Triple Bid", desc: "Your estimate baseline beside vendor bids, with per-line and total variance; mark one Awarded." },
-      { term: "Actuals", desc: "Estimate → Committed (POs) → Actual (invoices) → Outstanding → Remaining; click a cell to log POs/invoices." },
+      { term: "Actuals", desc: "Estimate → Committed (POs) → Actual (invoices) → Outstanding → Remaining; click a cell to log POs/invoices. Adjustments (insurance, contingency, tax) appear as their own trackable lines below the subtotal." },
     ],
   },
   {

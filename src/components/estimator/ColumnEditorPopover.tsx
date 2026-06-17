@@ -216,65 +216,72 @@ export default function ColumnEditorPopover({ column: columnProp, anchor, onClos
 
         {estimate.adjustments.length > 0 && (
           <div>
-            <label className={labelCls}>Adjustment overrides</label>
-            <div className="flex flex-col gap-1.5">
+            <label className={labelCls}>Adjustments for this column</label>
+            <div className="flex flex-col gap-2">
               {estimate.adjustments.map((adj) => {
                 const row = ovr[adj.id];
                 const on = !row?.off;
+                const unit = adj.type === "percent" ? "%" : estimate.currency;
                 return (
-                  <div key={adj.id} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        title="Apply this adjustment to this column"
-                        onChange={(e) => setOvrOff(adj.id, !e.target.checked)}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-[12.5px]">{adj.label}</span>
-                      <input
-                        className={`${inputCls} w-20 text-right tabular-nums disabled:opacity-40`}
-                        type="number"
-                        step={adj.type === "percent" ? "0.5" : "100"}
-                        value={on ? (row?.text ?? "") : ""}
-                        placeholder={String(adj.value)}
-                        disabled={!on}
-                        onChange={(e) => setOvrVal(adj.id, e.target.value)}
-                      />
-                      <span className="w-3 text-[11px] text-ink-faint">{adj.type === "percent" ? "%" : "$"}</span>
+                  <div key={adj.id} className="rounded-md border border-hairline px-2 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={(e) => setOvrOff(adj.id, !e.target.checked)}
+                        />
+                        <span className="truncate text-[13px] font-medium">{adj.label}</span>
+                      </label>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <input
+                          className={`${fieldCls} w-14 text-right tabular-nums disabled:opacity-40`}
+                          type="number"
+                          step={adj.type === "percent" ? "0.5" : "100"}
+                          value={on ? (row?.text ?? "") : ""}
+                          placeholder={String(adj.value)}
+                          disabled={!on}
+                          onChange={(e) => setOvrVal(adj.id, e.target.value)}
+                        />
+                        <span className="w-6 text-[11px] text-ink-faint">{unit}</span>
+                      </div>
                     </div>
                     {/* Per-section matrix: percent adjustments can skip individual
-                        sections for this column. Hidden when the adjustment is
-                        off for the column, or it's flat, or there's one section. */}
+                        sections for this column. Hidden when off for the column,
+                        flat, or there's only one section. */}
                     {on && adj.type === "percent" && estimate.sections.length > 1 && (
-                      <div className="flex flex-wrap gap-1 pl-5">
-                        {estimate.sections.map((s) => {
-                          const off = sectionOff(adj.id, s.id);
-                          return (
-                            <button
-                              key={s.id}
-                              type="button"
-                              aria-pressed={!off}
-                              title={off ? `Apply ${adj.label} to ${s.name}` : `Skip ${adj.label} for ${s.name}`}
-                              className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                                off
-                                  ? "border-hairline bg-surface text-ink-faint line-through"
-                                  : "border-ink-faint bg-paper text-ink-soft"
-                              }`}
-                              onClick={() => toggleSection(adj.id, s.id)}
-                            >
-                              {s.name || "Section"}
-                            </button>
-                          );
-                        })}
+                      <div className="mt-1.5 border-t border-hairline pt-1.5">
+                        <div className="mb-1 text-[10px] tracking-[0.04em] text-ink-faint uppercase">Applies to</div>
+                        <div className="flex flex-wrap gap-1">
+                          {estimate.sections.map((s) => {
+                            const off = sectionOff(adj.id, s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                aria-pressed={!off}
+                                title={off ? `Include ${s.name}` : `Exclude ${s.name}`}
+                                className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                                  off
+                                    ? "border-hairline bg-surface text-ink-faint line-through"
+                                    : "border-ink-faint bg-paper text-ink-soft"
+                                }`}
+                                onClick={() => toggleSection(adj.id, s.id)}
+                              >
+                                {s.name || "Section"}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-            <p className="mt-1 text-[11px] text-ink-faint">
-              Blank = estimate default; uncheck to turn off for this column. Tap a section to
-              exclude it from a percent adjustment.
+            <p className="mt-1.5 text-[11px] text-ink-faint">
+              Leave the value blank to use the estimate default. Uncheck to drop the adjustment
+              for this column, or tap a section to exclude just that part.
             </p>
           </div>
         )}
