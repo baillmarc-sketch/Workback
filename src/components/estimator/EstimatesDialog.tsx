@@ -9,6 +9,7 @@ import {
   listEstimates,
   loadEstimate,
   newEstimate,
+  resetToSampleProjects,
   saveEstimate,
 } from "@/lib/estimator/storage";
 import { ESTIMATE_TEMPLATES } from "@/lib/estimator/templates";
@@ -130,7 +131,38 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {user && <div className="text-[11px] text-ink-faint">Synced to {user.email}</div>}
+        <div className="flex items-center justify-between gap-2 border-t border-hairline pt-2.5">
+          {user ? (
+            <span className="text-[11px] text-ink-faint">Synced to {user.email}</span>
+          ) : (
+            <span />
+          )}
+          <button
+            className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
+            title="Delete every estimate and load the film + activation samples"
+            onClick={() => {
+              if (
+                !confirm(
+                  "Reset all estimates? This deletes every project (including synced copies) and loads two fresh samples — Film and Activation. This can't be undone."
+                )
+              )
+                return;
+              const oldIds = listEstimates().map((s) => s.id);
+              const { film } = resetToSampleProjects();
+              if (user) {
+                getToken()
+                  .then((t) => {
+                    if (t) for (const id of oldIds) deleteRemoteEstimate(user.uid, t, id).catch(() => {});
+                  })
+                  .catch(() => {});
+              }
+              open(film);
+              onClose();
+            }}
+          >
+            Reset &amp; load samples
+          </button>
+        </div>
       </div>
     </Modal>
   );

@@ -437,110 +437,78 @@ export function newEstimate(templateId: EstimateTemplateId = "video"): Estimate 
   };
 }
 
-/** A starter estimate that shows the grid at a glance: a few populated line
-    items across two internal versions and one vendor bid (so the triple-bid
-    view and column deltas have something to compare). */
-export function sampleEstimate(): Estimate {
+/** A starter estimate that shows the grid at a glance: an internal estimate
+    column (baseline) beside three vendor bids (triple bid), one marked awarded,
+    plus a PO/invoice ledger so the Actuals view has real variance. Built from a
+    compact spec so the film and activation samples stay readable. */
+type SampleRow = [label: string, internal: number, a: number, b: number, c: number];
+interface SampleSpec {
+  title: string;
+  subtitle: string;
+  showSpecs: boolean;
+  fields: [string, string][];
+  deliverables: { title: string; length: string; usage: string }[];
+  assumptions: string;
+  vendors: [string, string, string];
+  sections: { name: string; rows: SampleRow[] }[];
+  /** Index (0–2) of the vendor bid that won; feeds the Actuals estimate. */
+  awarded: 0 | 1 | 2;
+  /** PO/invoice bookings against the awarded bid: [sectionIdx, rowIdx, po, invoice, refNo]. */
+  ledger: [number, number, number, number, number][];
+}
+
+function buildSample(spec: SampleSpec): Estimate {
   const now = Date.now();
-  const mk = (name: string): EstimateLineItem & { _section: string } =>
-    ({ id: uid(), label: name, order: 0, _section: "" }) as EstimateLineItem & { _section: string };
-
-  const production = uid();
-  const post = uid();
-  const music = uid();
-
-  const liDirector = mk("Director");
-  const liCrew = mk("Crew (3 days)");
-  const liEquipment = mk("Camera & Lighting");
-  const liEditor = mk("Editor");
-  const liColor = mk("Color Grade");
-  const liVfx = mk("VFX / Online");
-  const liLicense = mk("Music License");
-  const liMix = mk("Audio Mix");
+  const internal: EstimateColumn = { id: uid(), name: "Internal Estimate", role: "version", order: 0 };
+  const vendorCols: EstimateColumn[] = spec.vendors.map((company, i) => ({
+    id: uid(),
+    name: `Bid ${String.fromCharCode(65 + i)}`,
+    role: "vendor",
+    vendor: company,
+    order: i + 1,
+  }));
+  const columns = [internal, ...vendorCols];
 
   const lineItems: Record<string, EstimateLineItem> = {};
-  for (const li of [liDirector, liCrew, liEquipment, liEditor, liColor, liVfx, liLicense, liMix]) {
-    lineItems[li.id] = { id: li.id, label: li.label, order: li.order };
-  }
-
-  const sections: EstimateSection[] = [
-    { id: production, name: "Production", lineItemIds: [liDirector.id, liCrew.id, liEquipment.id], order: 0 },
-    { id: post, name: "Post", lineItemIds: [liEditor.id, liColor.id, liVfx.id], order: 1 },
-    { id: music, name: "Music", lineItemIds: [liLicense.id, liMix.id], order: 2 },
-  ];
-
-  const versionA: EstimateColumn = { id: uid(), name: "Premium", role: "version", order: 0 };
-  const versionB: EstimateColumn = { id: uid(), name: "Value", role: "version", order: 1 };
-  const vendor: EstimateColumn = { id: uid(), name: "Production Co. A", role: "vendor", vendor: "Acme Films", order: 2 };
-
   const cells: Record<string, CellValue> = {};
-  const set = (li: EstimateLineItem, col: EstimateColumn, expr: string) => {
-    cells[`${li.id}:${col.id}`] = { expr, value: evalOrZero(expr) };
-  };
-  // Premium version
-  set(liDirector, versionA, "25000");
-  set(liCrew, versionA, "3*8000");
-  set(liEquipment, versionA, "12000");
-  set(liEditor, versionA, "18000");
-  set(liColor, versionA, "9000");
-  set(liVfx, versionA, "15000");
-  set(liLicense, versionA, "20000");
-  set(liMix, versionA, "6000");
-  // Value version
-  set(liDirector, versionB, "15000");
-  set(liCrew, versionB, "3*5500");
-  set(liEquipment, versionB, "7500");
-  set(liEditor, versionB, "12000");
-  set(liColor, versionB, "5000");
-  set(liVfx, versionB, "8000");
-  set(liLicense, versionB, "9000");
-  set(liMix, versionB, "4000");
-  // Vendor bid (a real quote, lump sums)
-  set(liDirector, vendor, "22000");
-  set(liCrew, vendor, "26000");
-  set(liEquipment, vendor, "11000");
-  set(liEditor, vendor, "17000");
-  set(liColor, vendor, "8500");
-  set(liVfx, vendor, "14000");
-  set(liLicense, vendor, "18000");
-  set(liMix, vendor, "5500");
+  const sections: EstimateSection[] = [];
+  const rowIds: string[][] = [];
+  let order = 0;
+  spec.sections.forEach((sec, si) => {
+    const ids: string[] = [];
+    for (const row of sec.rows) {
+      const id = uid();
+      lineItems[id] = { id, label: row[0], order: order++ };
+      [row[1], row[2], row[3], row[4]].forEach((amount, ci) => {
+        if (amount) cells[`${id}:${columns[ci].id}`] = { expr: String(amount), value: amount };
+      });
+      ids.push(id);
+    }
+    rowIds.push(ids);
+    sections.push({ id: uid(), name: sec.name, lineItemIds: ids, order: si });
+  });
 
-  // A few PO/invoice entries so the Actuals view demos with real numbers
-  // against the awarded vendor bid.
+  const awardedCol = vendorCols[spec.awarded];
   const ledger: LedgerEntry[] = [];
-  const po = (li: EstimateLineItem, amount: number, ref: string) =>
-    ledger.push({ id: uid(), lineItemId: li.id, kind: "po", amount, ref, vendor: vendor.vendor });
-  const inv = (li: EstimateLineItem, amount: number, ref: string) =>
-    ledger.push({ id: uid(), lineItemId: li.id, kind: "invoice", amount, ref, vendor: vendor.vendor });
-  po(liDirector, 22000, "PO-101");
-  inv(liDirector, 22000, "INV-2201");
-  po(liCrew, 26000, "PO-102");
-  inv(liCrew, 27500, "INV-2202"); // came in over
-  po(liEquipment, 11000, "PO-103");
-  inv(liEquipment, 10200, "INV-2203"); // under
-  po(liEditor, 17000, "PO-104");
-  inv(liEditor, 8500, "INV-2204"); // half invoiced so far
+  for (const [si, ri, po, inv, ref] of spec.ledger) {
+    const lineItemId = rowIds[si]?.[ri];
+    if (!lineItemId) continue;
+    if (po) ledger.push({ id: uid(), lineItemId, kind: "po", amount: po, ref: `PO-${ref}`, vendor: awardedCol.vendor });
+    if (inv) ledger.push({ id: uid(), lineItemId, kind: "invoice", amount: inv, ref: `INV-${ref}`, vendor: awardedCol.vendor });
+  }
 
   return {
     schema: 1,
     id: uid(),
-    title: "Sample Estimate",
-    subtitle: "Acme x Brand · Spot 2026",
+    title: spec.title,
+    subtitle: spec.subtitle,
     notes: "",
-    assumptions:
-      "Two (2) shoot days in Los Angeles.\nClient provides final script and brand assets.\nUsage: 1 year, North America, digital + broadcast.\nTalent buyout estimated for 6 on-camera principals.\nDoes not include media spend or sales tax.",
+    assumptions: spec.assumptions,
     currency: "USD",
-    fields: [
-      { id: uid(), label: "Client", value: "Acme" },
-      { id: uid(), label: "Product", value: "Brand Spot" },
-      { id: uid(), label: "Producer", value: "" },
-      { id: uid(), label: "Shoot Dates", value: "" },
-    ],
-    deliverables: [
-      { id: uid(), title: ":30 Hero Spot", length: ":30", usage: "1yr NA, digital + broadcast" },
-      { id: uid(), title: ":15 Cutdown", length: ":15", usage: "1yr NA, digital" },
-    ],
-    team: [{ id: uid(), name: "", role: "Producer", level: "Sr", hours: "" }],
+    fields: spec.fields.map(([label, value]) => ({ id: uid(), label, value })),
+    deliverables: spec.deliverables.map((d) => ({ id: uid(), ...d })),
+    deliverablesShowSpecs: spec.showSpecs,
+    team: [],
     adjustments: [
       { id: uid(), label: "Contingency", type: "percent", value: 10 },
       { id: uid(), label: "Insurance", type: "percent", value: 2 },
@@ -548,12 +516,180 @@ export function sampleEstimate(): Estimate {
     ],
     sections,
     lineItems,
-    columns: [versionA, versionB, vendor],
+    columns,
     cells,
     ledger,
-    baselineColumnId: versionA.id,
-    awardedColumnId: vendor.id,
+    baselineColumnId: internal.id,
+    awardedColumnId: awardedCol.id,
+    actualsSourceColumnId: awardedCol.id,
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/** Sample film/video production budget — triple bid + actuals. */
+export function sampleFilmEstimate(): Estimate {
+  return buildSample({
+    title: "Sample Film — Brand Spot",
+    subtitle: "Acme x Brand · :30 + cutdowns · 2026",
+    showSpecs: true,
+    fields: [
+      ["Client", "Acme"],
+      ["Product", "Brand Spot"],
+      ["Job #", "AC-2601"],
+      ["Director", "TBD"],
+      ["Shoot Dates", "TBD"],
+      ["Producer", ""],
+    ],
+    deliverables: [
+      { title: ":30 Hero Spot", length: ":30", usage: "1yr NA, digital + broadcast" },
+      { title: ":15 Cutdown", length: ":15", usage: "1yr NA, digital" },
+      { title: ":06 Bumper", length: ":06", usage: "1yr NA, social" },
+    ],
+    assumptions:
+      "Two (2) shoot days in Los Angeles.\nClient provides final script and brand assets.\nUsage: 1 year, North America, digital + broadcast.\nTalent buyout for 6 on-camera principals; celebrity talent not included.\nMusic: needledrop/stock unless noted.\nContingency, insurance, and sales tax applied to the whole project below.",
+    vendors: ["Acme Films", "Northside Pictures", "Lantern & Co."],
+    sections: [
+      {
+        name: "Pre-Production",
+        rows: [
+          ["Director", 25000, 22000, 28000, 24000],
+          ["Line Producer", 18000, 16000, 20000, 17500],
+          ["Casting", 6000, 5500, 7000, 6500],
+          ["Location Scout & Permits", 4500, 4000, 5000, 4200],
+        ],
+      },
+      {
+        name: "Production",
+        rows: [
+          ["Crew (3 days)", 90000, 85000, 98000, 92000],
+          ["Camera & Lighting", 38000, 35000, 42000, 40000],
+          ["Art Dept / Set", 28000, 26000, 31000, 29000],
+          ["Talent (6 principals)", 45000, 44000, 48000, 46000],
+          ["Wardrobe / HMU", 14000, 13000, 16000, 15000],
+          ["Catering", 9000, 8500, 10000, 9500],
+        ],
+      },
+      {
+        name: "Post-Production",
+        rows: [
+          ["Editorial (4 weeks)", 32000, 30000, 36000, 34000],
+          ["Color Grade", 12000, 11000, 13500, 12500],
+          ["VFX / Online", 22000, 20000, 26000, 24000],
+          ["Sound Design & Mix", 10000, 9500, 11000, 10500],
+        ],
+      },
+      {
+        name: "Music & Licensing",
+        rows: [["License / Composition", 20000, 18000, 24000, 22000]],
+      },
+    ],
+    awarded: 0, // Acme Films
+    ledger: [
+      [0, 0, 22000, 22000, 101], // Director — paid in full
+      [1, 0, 85000, 86500, 110], // Crew — came in over
+      [1, 1, 35000, 34200, 111], // Camera — under
+      [1, 3, 44000, 22000, 112], // Talent — half invoiced
+      [2, 0, 30000, 0, 120], // Editorial — committed, not yet invoiced
+      [2, 1, 11000, 11000, 121], // Color — paid
+    ],
+  });
+}
+
+/** Sample brand-activation / experiential budget — triple bid + actuals. */
+export function sampleActivationEstimate(): Estimate {
+  return buildSample({
+    title: "Sample Activation — Brand House",
+    subtitle: "Acme · 2-day experiential · 2026",
+    showSpecs: false,
+    fields: [
+      ["Client", "Acme"],
+      ["Activation", "Brand House"],
+      ["Job #", "AC-2602"],
+      ["Event Dates", "TBD"],
+      ["Venue", "Austin, TX"],
+      ["Producer", ""],
+    ],
+    deliverables: [
+      { title: "2-Day On-site Brand Activation", length: "", usage: "" },
+      { title: "Recap / Sizzle Reel", length: "", usage: "" },
+      { title: "Lead-capture & Analytics Report", length: "", usage: "" },
+    ],
+    assumptions:
+      "One (1) two-day activation with public + VIP hours.\nTwo (2) build days and one (1) strike day at the venue.\nVenue, permits, and power are estimates pending final venue selection.\nStaffing assumes 12 brand ambassadors across show days.\nF&B based on expected attendance; alcohol service permitted.\nContingency, insurance, and sales tax applied to the whole project below.",
+    vendors: ["Splash Events", "Livewire Experiential", "Bigtop Productions"],
+    sections: [
+      {
+        name: "Venue & Logistics",
+        rows: [
+          ["Venue Rental (2 days)", 60000, 58000, 65000, 62000],
+          ["Permits & Insurance Riders", 8000, 7500, 9000, 8500],
+          ["Power & Generators", 12000, 11000, 14000, 13000],
+          ["Security", 9000, 8500, 10000, 9500],
+        ],
+      },
+      {
+        name: "Production & Build",
+        rows: [
+          ["Custom Booth Fabrication", 85000, 80000, 95000, 90000],
+          ["AV & Lighting", 42000, 40000, 48000, 45000],
+          ["Signage & Graphics", 18000, 16000, 21000, 19000],
+          ["Furniture & Decor Rental", 14000, 13000, 16000, 15000],
+        ],
+      },
+      {
+        name: "Staffing",
+        rows: [
+          ["Brand Ambassadors (12)", 36000, 34000, 40000, 38000],
+          ["Event Manager", 15000, 14000, 17000, 16000],
+          ["Stagehands / Labor", 22000, 20000, 26000, 24000],
+        ],
+      },
+      {
+        name: "Experience & Content",
+        rows: [
+          ["Interactive Installation", 48000, 45000, 55000, 52000],
+          ["Photo / Video Capture", 16000, 15000, 19000, 17000],
+          ["Giveaways / Premiums", 12000, 11000, 14000, 13000],
+        ],
+      },
+      {
+        name: "Food & Beverage",
+        rows: [["Catering & Bar Service", 28000, 26000, 32000, 30000]],
+      },
+      {
+        name: "Travel",
+        rows: [["Crew Travel & Lodging", 19000, 18000, 22000, 20000]],
+      },
+    ],
+    awarded: 1, // Livewire Experiential
+    ledger: [
+      [0, 0, 65000, 65000, 201], // Venue — paid
+      [1, 0, 95000, 48000, 210], // Booth — partial
+      [1, 1, 48000, 49500, 211], // AV — over
+      [2, 0, 40000, 0, 220], // Ambassadors — committed
+      [4, 0, 32000, 31000, 240], // Catering — under
+    ],
+  });
+}
+
+/** Boot/default sample (used when no estimates exist) = the film sample. */
+export function sampleEstimate(): Estimate {
+  return sampleFilmEstimate();
+}
+
+/** Wipe all locally-stored estimates, then seed the film + activation samples.
+    Returns the two fresh samples (caller opens one and clears remote copies). */
+export function resetToSampleProjects(): { film: Estimate; activation: Estimate } {
+  for (const s of listEstimates()) {
+    try {
+      localStorage.removeItem(ESTIMATE_PREFIX + s.id);
+    } catch {}
+  }
+  safeSet(INDEX_KEY, JSON.stringify([]));
+  const film = sampleFilmEstimate();
+  const activation = sampleActivationEstimate();
+  saveEstimate(activation, { setLastOpen: false });
+  saveEstimate(film); // opened by default
+  return { film, activation };
 }
