@@ -182,6 +182,14 @@ async function run() {
   // …but the self-read rule derives the key from the verified registry email, so still denied.
   await deny("forged emailKey can't read another's invite", get(ref(db(memberUid, "member@example.com"), `invites/${invitedKey}`)));
 
+  console.log("\nUser removal (admin erase)");
+  await deny("non-admin cannot delete another's registry", remove(ref(db(memberUid, "member@example.com"), `registry/${otherUid}`)));
+  await allow("admin erases a user's registry row", remove(ref(db(adminUid, "admin@example.com"), `registry/${memberUid}`)));
+  await allow("admin erases a user's stored data", remove(ref(db(adminUid, "admin@example.com"), `users/${memberUid}`)));
+  // otherUid is a non-pinned account (memberUid was pinned earlier in this suite,
+  // so erasing its admins row is correctly blocked by the owner-pin guard).
+  await allow("admin atomic-erases a user's access maps", update(ref(db(adminUid, "admin@example.com"), "/"), { [`entitlements/${otherUid}`]: null, [`roles/${otherUid}`]: null, [`admins/${otherUid}`]: null, [`accessRequests/${otherUid}`]: null }));
+
   console.log("\nShared docs (open by design — the share ID is the secret)");
   // Workback shares: anyone may read/write, but the doc must be well-formed.
   await allow("anon reads a workback share", get(ref(db(null), "shared/s1")));
@@ -205,6 +213,7 @@ async function run() {
   });
   await deny("a pinned owner can't remove itself from admins", remove(ref(db("boss"), "admins/boss")));
   await deny("another admin can't remove a pinned owner", remove(ref(db("helper"), "admins/boss")));
+  await deny("atomic user-erase can't strip a pinned owner", update(ref(db("helper"), "/"), { "admins/boss": null, "registry/boss": null }));
   await allow("a non-pinned admin can be removed", remove(ref(db("boss"), "admins/helper")));
 
   await env.cleanup();

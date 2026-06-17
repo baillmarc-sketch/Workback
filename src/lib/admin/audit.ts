@@ -23,7 +23,8 @@ export type AuditAction =
   | "delete_team"
   | "rename_team"
   | "set_team_membership"
-  | "view_user_data";
+  | "view_user_data"
+  | "remove_user";
 
 export interface AuditEntry {
   id: string;

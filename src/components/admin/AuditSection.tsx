@@ -20,6 +20,7 @@ const LABELS: Record<string, string> = {
   rename_team: "Renamed team",
   set_team_membership: "Changed team membership",
   view_user_data: "Viewed user data",
+  remove_user: "Removed user",
 };
 
 /** Read-only feed of admin actions (append-only; immutable per the rules). */

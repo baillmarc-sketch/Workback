@@ -11,6 +11,7 @@ import {
   type AccessMaps,
 } from "@/lib/admin/users";
 import { listRegistry, type RegistryUser } from "@/lib/admin/registry";
+import { removeUser } from "@/lib/admin/lifecycle";
 import { logAudit } from "@/lib/admin/audit";
 import ConfirmDialog, { type ConfirmOptions } from "../ConfirmDialog";
 import Toggle from "./Toggle";
@@ -104,6 +105,36 @@ export default function UsersSection() {
     doChangeRole(u, role);
   }
 
+  function onRemoveUser(u: RegistryUser) {
+    setPending({
+      title: "Remove user",
+      danger: true,
+      confirmLabel: "Remove permanently",
+      body: (
+        <>
+          Permanently remove <strong>{u.email}</strong>? This revokes all access and{" "}
+          <strong>deletes their saved calendars, estimates, and profile</strong>. This can&apos;t be
+          undone.
+        </>
+      ),
+      run: () => doRemoveUser(u),
+    });
+  }
+
+  async function doRemoveUser(u: RegistryUser) {
+    setError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("Not signed in");
+      await removeUser(token, u);
+      if (user) await logAudit(token, user, "remove_user", u.email);
+      setUsers((cur) => cur?.filter((x) => x.uid !== u.uid) ?? null);
+    } catch (e) {
+      setError((e as Error).message || "Remove failed");
+      load(); // reconcile from server
+    }
+  }
+
   async function doChangeRole(u: RegistryUser, role: Role) {
     const prev = maps;
     setMaps((m) => ({
@@ -153,7 +184,7 @@ export default function UsersSection() {
             <span className="min-w-0 flex-1">User</span>
             <span className="w-24 text-center">Role</span>
             <span className="w-20 text-center">Estimator</span>
-            <span className="w-16" />
+            <span className="w-[132px]" />
           </div>
           {users.map((u) => {
             const owner = isOwnerEmail(u.email);
@@ -207,13 +238,23 @@ export default function UsersSection() {
                   />
                 </div>
 
-                <div className="flex w-16 justify-end">
+                <div className="flex w-[132px] justify-end gap-1.5">
                   <button
                     className="rounded-md border border-hairline px-2 py-1 text-[11.5px] font-medium text-ink-soft hover:bg-paper hover:text-ink"
                     onClick={() => setViewing(u)}
+                    aria-label={`View ${u.email}'s data`}
                   >
                     View
                   </button>
+                  {!owner && !isSelf && (
+                    <button
+                      className="rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
+                      onClick={() => onRemoveUser(u)}
+                      aria-label={`Remove ${u.email}`}
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               </div>
             );

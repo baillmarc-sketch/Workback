@@ -40,7 +40,7 @@
       ".read": "root.child('admins').child(auth.uid).exists()",
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || root.child('admins').child(auth.uid).exists())",
         ".validate": "newData.hasChildren(['email', 'lastSeen'])",
         "email": { ".validate": "newData.isString() && newData.val() === auth.token.email" },
         "emailKey": { ".validate": "newData.isString()" },
