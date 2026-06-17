@@ -4,6 +4,7 @@ import { monthLabel, weeksOfMonth } from "@/lib/dates";
 import type { Project, WorkbackEvent } from "@/lib/types";
 import WeekRow from "./WeekRow";
 import Legend from "./Legend";
+import WarningsButton from "./WarningsButton";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -19,13 +20,15 @@ interface MonthBlockProps {
   draggingId: string | null;
   readOnly?: boolean;
   forPrint?: boolean;
+  /** Show the project-wide schedule-warning summary beside this month's title */
+  showWarnings?: boolean;
   onSelectEvent: (id: string, rect: DOMRect) => void;
   onResizeStart: (id: string, edge: "start" | "end", e: React.PointerEvent) => void;
   onDayClick: (dayKey: string, rect: DOMRect) => void;
   onMoreClick: (dayKey: string, hidden: WorkbackEvent[], rect: DOMRect) => void;
 }
 
-export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) {
+export default function MonthBlock({ mKey, project, showWarnings, ...rest }: MonthBlockProps) {
   const weeks = weeksOfMonth(mKey);
 
   return (
@@ -52,9 +55,12 @@ export default function MonthBlock({ mKey, project, ...rest }: MonthBlockProps) 
         )}
       </div>
 
-      <h2 className="no-print mb-2 px-1 font-display text-[17px] font-semibold tracking-tight">
-        {monthLabel(mKey)}
-      </h2>
+      <div className="no-print mb-2 flex items-center gap-2 px-1">
+        <h2 className="font-display text-[17px] font-semibold tracking-tight">
+          {monthLabel(mKey)}
+        </h2>
+        {showWarnings && <WarningsButton />}
+      </div>
 
       <div className="overflow-hidden rounded-lg border border-hairline-strong bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
         <div className="grid grid-cols-7 border-b border-hairline">

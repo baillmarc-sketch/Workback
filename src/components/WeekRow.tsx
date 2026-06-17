@@ -1,7 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { layoutWeek } from "@/lib/layout";
+import { layoutWeek, MAX_LANES } from "@/lib/layout";
 import { isInMonth, isWeekendKey, todayKey } from "@/lib/dates";
 import type { ProjectCategory, WorkbackEvent } from "@/lib/types";
 import EventBar, { LANE_HEIGHT, LANE_GAP, PRINT_LANE_HEIGHT } from "./EventBar";
@@ -111,12 +111,15 @@ export default function WeekRow({
 }: WeekRowProps) {
   const weekStart = days[0];
   const weekEnd = days[6];
-  const layout = layoutWeek(events, weekStart, weekEnd);
+  // Print shows every event (no "+N more", which is screen-only) and lets
+  // empty weeks collapse instead of reserving a fixed block of blank lanes.
+  const layout = layoutWeek(events, weekStart, weekEnd, forPrint ? Infinity : MAX_LANES);
   const today = todayKey();
 
   // Row height auto-expands with event density
   const laneHeight = forPrint ? PRINT_LANE_HEIGHT : LANE_HEIGHT;
-  const lanes = Math.max(layout.laneCount, MIN_LANES);
+  const minLanes = forPrint ? 1 : MIN_LANES;
+  const lanes = Math.max(layout.laneCount, minLanes);
   const overflowRow = layout.overflow.size > 0 ? 18 : 0;
   const height = DAY_HEADER + lanes * (laneHeight + LANE_GAP) + overflowRow + ROW_PAD;
 

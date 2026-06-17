@@ -31,7 +31,8 @@ export const MAX_LANES = 6;
 export function layoutWeek(
   events: WorkbackEvent[],
   weekStart: string,
-  weekEnd: string
+  weekEnd: string,
+  maxLanes: number = MAX_LANES
 ): WeekLayout {
   const intersecting = events.filter(
     (e) => e.startDate <= weekEnd && e.endDate >= weekStart
@@ -99,7 +100,7 @@ export function layoutWeek(
     }
     if (lane === laneCols.length) laneCols.push(new Array(7).fill(false));
 
-    if (lane >= MAX_LANES) {
+    if (lane >= maxLanes) {
       // Hidden — record per day for the "+N more" popover
       for (let c = startCol; c < startCol + span; c++) {
         const dayKey = addCol(weekStart, c);
@@ -123,7 +124,7 @@ export function layoutWeek(
 
   return {
     segments,
-    laneCount: Math.min(laneCols.length, MAX_LANES),
+    laneCount: Math.min(laneCols.length, maxLanes),
     overflow,
   };
 }
