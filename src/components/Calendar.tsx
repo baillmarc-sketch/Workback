@@ -62,6 +62,11 @@ export default function Calendar({
   const shiftKeyRef = useRef(false);
   const shiftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clear the shift-pulse timer on unmount so it can't fire setState afterwards.
+  useEffect(() => () => {
+    if (shiftTimer.current) clearTimeout(shiftTimer.current);
+  }, []);
+
   // Mouse drags start after 4px of travel; touch needs a 250ms hold so the
   // page still scrolls when you swipe across the calendar
   const sensors = useSensors(

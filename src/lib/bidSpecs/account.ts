@@ -9,6 +9,7 @@ import type { BidSpec } from "./types";
  * namespace so one signed-in account holds every toolkit app's data:
  *   /users/{uid}/bidSpecs/{id} — full bid-spec JSON
  *   /users/{uid}/bidSpecsDeleted/{id} — tombstone (deletedAt ms)
+ *   /users/{uid}/bidSpecsTrash/{id} — full doc kept for recovery (admin)
  *
  * Merge model is per-spec last-write-wins by updatedAt.
  */
@@ -26,13 +27,47 @@ export async function pushBidSpec(uid: string, token: string, spec: BidSpec): Pr
   if (!res.ok) throw new Error(`Account push failed (${res.status})`);
 }
 
-export async function deleteRemoteBidSpec(uid: string, token: string, id: string): Promise<void> {
+/** Soft-delete: tombstone so other devices don't resurrect it, and (when the
+    full doc is passed) stash it under bidSpecsTrash so it stays recoverable —
+    parity with deleteRemoteEstimate. */
+export async function deleteRemoteBidSpec(
+  uid: string,
+  token: string,
+  id: string,
+  spec?: BidSpec | null
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    [`bidSpecs/${id}`]: null,
+    [`bidSpecsDeleted/${id}`]: Date.now(),
+  };
+  if (spec) updates[`bidSpecsTrash/${id}`] = spec;
   const res = await fetch(userUrl(uid, token), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ [`bidSpecs/${id}`]: null, [`bidSpecsDeleted/${id}`]: Date.now() }),
+    body: JSON.stringify(updates),
   });
   if (!res.ok) throw new Error(`Account delete failed (${res.status})`);
+}
+
+/** Restore a trashed bid spec: read it from bidSpecsTrash, then re-publish it and
+    clear the tombstone + trash in one atomic PATCH. */
+export async function recoverRemoteBidSpec(uid: string, token: string, id: string): Promise<BidSpec> {
+  const res = await fetch(userUrl(uid, token, `/bidSpecsTrash/${id}`));
+  if (!res.ok) throw new Error(`Trash fetch failed (${res.status})`);
+  const raw = await res.json();
+  if (!raw) throw new Error("Nothing to recover");
+  const spec = normalizeRemote(raw);
+  const restore = await fetch(userUrl(uid, token), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      [`bidSpecs/${id}`]: spec,
+      [`bidSpecsDeleted/${id}`]: null,
+      [`bidSpecsTrash/${id}`]: null,
+    }),
+  });
+  if (!restore.ok) throw new Error(`Recover failed (${restore.status})`);
+  return spec;
 }
 
 export interface SyncResult {

@@ -17,10 +17,19 @@ const fieldCls =
 const inputCls = `w-full ${fieldCls}`;
 const labelCls = "mb-1 block text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase";
 
-/** Add a scheme so a bare "drive.google.com/…" still opens as an absolute URL. */
+/** Add a scheme so a bare "drive.google.com/…" still opens as an absolute URL,
+    and only ever return an http(s) link. Column links are stored on shared/team
+    estimates, so a crafted `javascript:`/`data:` URL would be a stored XSS when a
+    viewer clicks it — anything that doesn't resolve to http(s) becomes inert. */
 function hrefOf(url: string): string {
   const u = url.trim();
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`;
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`;
+  try {
+    const parsed = new URL(candidate);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : "about:blank";
+  } catch {
+    return "about:blank";
+  }
 }
 
 export default function ColumnEditorPopover({ column: columnProp, anchor, onClose }: ColumnEditorPopoverProps) {

@@ -158,6 +158,10 @@ async function run() {
   await allow("admin reads any team workspace (override)", get(ref(db(adminUid, "admin@example.com"), "teamWorkspaces/t1/docs/workback")));
   await allow("member writes presence", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/presence/workback/twp1/sess1"), { name: "Mia", t: 1 }));
   await deny("non-member cannot write presence", set(ref(db(stranger, strangerEmail), "teamWorkspaces/t1/presence/workback/twp1/sess1"), { name: "X", t: 1 }));
+  await deny("presence must have name + numeric t", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/presence/workback/twp1/sess2"), { name: "X" }));
+  await deny("presence name is length-capped", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/presence/workback/twp1/sess3"), { name: "x".repeat(200), t: 1 }));
+  await deny("presence rejects junk keys", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/presence/workback/twp1/sess4"), { name: "X", t: 1, junk: 1 }));
+  await deny("trash doc must have id + updatedAt", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/trash/workback/bad"), { foo: 1 }));
   await allow("member soft-deletes via trash (atomic)", update(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1"), { "docs/workback/twp1": null, "trash/workback/twp1": wbDoc }));
   await allow("member recovers from trash (atomic)", update(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1"), { "docs/workback/twp1": wbDoc, "trash/workback/twp1": null }));
   await allow("member reads a team doc's updatedAt head", get(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/workback/twp1/updatedAt")));
@@ -192,6 +196,8 @@ async function run() {
   await allow("admin reads another user's trash", get(ref(db(adminUid, "admin@example.com"), `users/${memberUid}/projectsTrash`)));
   await allow("admin recovers a deleted project for a user", update(ref(db(adminUid, "admin@example.com"), `users/${memberUid}`), { "projects/pt1": { id: "pt1", events: { x: 1 }, updatedAt: 9 }, "deleted/pt1": null, "projectsTrash/pt1": null }));
   await deny("user cannot read another's estimates", get(ref(db(memberUid, "member@example.com"), `users/${adminUid}/estimates`)));
+  await allow("user stashes own bid spec in trash (recoverable)", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/bidSpecsTrash/bs9`), { id: "bs9", updatedAt: 3 }));
+  await deny("bidSpecsTrash entry must have id + updatedAt", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/bidSpecsTrash/bad`), { foo: 1 }));
   void estimate;
 
   console.log("\nAnonymous");
@@ -229,7 +235,9 @@ async function run() {
   console.log("\nShared docs (open by design — the share ID is the secret)");
   // Workback shares: anyone may read/write, but the doc must be well-formed.
   await allow("anon reads a workback share", get(ref(db(null), "shared/s1")));
-  await allow("anon writes a valid workback share", set(ref(db(null), "shared/s1"), { id: "s1", events: { x: 1 }, updatedAt: 1 }));
+  await allow("anon writes a valid workback share", set(ref(db(null), "shared/s1"), { id: "s1", events: { x: 1 }, updatedAt: 5 }));
+  await allow("workback share updatedAt may advance", set(ref(db(null), "shared/s1"), { id: "s1", events: { x: 1 }, updatedAt: 6 }));
+  await deny("workback share updatedAt may not go backwards (stale clobber)", set(ref(db(null), "shared/s1"), { id: "s1", events: { x: 1 }, updatedAt: 4 }));
   await deny("workback share missing updatedAt is rejected", set(ref(db(null), "shared/s2"), { id: "s2", events: { x: 1 } }));
   await deny("workback share with non-number updatedAt is rejected", set(ref(db(null), "shared/s3"), { id: "s3", events: { x: 1 }, updatedAt: "nope" }));
   // Shared estimates: open too, plus a monotonic updatedAt guard (no stale clobber).

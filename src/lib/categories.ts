@@ -21,9 +21,16 @@ export function categoryOf(categories: ProjectCategory[], id: string): ProjectCa
   );
 }
 
+/** A category color is normally a hex from the color picker, but stored/synced
+    data could carry anything — keep only a well-formed hex before it reaches a
+    CSS value (defense-in-depth alongside the migrate-time clamp). */
+export function safeColor(color: string): string {
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : PLACEHOLDER_COLOR;
+}
+
 /** Dark text tone for tinted backgrounds, derived from the base color */
 export function catText(color: string): string {
-  return `color-mix(in oklab, ${color} 62%, black)`;
+  return `color-mix(in oklab, ${safeColor(color)} 62%, black)`;
 }
 
 export function humanize(id: string): string {

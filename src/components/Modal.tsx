@@ -47,7 +47,8 @@ export default function Modal({ title, onClose, children, width = 480 }: ModalPr
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
-      prev?.focus?.();
+      // Only restore focus if the opener is still in the document.
+      if (prev && document.body.contains(prev)) prev.focus();
     };
   }, []);
 

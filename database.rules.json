@@ -7,7 +7,7 @@
       "$shareId": {
         ".read": true,
         ".write": true,
-        ".validate": "newData.hasChildren(['id', 'events', 'updatedAt']) && newData.child('updatedAt').isNumber()"
+        ".validate": "newData.hasChildren(['id', 'events', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
       }
     },
     "sharedEstimates": {
@@ -120,6 +120,25 @@
               ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber()"
             }
           }
+        },
+        "trash": {
+          "$appId": {
+            "$docId": {
+              ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber()"
+            }
+          }
+        },
+        "presence": {
+          "$appId": {
+            "$docId": {
+              "$sessionId": {
+                ".validate": "newData.hasChildren(['name', 't']) && newData.child('t').isNumber() && newData.child('name').isString() && newData.child('name').val().length < 120",
+                "name": { ".validate": "newData.isString()" },
+                "t": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              }
+            }
+          }
         }
       }
     },
@@ -210,6 +229,11 @@
         "bidSpecsDeleted": {
           "$sid": {
             ".validate": "newData.isNumber()"
+          }
+        },
+        "bidSpecsTrash": {
+          "$sid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt'])"
           }
         }
       }

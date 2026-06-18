@@ -70,29 +70,38 @@ export interface UserWork {
 
 /**
  * Aggregate every user's calendars + estimates for the admin "All work" view.
- * Each user is independent (Promise.allSettled): one user's read failure marks
- * just that user `failed` instead of breaking the whole view. N users × 2
- * requests — fine for a normal roster; lazy per-group loading is a later option
- * if the roster grows large.
+ * Each user is independent: one user's read failure marks just that user
+ * `failed` instead of breaking the whole view. Fetched in bounded batches
+ * (CONCURRENCY) so a large roster doesn't fire hundreds of simultaneous requests
+ * and exhaust the browser/connection pool.
  */
+const CONCURRENCY = 6;
+
 export async function fetchAllUsersWork(
   token: string,
   users: RegistryUser[]
 ): Promise<UserWork[]> {
-  const results = await Promise.allSettled(
-    users.map(async (user) => {
-      const [projects, estimates] = await Promise.all([
-        fetchUserProjects(user.uid, token),
-        fetchUserEstimates(user.uid, token),
-      ]);
-      return { user, projects, estimates, failed: false } satisfies UserWork;
-    })
-  );
-  return results.map((r, i) =>
-    r.status === "fulfilled"
-      ? r.value
-      : { user: users[i], projects: [], estimates: [], failed: true }
-  );
+  const out: UserWork[] = [];
+  for (let i = 0; i < users.length; i += CONCURRENCY) {
+    const batch = users.slice(i, i + CONCURRENCY);
+    const settled = await Promise.allSettled(
+      batch.map(async (user) => {
+        const [projects, estimates] = await Promise.all([
+          fetchUserProjects(user.uid, token),
+          fetchUserEstimates(user.uid, token),
+        ]);
+        return { user, projects, estimates, failed: false } satisfies UserWork;
+      })
+    );
+    settled.forEach((r, j) =>
+      out.push(
+        r.status === "fulfilled"
+          ? r.value
+          : { user: batch[j], projects: [], estimates: [], failed: true }
+      )
+    );
+  }
+  return out;
 }
 
 export interface UserTrash {
