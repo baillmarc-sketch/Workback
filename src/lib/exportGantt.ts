@@ -23,6 +23,18 @@ function escXml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Only let well-formed CSS colors into raw SVG attributes. This SVG string is
+ * rendered via dangerouslySetInnerHTML, and category colors can be set by anyone
+ * who can write the (shared / team) project in the DB — so an unsanitized color
+ * like `#000" onload="…` would be an attribute-injection XSS. Anything that
+ * isn't a plain hex / rgb()/hsl() / simple name falls back to a neutral grey.
+ */
+const COLOR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|hsla?\([\d.,\s%]+\)|[a-zA-Z]{1,20})$/;
+function safeColor(c: unknown, fallback = "#94a3b8"): string {
+  return typeof c === "string" && COLOR_RE.test(c.trim()) ? c.trim() : fallback;
+}
+
 function clip(s: string, max = 30): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
@@ -113,7 +125,7 @@ export function buildGantt(project: Project): GanttSvg {
 
   events.forEach((e: WorkbackEvent, i) => {
     const y = gridTop + i * (ROW + ROW_GAP);
-    const color = colorOf.get(e.category) ?? "#94a3b8";
+    const color = safeColor(colorOf.get(e.category));
     const x = gridX + diffDays(min, e.startDate) * DAY;
     const w = Math.max(durationDays(e.startDate, e.endDate) * DAY - 3, 6);
     const fill = e.isMilestone ? color : tint(color, 0.8);
