@@ -15,7 +15,14 @@ import {
 } from "@/lib/estimator/storage";
 import { ESTIMATE_TEMPLATES } from "@/lib/estimator/templates";
 import { listMyTeams, type MyTeam } from "@/lib/admin/teams";
-import { deleteTeamDoc, listTeamDocs, saveTeamDoc } from "@/lib/teamWorkspace";
+import {
+  deleteTeamDoc,
+  listTeamDocs,
+  listTeamTrash,
+  purgeTeamDoc,
+  recoverTeamDoc,
+  saveTeamDoc,
+} from "@/lib/teamWorkspace";
 import type { Estimate } from "@/lib/estimator/types";
 import { useEstimate } from "@/state/estimateStore";
 import { notify } from "@/lib/notify";
@@ -36,6 +43,8 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
   );
   const [teamEstimates, setTeamEstimates] = useState<Estimate[] | null>(null);
   const [teamErr, setTeamErr] = useState<string | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [teamTrash, setTeamTrash] = useState<Estimate[] | null>(null);
 
   const estimates = listEstimates();
   const inTeam = scope.kind === "team";
@@ -81,9 +90,39 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
     [getToken]
   );
 
+  const loadTrash = useCallback(
+    async (teamId: string) => {
+      setTeamTrash(null);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Not signed in");
+        const raw = await listTeamTrash(teamId, "estimator", token);
+        const docs = Object.values(raw)
+          .map((d) => {
+            try {
+              return migrate(d);
+            } catch {
+              return null;
+            }
+          })
+          .filter((e): e is Estimate => !!e)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+        setTeamTrash(docs);
+      } catch {
+        setTeamTrash([]);
+      }
+    },
+    [getToken]
+  );
+
   useEffect(() => {
+    setShowTrash(false);
     if (scope.kind === "team") loadTeam(scope.teamId);
   }, [scope, loadTeam]);
+
+  useEffect(() => {
+    if (showTrash && scope.kind === "team") loadTrash(scope.teamId);
+  }, [showTrash, scope, loadTrash]);
 
   async function createInTeam(teamId: string, templateId: Parameters<typeof newEstimate>[0]) {
     let e = newEstimate(templateId);
@@ -171,27 +210,73 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
         {teamErr && <div className="rounded-md bg-red-50 px-3 py-2 text-[12px] text-danger">{teamErr}</div>}
 
         {inTeam ? (
-          <TeamList
-            estimates={teamEstimates}
-            currentId={estimate?.id ?? null}
-            onOpen={(e) => {
-              if (scope.kind === "team") openInWorkspace(e, { kind: "team", teamId: scope.teamId });
-              onClose();
-            }}
-            onDelete={async (e) => {
-              if (scope.kind !== "team") return;
-              if (!confirm(`Delete “${e.title || "Untitled Estimate"}” from this team? It can be recovered from the team trash.`)) return;
-              const token = await getToken();
-              if (token) {
-                try {
-                  await deleteTeamDoc(scope.teamId, "estimator", e, token);
-                  setTeamEstimates((cur) => cur?.filter((x) => x.id !== e.id) ?? null);
-                } catch {
-                  notify("Couldn't delete — check your connection.");
-                }
-              }
-            }}
-          />
+          <>
+            <div className="flex items-center gap-1.5 text-[11.5px]">
+              <button
+                className={`rounded-md px-2 py-0.5 font-medium ${!showTrash ? "bg-paper text-ink" : "text-ink-faint hover:text-ink"}`}
+                onClick={() => setShowTrash(false)}
+              >
+                Estimates
+              </button>
+              <button
+                className={`rounded-md px-2 py-0.5 font-medium ${showTrash ? "bg-paper text-ink" : "text-ink-faint hover:text-ink"}`}
+                onClick={() => setShowTrash(true)}
+              >
+                Trash
+              </button>
+            </div>
+            {showTrash ? (
+              <TeamTrashList
+                estimates={teamTrash}
+                onRecover={async (e) => {
+                  if (scope.kind !== "team") return;
+                  const token = await getToken();
+                  if (!token) return;
+                  try {
+                    await recoverTeamDoc(scope.teamId, "estimator", e, token);
+                    setTeamTrash((cur) => cur?.filter((x) => x.id !== e.id) ?? null);
+                    setTeamEstimates((cur) => (cur ? [e, ...cur] : cur));
+                  } catch {
+                    notify("Couldn't recover — check your connection.");
+                  }
+                }}
+                onPurge={async (e) => {
+                  if (scope.kind !== "team") return;
+                  if (!confirm(`Permanently delete “${e.title || "Untitled Estimate"}”? This can't be undone.`)) return;
+                  const token = await getToken();
+                  if (!token) return;
+                  try {
+                    await purgeTeamDoc(scope.teamId, "estimator", e.id, token);
+                    setTeamTrash((cur) => cur?.filter((x) => x.id !== e.id) ?? null);
+                  } catch {
+                    notify("Couldn't delete — check your connection.");
+                  }
+                }}
+              />
+            ) : (
+              <TeamList
+                estimates={teamEstimates}
+                currentId={estimate?.id ?? null}
+                onOpen={(e) => {
+                  if (scope.kind === "team") openInWorkspace(e, { kind: "team", teamId: scope.teamId });
+                  onClose();
+                }}
+                onDelete={async (e) => {
+                  if (scope.kind !== "team") return;
+                  if (!confirm(`Delete “${e.title || "Untitled Estimate"}” from this team? It can be recovered from Trash.`)) return;
+                  const token = await getToken();
+                  if (token) {
+                    try {
+                      await deleteTeamDoc(scope.teamId, "estimator", e, token);
+                      setTeamEstimates((cur) => cur?.filter((x) => x.id !== e.id) ?? null);
+                    } catch {
+                      notify("Couldn't delete — check your connection.");
+                    }
+                  }
+                }}
+              />
+            )}
+          </>
         ) : estimates.length === 0 ? (
           <div className="py-4 text-center text-[12.5px] text-ink-faint">No saved estimates yet.</div>
         ) : (
@@ -303,6 +388,53 @@ export default function EstimatesDialog({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </Modal>
+  );
+}
+
+function TeamTrashList({
+  estimates,
+  onRecover,
+  onPurge,
+}: {
+  estimates: Estimate[] | null;
+  onRecover: (e: Estimate) => void;
+  onPurge: (e: Estimate) => void;
+}) {
+  if (estimates === null) {
+    return <div className="py-4 text-center text-[12.5px] text-ink-faint">Loading…</div>;
+  }
+  if (estimates.length === 0) {
+    return <div className="py-4 text-center text-[12.5px] text-ink-faint">Trash is empty.</div>;
+  }
+  return (
+    <div className="overflow-hidden rounded-lg border border-hairline">
+      {estimates.map((e) => {
+        const lines = Object.keys(e.lineItems).length;
+        return (
+          <div key={e.id} className="flex items-center gap-2 border-b border-hairline px-3 py-2.5 last:border-b-0">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-semibold">{e.title || "Untitled Estimate"}</div>
+              <div className="truncate text-[11.5px] text-ink-soft">
+                {lines} line item{lines === 1 ? "" : "s"}
+                {e.createdBy?.name && <span className="text-ink-faint"> · by {e.createdBy.name}</span>}
+              </div>
+            </div>
+            <button
+              className="shrink-0 rounded-md bg-ink px-2.5 py-1 text-[11.5px] font-semibold text-paper hover:opacity-85"
+              onClick={() => onRecover(e)}
+            >
+              Recover
+            </button>
+            <button
+              className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
+              onClick={() => onPurge(e)}
+            >
+              Delete
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
