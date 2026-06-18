@@ -5,11 +5,12 @@ import { useAuth } from "@/state/auth";
 import { useEstimate } from "@/state/estimateStore";
 import { estimateShareUrl, fetchEstimate, newShareId } from "@/lib/estimator/cloud";
 import { syncEstimates } from "@/lib/estimator/account";
-import { teamHeartbeat, teamLeave, teamReadOthers } from "@/lib/teamWorkspace";
+import { teamHeartbeat, teamLeave, teamReadOthers, fetchTeamDocUpdatedAt, loadTeamDoc } from "@/lib/teamWorkspace";
 import {
   lastOpenId,
   listEstimates,
   loadEstimate,
+  migrate,
   sampleEstimate,
   saveEstimate,
 } from "@/lib/estimator/storage";
@@ -37,15 +38,20 @@ function formatViewers(names: string[]): string {
 }
 
 export default function EstimatorApp() {
-  const { estimate, open, patch, undo, redo, workspace } = useEstimate();
+  const { estimate, open, openInWorkspace, patch, undo, redo, workspace } = useEstimate();
   const { user, getToken } = useAuth();
   const [mode, setMode] = useState<ViewMode>("all");
   const [dialog, setDialog] = useState<Dialog>(null);
   const [printConfig, setPrintConfig] = useState<PrintConfig | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [viewers, setViewers] = useState<string[]>([]);
+  const [teamAhead, setTeamAhead] = useState(false);
   const sessionIdRef = useRef<string>("");
   if (!sessionIdRef.current) sessionIdRef.current = newShareId();
+  const estimateRef = useRef(estimate);
+  estimateRef.current = estimate;
+  const teamRemoteAtRef = useRef(0);
+  const teamDismissedRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -120,14 +126,17 @@ export default function EstimatorApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Live presence on team estimates: who else is viewing, by name (member-gated).
+  // Live presence on team estimates: who else is viewing, by name (member-gated),
+  // plus a remote-ahead check so a teammate's newer save can be reloaded.
   const teamId = workspace.kind === "team" ? workspace.teamId : null;
   const docId = estimate?.id ?? null;
   useEffect(() => {
     if (!teamId || !docId) {
       setViewers([]);
+      setTeamAhead(false);
       return;
     }
+    teamDismissedRef.current = 0;
     const sid = sessionIdRef.current;
     const name = (user?.name || user?.email || "A teammate").trim();
     let cancelled = false;
@@ -137,18 +146,41 @@ export default function EstimatorApp() {
       await teamHeartbeat(teamId, "estimator", docId, sid, name, token);
       const list = await teamReadOthers(teamId, "estimator", docId, sid, token);
       if (!cancelled) setViewers(list.map((p) => p.name));
+      const remoteAt = await fetchTeamDocUpdatedAt(teamId, "estimator", docId, token);
+      const localAt = estimateRef.current?.updatedAt ?? 0;
+      if (!cancelled && remoteAt !== null) {
+        teamRemoteAtRef.current = remoteAt;
+        setTeamAhead(remoteAt > localAt + 250 && remoteAt > teamDismissedRef.current);
+      }
     };
     tick();
     const iv = setInterval(tick, 12_000);
+    const onFocus = () => tick();
     const onBye = () => getToken().then((t) => t && teamLeave(teamId, "estimator", docId, sid, t));
+    window.addEventListener("focus", onFocus);
     window.addEventListener("pagehide", onBye);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
       clearInterval(iv);
       window.removeEventListener("pagehide", onBye);
       getToken().then((t) => t && teamLeave(teamId, "estimator", docId, sid, t));
     };
   }, [teamId, docId, user, getToken]);
+
+  const reloadTeamDoc = useCallback(async () => {
+    if (workspace.kind !== "team") return;
+    const cur = estimateRef.current;
+    if (!cur) return;
+    const token = await getToken();
+    if (!token) return;
+    const raw = await loadTeamDoc(workspace.teamId, "estimator", cur.id, token);
+    if (raw) {
+      openInWorkspace(migrate(raw), { kind: "team", teamId: workspace.teamId });
+      teamDismissedRef.current = 0;
+      setTeamAhead(false);
+    }
+  }, [workspace, getToken, openInWorkspace]);
 
   // Undo/redo + help keyboard shortcuts
   useEffect(() => {
@@ -212,6 +244,27 @@ export default function EstimatorApp() {
           <div className="mb-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] text-ink-soft">
             <span className="h-2 w-2 rounded-full bg-[#10B981]" />
             {formatViewers(viewers)} {viewers.length === 1 ? "is" : "are"} viewing this team estimate right now.
+          </div>
+        )}
+        {teamAhead && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-ink">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            A teammate saved newer changes to this estimate.
+            <button
+              className="rounded-md bg-ink px-2 py-0.5 text-[11.5px] font-semibold text-paper hover:opacity-85"
+              onClick={reloadTeamDoc}
+            >
+              Reload theirs
+            </button>
+            <button
+              className="rounded-md border border-hairline px-2 py-0.5 text-[11.5px] font-medium text-ink-soft hover:text-ink"
+              onClick={() => {
+                teamDismissedRef.current = teamRemoteAtRef.current;
+                setTeamAhead(false);
+              }}
+            >
+              Keep mine
+            </button>
           </div>
         )}
         <ProjectDetailsPanel key={estimate.id} />

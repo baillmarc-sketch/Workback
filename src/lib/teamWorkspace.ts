@@ -82,6 +82,68 @@ export async function deleteTeamDoc(
   if (!res.ok) throw new Error(`Team delete failed (${res.status})`);
 }
 
+/** Cheap "head" check: just a team doc's `updatedAt` (ms), or null. Lets a client
+    detect a teammate's save without pulling the whole doc. */
+export async function fetchTeamDocUpdatedAt(
+  teamId: string,
+  appId: WorkspaceAppId,
+  docId: string,
+  token: string
+): Promise<number | null> {
+  try {
+    const res = await fetch(`${root(teamId)}/docs/${appId}/${encodeURIComponent(docId)}/updatedAt.json${auth(token)}`);
+    if (!res.ok) return null;
+    const v = await res.json();
+    return typeof v === "number" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+// --- trash (recover / purge soft-deleted team files) ---
+
+/** Soft-deleted team docs of one app, keyed by id (raw JSON — caller migrates). */
+export async function listTeamTrash(
+  teamId: string,
+  appId: WorkspaceAppId,
+  token: string
+): Promise<Record<string, object>> {
+  const res = await fetch(`${root(teamId)}/trash/${appId}.json${auth(token)}`);
+  if (!res.ok) throw new Error(`Team trash fetch failed (${res.status})`);
+  return ((await res.json()) as Record<string, object> | null) ?? {};
+}
+
+/** Restore a trashed doc to the live workspace (atomic: live set, trash cleared). */
+export async function recoverTeamDoc(
+  teamId: string,
+  appId: WorkspaceAppId,
+  doc: SavableDoc,
+  token: string
+): Promise<void> {
+  const res = await fetch(`${root(teamId)}.json${auth(token)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      [`docs/${appId}/${doc.id}`]: doc,
+      [`trash/${appId}/${doc.id}`]: null,
+    }),
+  });
+  if (!res.ok) throw new Error(`Team recover failed (${res.status})`);
+}
+
+/** Permanently drop a trashed team doc. */
+export async function purgeTeamDoc(
+  teamId: string,
+  appId: WorkspaceAppId,
+  id: string,
+  token: string
+): Promise<void> {
+  const res = await fetch(`${root(teamId)}/trash/${appId}/${encodeURIComponent(id)}.json${auth(token)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(`Team purge failed (${res.status})`);
+}
+
 // --- presence (who's viewing a team file, by name) ---
 
 function presBase(teamId: string, appId: WorkspaceAppId, docId: string): string {

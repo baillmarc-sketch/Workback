@@ -13,12 +13,13 @@ import {
 import { NOTICE_EVENT } from "@/lib/notify";
 import { addDaysKey, addMonthsKey, durationDays, snapWorkday, todayKey } from "@/lib/dates";
 import { heartbeat, leave, readOthers } from "@/lib/presence";
-import { teamHeartbeat, teamLeave, teamReadOthers } from "@/lib/teamWorkspace";
+import { teamHeartbeat, teamLeave, teamReadOthers, fetchTeamDocUpdatedAt, loadTeamDoc } from "@/lib/teamWorkspace";
 import { decodeShareCode, encodeShareCode } from "@/lib/share";
 import {
   lastOpenId,
   listProjects,
   loadProject,
+  migrate,
   sampleProject,
   saveProject,
 } from "@/lib/storage";
@@ -67,7 +68,7 @@ function formatViewers(names: string[]): string {
 }
 
 export default function App() {
-  const { project, open, commit, patch, undo, redo, workspace } = useStore();
+  const { project, open, openInWorkspace, commit, patch, undo, redo, workspace } = useStore();
   const { user, getToken } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editAnchor, setEditAnchor] = useState<Anchor | null>(null);
@@ -77,10 +78,13 @@ export default function App() {
   const [downstreamMode, setDownstreamMode] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [viewers, setViewers] = useState<string[]>([]);
+  const [teamAhead, setTeamAhead] = useState(false);
   const [remoteAhead, setRemoteAhead] = useState<Project | null>(null);
   const dismissedRemoteRef = useRef(0);
   const projectRef = useRef(project);
   projectRef.current = project;
+  const teamRemoteAtRef = useRef(0);
+  const teamDismissedRef = useRef(0);
   const clipboardRef = useRef<WorkbackEvent | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -358,6 +362,8 @@ export default function App() {
     let cancelled = false;
 
     if (teamId && docId) {
+      setTeamAhead(false);
+      teamDismissedRef.current = 0;
       const name = (user?.name || user?.email || "A teammate").trim();
       const tick = async () => {
         const token = await getToken();
@@ -365,14 +371,24 @@ export default function App() {
         await teamHeartbeat(teamId, "workback", docId, sid, name, token);
         const list = await teamReadOthers(teamId, "workback", docId, sid, token);
         if (!cancelled) setViewers(list.map((p) => p.name));
+        // A teammate saved a newer version than we hold → offer a reload.
+        const remoteAt = await fetchTeamDocUpdatedAt(teamId, "workback", docId, token);
+        const localAt = projectRef.current?.updatedAt ?? 0;
+        if (!cancelled && remoteAt !== null) {
+          teamRemoteAtRef.current = remoteAt;
+          setTeamAhead(remoteAt > localAt + 250 && remoteAt > teamDismissedRef.current);
+        }
       };
       tick();
       const iv = setInterval(tick, 12_000);
+      const onFocus = () => tick();
       const onBye = () => getToken().then((t) => t && teamLeave(teamId, "workback", docId, sid, t));
+      window.addEventListener("focus", onFocus);
       window.addEventListener("pagehide", onBye);
       return () => {
         cancelled = true;
         clearInterval(iv);
+        window.removeEventListener("focus", onFocus);
         window.removeEventListener("pagehide", onBye);
         getToken().then((t) => t && teamLeave(teamId, "workback", docId, sid, t));
       };
@@ -399,6 +415,21 @@ export default function App() {
 
     setViewers([]);
   }, [teamId, docId, shareId, user, getToken]);
+
+  // Pull a teammate's newer version of the open team file into the editor.
+  const reloadTeamDoc = useCallback(async () => {
+    if (workspace.kind !== "team") return;
+    const cur = projectRef.current;
+    if (!cur) return;
+    const token = await getToken();
+    if (!token) return;
+    const raw = await loadTeamDoc(workspace.teamId, "workback", cur.id, token);
+    if (raw) {
+      openInWorkspace(migrate(raw), { kind: "team", teamId: workspace.teamId });
+      teamDismissedRef.current = 0;
+      setTeamAhead(false);
+    }
+  }, [workspace, getToken, openInWorkspace]);
 
   // Months that actually contain events — what Print/PDF renders (one per page)
   const activeMonths = useMemo(() => {
@@ -578,6 +609,28 @@ export default function App() {
           <span className="h-2 w-2 rounded-full bg-[#10B981]" />
           {formatViewers(viewers)} {viewers.length === 1 ? "is" : "are"} viewing this{" "}
           {workspace.kind === "team" ? "team file" : "shared calendar"} right now.
+        </div>
+      )}
+
+      {teamAhead && (
+        <div className="no-print mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-ink">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          A teammate saved newer changes to this file.
+          <button
+            className="rounded-md bg-ink px-2 py-0.5 text-[11.5px] font-semibold text-paper hover:opacity-85"
+            onClick={reloadTeamDoc}
+          >
+            Reload theirs
+          </button>
+          <button
+            className="rounded-md border border-hairline px-2 py-0.5 text-[11.5px] font-medium text-ink-soft hover:text-ink"
+            onClick={() => {
+              teamDismissedRef.current = teamRemoteAtRef.current;
+              setTeamAhead(false);
+            }}
+          >
+            Keep mine
+          </button>
         </div>
       )}
 
