@@ -5,7 +5,8 @@ import { useAuth } from "@/state/auth";
 import { useBidSpec } from "@/state/bidSpecsStore";
 import { bidSpecShareUrl, fetchBidSpec, newShareId } from "@/lib/bidSpecs/cloud";
 import { syncBidSpecs } from "@/lib/bidSpecs/account";
-import { lastOpenId, listBidSpecs, loadBidSpec, sampleBidSpec, saveBidSpec } from "@/lib/bidSpecs/storage";
+import { lastOpenId, listBidSpecs, loadBidSpec, migrate, sampleBidSpec, saveBidSpec } from "@/lib/bidSpecs/storage";
+import { teamHeartbeat, teamLeave, teamReadOthers, fetchTeamDocUpdatedAt, loadTeamDoc } from "@/lib/teamWorkspace";
 import BidSpecsExportDialog from "./BidSpecsExportDialog";
 import BidSpecsHeader from "./BidSpecsHeader";
 import BidSpecsHelpDialog from "./BidSpecsHelpDialog";
@@ -16,11 +17,27 @@ import SpecEditor from "./SpecEditor";
 
 type Dialog = "list" | "export" | "help" | null;
 
+/** "Alex" · "Alex and Sam" · "Alex, Sam and 2 others" — for the live viewers line. */
+function formatViewers(names: string[]): string {
+  const u = [...new Set(names)];
+  if (u.length === 1) return u[0];
+  if (u.length === 2) return `${u[0]} and ${u[1]}`;
+  return `${u[0]}, ${u[1]} and ${u.length - 2} other${u.length - 2 === 1 ? "" : "s"}`;
+}
+
 export default function BidSpecsApp() {
-  const { spec, open, patch, undo, redo } = useBidSpec();
+  const { spec, open, openInWorkspace, patch, undo, redo, workspace } = useBidSpec();
   const { user, getToken } = useAuth();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [viewers, setViewers] = useState<string[]>([]);
+  const [teamAhead, setTeamAhead] = useState(false);
+  const sessionIdRef = useRef<string>("");
+  if (!sessionIdRef.current) sessionIdRef.current = newShareId();
+  const specRef = useRef(spec);
+  specRef.current = spec;
+  const teamRemoteAtRef = useRef(0);
+  const teamDismissedRef = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -94,6 +111,61 @@ export default function BidSpecsApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Live presence on team bid specs: who's viewing (by name) + remote-ahead guard.
+  const teamId = workspace.kind === "team" ? workspace.teamId : null;
+  const docId = spec?.id ?? null;
+  useEffect(() => {
+    if (!teamId || !docId) {
+      setViewers([]);
+      setTeamAhead(false);
+      return;
+    }
+    teamDismissedRef.current = 0;
+    const sid = sessionIdRef.current;
+    const name = (user?.name || user?.email || "A teammate").trim();
+    let cancelled = false;
+    const tick = async () => {
+      const token = await getToken();
+      if (!token) return;
+      await teamHeartbeat(teamId, "bid-specs", docId, sid, name, token);
+      const list = await teamReadOthers(teamId, "bid-specs", docId, sid, token);
+      if (!cancelled) setViewers(list.map((p) => p.name));
+      const remoteAt = await fetchTeamDocUpdatedAt(teamId, "bid-specs", docId, token);
+      const localAt = specRef.current?.updatedAt ?? 0;
+      if (!cancelled && remoteAt !== null) {
+        teamRemoteAtRef.current = remoteAt;
+        setTeamAhead(remoteAt > localAt + 250 && remoteAt > teamDismissedRef.current);
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 12_000);
+    const onFocus = () => tick();
+    const onBye = () => getToken().then((t) => t && teamLeave(teamId, "bid-specs", docId, sid, t));
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pagehide", onBye);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pagehide", onBye);
+      getToken().then((t) => t && teamLeave(teamId, "bid-specs", docId, sid, t));
+    };
+  }, [teamId, docId, user, getToken]);
+
+  const reloadTeamDoc = useCallback(async () => {
+    if (workspace.kind !== "team") return;
+    const cur = specRef.current;
+    if (!cur) return;
+    const token = await getToken();
+    if (!token) return;
+    const raw = await loadTeamDoc(workspace.teamId, "bid-specs", cur.id, token);
+    if (raw) {
+      openInWorkspace(migrate(raw), { kind: "team", teamId: workspace.teamId });
+      teamDismissedRef.current = 0;
+      setTeamAhead(false);
+    }
+  }, [workspace, getToken, openInWorkspace]);
+
   // Undo/redo + help shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -146,6 +218,33 @@ export default function BidSpecsApp() {
           onPrint={() => window.print()}
           onHelp={() => setDialog("help")}
         />
+        {viewers.length > 0 && (
+          <div className="mb-3 flex items-center gap-2 rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12px] text-ink-soft">
+            <span className="h-2 w-2 rounded-full bg-[#10B981]" />
+            {formatViewers(viewers)} {viewers.length === 1 ? "is" : "are"} viewing this team bid spec right now.
+          </div>
+        )}
+        {teamAhead && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[12px] text-ink">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            A teammate saved newer changes to this bid spec.
+            <button
+              className="rounded-md bg-ink px-2 py-0.5 text-[11.5px] font-semibold text-paper hover:opacity-85"
+              onClick={reloadTeamDoc}
+            >
+              Reload theirs
+            </button>
+            <button
+              className="rounded-md border border-hairline px-2 py-0.5 text-[11.5px] font-medium text-ink-soft hover:text-ink"
+              onClick={() => {
+                teamDismissedRef.current = teamRemoteAtRef.current;
+                setTeamAhead(false);
+              }}
+            >
+              Keep mine
+            </button>
+          </div>
+        )}
         <SpecEditor />
 
         <footer className="mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">

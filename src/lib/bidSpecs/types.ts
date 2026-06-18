@@ -12,6 +12,8 @@
  * version so a sparse cloud copy round-trips and migrate() can self-heal it.
  */
 
+import type { Author } from "../author";
+
 /** A simple labelled value (Client, Job #, Bid Due, Shoot Dates, …). */
 export interface SpecField {
   id: string;
@@ -149,6 +151,8 @@ export interface BidSpec {
   signatureNote: string;
   /** Set when published to the shared cloud copy — the link channel ID. */
   shareId?: string;
+  /** Who created this file (team-workspace attribution; absent for old/personal docs). */
+  createdBy?: Author;
   createdAt: number;
   updatedAt: number;
 }
