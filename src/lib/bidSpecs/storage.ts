@@ -14,6 +14,7 @@ import type {
   UsageRow,
 } from "./types";
 import { uid } from "../types";
+import { migrateAuthor } from "../author";
 import { bumpVersion } from "../storage";
 import {
   DEFAULT_CHECKLIST,
@@ -266,6 +267,7 @@ export function migrate(data: unknown): BidSpec {
       "Please initial below confirming that you have read these production specifications, and return a copy to the Agency with your AICP bid."
     ),
     shareId: typeof e.shareId === "string" && e.shareId ? e.shareId : undefined,
+    createdBy: migrateAuthor(e.createdBy),
     createdAt: num(e.createdAt, now),
     updatedAt: num(e.updatedAt, now),
   };

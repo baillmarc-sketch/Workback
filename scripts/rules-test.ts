@@ -162,6 +162,7 @@ async function run() {
   await allow("member recovers from trash (atomic)", update(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1"), { "docs/workback/twp1": wbDoc, "trash/workback/twp1": null }));
   await allow("member reads a team doc's updatedAt head", get(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/workback/twp1/updatedAt")));
   await deny("non-member cannot read trash", get(ref(db(stranger, strangerEmail), "teamWorkspaces/t1/trash/workback")));
+  await allow("member writes a bid-specs team doc (any app id)", set(ref(db(memberUid, "member@example.com"), "teamWorkspaces/t1/docs/bid-specs/bs1"), { id: "bs1", updatedAt: 2 }));
 
   console.log("\nInvites");
   await deny("non-admin cannot create an invite (no self-escalation)", set(ref(db(memberUid, "member@example.com"), "invites/x@example,com"), { email: "x@example.com", estimator: true }));

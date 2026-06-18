@@ -14,7 +14,9 @@ import type { BidSpec } from "@/lib/bidSpecs/types";
 import { saveBidSpec } from "@/lib/bidSpecs/storage";
 import { newShareId, publishBidSpec } from "@/lib/bidSpecs/cloud";
 import { pushBidSpec } from "@/lib/bidSpecs/account";
+import { saveTeamDoc } from "@/lib/teamWorkspace";
 import { useAuth } from "./auth";
+import type { Workspace } from "./store";
 
 export type SyncState = "idle" | "syncing" | "synced" | "offline";
 
@@ -70,7 +72,9 @@ interface Store {
   canUndo: boolean;
   canRedo: boolean;
   syncState: SyncState;
+  workspace: Workspace;
   open: (spec: BidSpec) => void;
+  openInWorkspace: (spec: BidSpec, workspace: Workspace) => void;
   close: () => void;
   /** Undoable mutation — pushes onto the history stack. */
   commit: (up: (s: BidSpec) => BidSpec) => void;
@@ -98,7 +102,20 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const open = useCallback((spec: BidSpec) => dispatch({ type: "open", spec }), []);
+  const [workspace, setWorkspace] = useState<Workspace>({ kind: "personal" });
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
+
+  const open = useCallback((spec: BidSpec) => {
+    workspaceRef.current = { kind: "personal" };
+    setWorkspace({ kind: "personal" });
+    dispatch({ type: "open", spec });
+  }, []);
+  const openInWorkspace = useCallback((spec: BidSpec, ws: Workspace) => {
+    workspaceRef.current = ws;
+    setWorkspace(ws);
+    dispatch({ type: "open", spec });
+  }, []);
   const close = useCallback(() => dispatch({ type: "close" }), []);
 
   const commit = useCallback((up: (s: BidSpec) => BidSpec) => {
@@ -122,11 +139,54 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
   const undo = useCallback(() => dispatch({ type: "undo" }), []);
   const redo = useCallback(() => dispatch({ type: "redo" }), []);
 
-  // Flush to localStorage the instant the tab hides/closes.
+  const [syncState, setSyncState] = useState<SyncState>("idle");
+  const lastPushedRef = useRef<string>("");
+  const lastAccountPushedRef = useRef<string>("");
+  const cloudInFlight = useRef(false);
+  const accountInFlight = useRef(false);
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Team-workspace save (routes to /teamWorkspaces instead of local+account).
+  const teamStampRef = useRef<string>("");
+  const teamInFlight = useRef(false);
+  const flushTeam = useCallback(() => {
+    const s = stateRef.current.spec;
+    const ws = workspaceRef.current;
+    if (!s || ws.kind !== "team") return;
+    const stamp = `${s.id}:${s.updatedAt}`;
+    if (teamStampRef.current === stamp) {
+      setSyncState("synced");
+      return;
+    }
+    if (teamInFlight.current) return;
+    const teamId = ws.teamId;
+    teamInFlight.current = true;
+    setSyncState("syncing");
+    getToken()
+      .then((token) => (token ? saveTeamDoc(teamId, "bid-specs", s, token) : Promise.reject(new Error("no token"))))
+      .then(() => {
+        teamStampRef.current = stamp;
+        teamInFlight.current = false;
+        const cur = stateRef.current.spec;
+        if (cur && `${cur.id}:${cur.updatedAt}` !== stamp) flushTeam();
+        else setSyncState("synced");
+      })
+      .catch(() => {
+        teamInFlight.current = false;
+        setSyncState("offline");
+        if (retryTimer.current) clearTimeout(retryTimer.current);
+        retryTimer.current = setTimeout(flushTeam, CLOUD_RETRY_MS);
+      });
+  }, [getToken]);
+
+  // Flush the latest state on tab hide/close — to the team path for team docs,
+  // else localStorage.
   useEffect(() => {
     const flush = () => {
       const s = stateRef.current.spec;
-      if (s) saveBidSpec(s, { setLastOpen: false });
+      if (!s) return;
+      if (workspaceRef.current.kind === "team") flushTeam();
+      else saveBidSpec(s, { setLastOpen: false });
     };
     const onVisible = () => {
       if (document.visibilityState === "hidden") flush();
@@ -137,14 +197,7 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("pagehide", flush);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
-
-  const [syncState, setSyncState] = useState<SyncState>("idle");
-  const lastPushedRef = useRef<string>("");
-  const lastAccountPushedRef = useRef<string>("");
-  const cloudInFlight = useRef(false);
-  const accountInFlight = useRef(false);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  }, [flushTeam]);
 
   const flushCloud = useCallback(() => {
     const run = () => {
@@ -197,6 +250,10 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!state.spec) return;
     const s = state.spec;
+    if (workspace.kind === "team") {
+      const tTeam = setTimeout(flushTeam, 600);
+      return () => clearTimeout(tTeam);
+    }
     const tLocal = setTimeout(() => saveBidSpec(s), 250);
     const tCloud = setTimeout(flushCloud, 1200);
     const tAccount = setTimeout(flushAccount, 1200);
@@ -205,12 +262,13 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(tCloud);
       clearTimeout(tAccount);
     };
-  }, [state.spec, flushCloud, flushAccount]);
+  }, [state.spec, workspace.kind, flushCloud, flushAccount, flushTeam]);
 
   useEffect(() => {
     const retry = () => {
       flushCloud();
       flushAccount();
+      flushTeam();
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") retry();
@@ -223,7 +281,7 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", retry);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [flushCloud, flushAccount]);
+  }, [flushCloud, flushAccount, flushTeam]);
 
   const value = useMemo<Store>(
     () => ({
@@ -231,14 +289,16 @@ export function BidSpecsProvider({ children }: { children: React.ReactNode }) {
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
       syncState,
+      workspace,
       open,
+      openInWorkspace,
       close,
       commit,
       patch,
       undo,
       redo,
     }),
-    [state.spec, state.past.length, state.future.length, syncState, open, close, commit, patch, undo, redo]
+    [state.spec, state.past.length, state.future.length, syncState, workspace, open, openInWorkspace, close, commit, patch, undo, redo]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
