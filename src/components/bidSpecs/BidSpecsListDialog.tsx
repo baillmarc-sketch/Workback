@@ -281,11 +281,14 @@ export default function BidSpecsListDialog({ onClose }: { onClose: () => void })
                   <button
                     className="shrink-0 rounded-md px-2 py-1 text-[11.5px] font-medium text-ink-faint hover:bg-red-50 hover:text-danger"
                     onClick={() => {
-                      if (confirm(`Delete “${s.title || "Untitled Bid Specs"}”? This can't be undone.`)) {
+                      if (confirm(`Delete “${s.title || "Untitled Bid Specs"}”? You can recover it from the admin trash.`)) {
+                        // Capture the doc before the local delete so the remote
+                        // soft-delete can stash it for recovery.
+                        const doc = loadBidSpec(s.id);
                         deleteBidSpec(s.id);
                         if (user) {
                           getToken()
-                            .then((t) => (t ? deleteRemoteBidSpec(user.uid, t, s.id) : undefined))
+                            .then((t) => (t ? deleteRemoteBidSpec(user.uid, t, s.id, doc) : undefined))
                             .catch(() => {});
                         }
                         bump((n) => n + 1);
