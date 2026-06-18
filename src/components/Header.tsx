@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useStore } from "@/state/store";
 import AccountButton from "./AccountButton";
+import FeedbackButton from "./feedback/FeedbackButton";
 
 export default function Header({ onOpenProjects }: { onOpenProjects: () => void }) {
   const { project, commit } = useStore();
@@ -35,6 +36,7 @@ export default function Header({ onOpenProjects }: { onOpenProjects: () => void 
           >
             Projects
           </button>
+          <FeedbackButton variant="inline" className="mt-1.5" />
           <AccountButton />
         </div>
       </div>

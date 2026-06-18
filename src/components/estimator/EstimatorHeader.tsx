@@ -4,6 +4,7 @@ import { useState } from "react";
 import { duplicateEstimate, saveEstimate } from "@/lib/estimator/storage";
 import { useEstimate } from "@/state/estimateStore";
 import AccountButton from "../AccountButton";
+import FeedbackButton from "../feedback/FeedbackButton";
 
 export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: () => void }) {
   const { estimate, open, commit } = useEstimate();
@@ -52,6 +53,7 @@ export default function EstimatorHeader({ onOpenEstimates }: { onOpenEstimates: 
           >
             Estimates
           </button>
+          <FeedbackButton variant="inline" className="mt-1.5" />
           <AccountButton />
         </div>
       </div>

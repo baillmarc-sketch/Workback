@@ -6,6 +6,7 @@ import { useAccess } from "@/state/access";
 import { appInfo, setApp, type AppId } from "@/lib/toolkit";
 import { myAccessRequest, requestAccess } from "@/lib/admin/requests";
 import AccountButton from "./AccountButton";
+import FeedbackButton from "./feedback/FeedbackButton";
 
 /**
  * Gates a private app behind a granted account. Workback is public and always
@@ -105,6 +106,7 @@ export default function AppGate({ appId, children }: { appId: AppId; children: R
         >
           ← Workback
         </button>
+        <FeedbackButton variant="inline" />
         <AccountButton />
       </div>
     </div>

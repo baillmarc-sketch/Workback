@@ -25,6 +25,7 @@ import EstimatorHeader from "./EstimatorHeader";
 import EstimatorHelpDialog from "./EstimatorHelpDialog";
 import EstimatorToolbar from "./EstimatorToolbar";
 import ProjectDetailsPanel from "./ProjectDetailsPanel";
+import FeedbackButton from "../feedback/FeedbackButton";
 import type { ViewMode } from "./ViewToggle";
 
 type Dialog = "estimates" | "export" | "adjustments" | "print" | "help" | null;
@@ -277,13 +278,15 @@ export default function EstimatorApp() {
             onClick={() => setDialog("help")}
           >
             ? How it works
-          </button>
+          </button>{" "}
+          · <FeedbackButton variant="footer" />
         </footer>
         <footer className="mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
           Auto-saved · tap a cell to edit ·{" "}
           <button className="font-medium underline-offset-2" onClick={() => setDialog("help")}>
             How it works
-          </button>
+          </button>{" "}
+          · <FeedbackButton variant="footer" />
         </footer>
         <div className="pb-4 text-center text-[11px] text-ink-faint">©2026. Stolen from Marc Baill.</div>
       </div>

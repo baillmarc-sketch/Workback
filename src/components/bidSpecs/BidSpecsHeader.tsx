@@ -4,6 +4,7 @@ import { useState } from "react";
 import { duplicateBidSpec, saveBidSpec } from "@/lib/bidSpecs/storage";
 import { useBidSpec } from "@/state/bidSpecsStore";
 import AccountButton from "../AccountButton";
+import FeedbackButton from "../feedback/FeedbackButton";
 
 export default function BidSpecsHeader({ onOpenList }: { onOpenList: () => void }) {
   const { spec, open, commit } = useBidSpec();
@@ -49,6 +50,7 @@ export default function BidSpecsHeader({ onOpenList }: { onOpenList: () => void 
           >
             Bid Specs
           </button>
+          <FeedbackButton variant="inline" className="mt-1.5" />
           <AccountButton />
         </div>
       </div>

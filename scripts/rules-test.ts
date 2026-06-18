@@ -247,6 +247,22 @@ async function run() {
   await deny("shared estimate updatedAt may not go backwards", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 4 }));
   await deny("shared estimate missing updatedAt is rejected", set(ref(db(null), "sharedEstimates/se2"), { id: "se2" }));
 
+  console.log("\nFeedback (create-open, append-only, admin-read)");
+  const fb = { createdAt: 1, kind: "bug", message: "it broke", status: "new" };
+  await allow("anon creates a feedback entry", set(ref(db(null), "feedback/f1"), fb));
+  await deny("anon cannot list feedback", get(ref(db(null), "feedback")));
+  await deny("anon cannot read a single feedback entry", get(ref(db(null), "feedback/f1")));
+  await deny("anon cannot overwrite an existing entry (append-only)", set(ref(db(null), "feedback/f1"), { createdAt: 2, kind: "bug", message: "tamper", status: "new" }));
+  await deny("feedback requires a message", set(ref(db(null), "feedback/f2"), { createdAt: 1, kind: "bug", status: "new" }));
+  await deny("feedback requires createdAt", set(ref(db(null), "feedback/f3"), { kind: "bug", message: "hi" }));
+  await deny("feedback message is length-capped", set(ref(db(null), "feedback/f4"), { createdAt: 1, kind: "bug", message: "x".repeat(5000) }));
+  await deny("feedback screenshot is length-capped", set(ref(db(null), "feedback/f5"), { createdAt: 1, kind: "bug", message: "hi", screenshot: "x".repeat(400001) }));
+  await deny("feedback rejects unknown keys", set(ref(db(null), "feedback/f6"), { createdAt: 1, kind: "bug", message: "hi", junk: 1 }));
+  await deny("non-admin cannot list feedback", get(ref(db(memberUid, "member@example.com"), "feedback")));
+  await allow("admin lists feedback", get(ref(db(adminUid, "admin@example.com"), "feedback")));
+  await allow("admin marks an entry reviewed", update(ref(db(adminUid, "admin@example.com"), "feedback/f1"), { status: "reviewed", reviewedAt: 2, reviewedBy: "admin@example.com" }));
+  await allow("admin deletes a feedback entry", remove(ref(db(adminUid, "admin@example.com"), "feedback/f1")));
+
   console.log("\nProtected-owner guard (pinned owners can't be removed)");
   await env.clearDatabase();
   await env.withSecurityRulesDisabled(async (ctx) => {

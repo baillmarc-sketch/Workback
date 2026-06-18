@@ -3,18 +3,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/state/auth";
 import AccountButton from "../AccountButton";
+import FeedbackButton from "../feedback/FeedbackButton";
 import { setApp } from "@/lib/toolkit";
 import { isOwnerUidPinned, setOwnerUid } from "@/lib/admin/users";
 import { logAudit } from "@/lib/admin/audit";
 import { listAccessRequests } from "@/lib/admin/requests";
+import { countNewFeedback } from "@/lib/feedback/feedback";
 import UsersSection from "./UsersSection";
 import InvitesSection from "./InvitesSection";
 import RequestsSection from "./RequestsSection";
 import TeamsSection from "./TeamsSection";
 import AuditSection from "./AuditSection";
 import AllWorkSection from "./AllWorkSection";
+import FeedbackSection from "./FeedbackSection";
 
-type Section = "requests" | "users" | "work" | "invites" | "teams" | "activity";
+type Section = "requests" | "users" | "work" | "invites" | "teams" | "activity" | "feedback";
 
 /** Admin page shell: a sub-nav over Requests / Users / Invites / Teams /
     Activity, plus an account strip that surfaces the owner's UID and the
@@ -25,6 +28,7 @@ export default function AdminApp() {
   const [pinned, setPinned] = useState<boolean | null>(null);
   const [pinning, setPinning] = useState(false);
   const [requestCount, setRequestCount] = useState<number | null>(null);
+  const [feedbackCount, setFeedbackCount] = useState<number | null>(null);
 
   // Pending-request count for the tab badge — loaded once; RequestsSection keeps
   // it live as the owner approves/dismisses.
@@ -38,6 +42,12 @@ export default function AdminApp() {
         if (!cancelled) setRequestCount(list.length);
       } catch {
         /* a transient failure just leaves the badge off */
+      }
+      try {
+        const n = await countNewFeedback(token);
+        if (!cancelled) setFeedbackCount(n);
+      } catch {
+        /* same: a failed count just leaves the badge off */
       }
     })();
     return () => {
@@ -110,6 +120,7 @@ export default function AdminApp() {
           >
             ← Workback
           </button>
+          <FeedbackButton variant="inline" className="py-1.5" />
           <AccountButton />
         </div>
       </header>
@@ -136,6 +147,7 @@ export default function AdminApp() {
 
       <div className="mb-4 flex items-center gap-1 border-b border-hairline pb-2" role="tablist">
         {navBtn("requests", "Requests", requestCount)}
+        {navBtn("feedback", "Feedback", feedbackCount)}
         {navBtn("users", "Users")}
         {navBtn("work", "All work")}
         {navBtn("invites", "Invites")}
@@ -144,6 +156,7 @@ export default function AdminApp() {
       </div>
 
       {section === "requests" && <RequestsSection onCount={setRequestCount} />}
+      {section === "feedback" && <FeedbackSection onCount={setFeedbackCount} />}
       {section === "users" && <UsersSection />}
       {section === "work" && <AllWorkSection />}
       {section === "invites" && <InvitesSection />}

@@ -5,6 +5,7 @@ import { parseAppFromHash, type AppId } from "@/lib/toolkit";
 import { ProjectProvider } from "@/state/store";
 import { EstimateProvider } from "@/state/estimateStore";
 import { BidSpecsProvider } from "@/state/bidSpecsStore";
+import { FeedbackProvider } from "@/state/feedback";
 import AppBar from "./AppBar";
 import AppGate from "./AppGate";
 import App from "./App";
@@ -32,7 +33,7 @@ export default function Toolkit() {
   }, []);
 
   return (
-    <>
+    <FeedbackProvider>
       <AppBar active={active} />
       {active === "admin" ? (
         <AdminGate>
@@ -55,6 +56,6 @@ export default function Toolkit() {
           <App />
         </ProjectProvider>
       )}
-    </>
+    </FeedbackProvider>
   );
 }

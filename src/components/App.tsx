@@ -42,6 +42,7 @@ import ReviewRoundDialog from "./ReviewRoundDialog";
 import ShareDialog from "./ShareDialog";
 import ShortcutsDialog from "./ShortcutsDialog";
 import Toolbar from "./Toolbar";
+import FeedbackButton from "./feedback/FeedbackButton";
 
 type Anchor = { left: number; top: number; right: number; bottom: number };
 type Dialog =
@@ -710,10 +711,11 @@ export default function App() {
         downstream ·{" "}
         <button className="font-medium underline-offset-2 hover:text-ink-soft hover:underline" onClick={() => setDialog("shortcuts")}>
           ⌘ Shortcuts
-        </button>
+        </button>{" "}
+        · <FeedbackButton variant="footer" />
       </footer>
       <footer className="no-print mt-8 pb-1 text-center text-[11px] text-ink-faint sm:hidden">
-        Auto-saved · tap a day to add · hold an event to drag it
+        Auto-saved · tap a day to add · <FeedbackButton variant="footer" />
       </footer>
       <div className="no-print pb-4 text-center text-[11px] text-ink-faint">
         ©2026. Stolen from Marc Baill.

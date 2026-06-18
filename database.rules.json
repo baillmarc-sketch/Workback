@@ -171,6 +171,32 @@
       }
     },
 
+    "feedback": {
+      ".read": "root.child('admins').child(auth.uid).exists()",
+      ".indexOn": ["createdAt"],
+      "$id": {
+        ".write": "(!data.exists() && newData.exists()) || root.child('admins').child(auth.uid).exists()",
+        ".validate": "(newData.child('createdAt').isNumber() || data.child('createdAt').isNumber()) && (newData.child('message').isString() || data.child('message').isString())",
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "kind": { ".validate": "newData.isString()" },
+        "message": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 4000" },
+        "email": { ".validate": "newData.isString() || newData.val() == null" },
+        "name": { ".validate": "newData.isString() || newData.val() == null" },
+        "uid": { ".validate": "newData.isString() || newData.val() == null" },
+        "app": { ".validate": "newData.isString() || newData.val() == null" },
+        "path": { ".validate": "newData.isString() || newData.val() == null" },
+        "userAgent": { ".validate": "newData.isString() || newData.val() == null" },
+        "viewport": { ".validate": "newData.isString() || newData.val() == null" },
+        "appVersion": { ".validate": "newData.isString() || newData.val() == null" },
+        "errors": { ".validate": "(newData.isString() && newData.val().length <= 8000) || newData.val() == null" },
+        "screenshot": { ".validate": "(newData.isString() && newData.val().length <= 400000) || newData.val() == null" },
+        "status": { ".validate": "newData.isString() || newData.val() == null" },
+        "reviewedAt": { ".validate": "newData.isNumber() || newData.val() == null" },
+        "reviewedBy": { ".validate": "newData.isString() || newData.val() == null" },
+        "$other": { ".validate": false }
+      }
+    },
+
     "auditLog": {
       ".read": "root.child('admins').child(auth.uid).exists()",
       ".indexOn": ["ts"],

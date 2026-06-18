@@ -13,6 +13,7 @@ import BidSpecsHelpDialog from "./BidSpecsHelpDialog";
 import BidSpecsListDialog from "./BidSpecsListDialog";
 import BidSpecsPrintView from "./BidSpecsPrintView";
 import BidSpecsToolbar from "./BidSpecsToolbar";
+import FeedbackButton from "../feedback/FeedbackButton";
 import SpecEditor from "./SpecEditor";
 
 type Dialog = "list" | "export" | "help" | null;
@@ -251,7 +252,8 @@ export default function BidSpecsApp() {
           Bid Specs — auto-saved {spec.shareId ? "& synced" : "locally"} · toggle terms · ⌘Z undo ·{" "}
           <button className="font-medium underline-offset-2 hover:text-ink-soft hover:underline" onClick={() => setDialog("help")}>
             ? AICP guides
-          </button>
+          </button>{" "}
+          · <FeedbackButton variant="footer" />
         </footer>
         <div className="pb-4 text-center text-[11px] text-ink-faint">©2026. Stolen from Marc Baill.</div>
       </div>
