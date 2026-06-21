@@ -3,7 +3,21 @@
    post-production markup/tax, grand total, variance).
    Run: npx tsx scripts/verify-aicp.ts */
 
+// --- localStorage mock (storage only touches it inside functions) ---
+const store = new Map<string, string>();
+(globalThis as unknown as { localStorage: Storage }).localStorage = {
+  getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+  setItem: (k: string, v: string) => void store.set(k, String(v)),
+  removeItem: (k: string) => void store.delete(k),
+  clear: () => store.clear(),
+  key: (i: number) => [...store.keys()][i] ?? null,
+  get length() {
+    return store.size;
+  },
+} as Storage;
+
 import { createBid, evalCell } from "../src/lib/aicp/builder.ts";
+import { saveBid, loadBid, listBids, duplicateBid, migrate } from "../src/lib/aicp/storage.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
 import {
   categorySubtotal,
@@ -175,6 +189,50 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
     categorySubtotal(round, round.categories[0].id, col) ===
       categorySubtotal(bid, bid.categories[0].id, col)
   );
+}
+
+// 8. Storage: save/load round-trip, duplicate version bump
+{
+  const bid = createBid("Acme Spot");
+  const col = estimateColumn(bid)!;
+  setEstimate(bid, categoryLineIds(bid.categories[0])[0], "3", "1000", "2"); // 6000
+  saveBid(bid);
+  const loaded = loadBid(bid.id)!;
+  check("save → load round-trips", !!loaded && loaded.id === bid.id, loaded?.id);
+  check(
+    "loaded A subtotal preserved",
+    categorySubtotal(loaded, loaded.categories[0].id, col) === 6000,
+    categorySubtotal(loaded, loaded.categories[0].id, col)
+  );
+  check("appears in index", listBids().some((s) => s.id === bid.id));
+
+  const dup = duplicateBid(bid.id)!;
+  check("duplicate gets new id", dup.id !== bid.id);
+  check("duplicate bumps title to v2", dup.title === "Acme Spot v2", dup.title);
+  check("duplicate clears share link", dup.shareId === undefined);
+}
+
+// 9. Migration heals RTDB-sparse data (dropped empty maps/arrays, stale cache)
+{
+  const full = createBid("Sparse");
+  const col = estimateColumn(full)!;
+  const line = categoryLineIds(full.categories[0])[0];
+  full.cells[cellKey(line, col)] = evalCell("2", "500", "2"); // 2000, value cache = 2000
+  // Simulate RTDB: drop the cached value + qty number, keep exprs; drop empty maps.
+  const wire = JSON.parse(JSON.stringify(full)) as Record<string, unknown>;
+  const cells = wire.cells as Record<string, Record<string, unknown>>;
+  delete cells[cellKey(line, col)].value; // stale/missing cache
+  delete cells[cellKey(line, col)].qty;
+  const healed = migrate(wire);
+  check(
+    "cell value re-derived from exprs after cache drop",
+    healed.cells[cellKey(line, col)].value === 2000,
+    healed.cells[cellKey(line, col)].value
+  );
+  check("healed bid still has 22 categories", healed.categories.length === 22);
+  // A bid with no columns at all still gets an Estimate column back.
+  const noCols = migrate({ id: "x", title: "t", updatedAt: 1, createdAt: 1 });
+  check("missing columns → Estimate column restored", !!estimateColumn(noCols));
 }
 
 if (failures > 0) {

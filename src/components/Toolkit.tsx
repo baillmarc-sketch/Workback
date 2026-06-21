@@ -5,11 +5,13 @@ import { parseAppFromHash, type AppId } from "@/lib/toolkit";
 import { ProjectProvider } from "@/state/store";
 import { EstimateProvider } from "@/state/estimateStore";
 import { BidSpecsProvider } from "@/state/bidSpecsStore";
+import { AicpProvider } from "@/state/aicpStore";
 import AppBar from "./AppBar";
 import AppGate from "./AppGate";
 import App from "./App";
 import EstimatorApp from "./estimator/EstimatorApp";
 import BidSpecsApp from "./bidSpecs/BidSpecsApp";
+import AicpApp from "./aicp/AicpApp";
 import AdminGate from "./admin/AdminGate";
 import AdminApp from "./admin/AdminApp";
 
@@ -49,6 +51,12 @@ export default function Toolkit() {
           <BidSpecsProvider>
             <BidSpecsApp />
           </BidSpecsProvider>
+        </AppGate>
+      ) : active === "aicp" ? (
+        <AppGate appId="aicp">
+          <AicpProvider>
+            <AicpApp />
+          </AicpProvider>
         </AppGate>
       ) : (
         <ProjectProvider>

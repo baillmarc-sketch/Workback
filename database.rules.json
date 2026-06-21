@@ -24,6 +24,13 @@
         ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
       }
     },
+    "sharedAicpBids": {
+      "$shareId": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.hasChildren(['id', 'updatedAt']) && newData.child('updatedAt').isNumber() && (!data.exists() || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
+      }
+    },
 
     "config": {
       "ownerUids": {
@@ -233,6 +240,21 @@
         },
         "bidSpecsTrash": {
           "$sid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt'])"
+          }
+        },
+        "aicpBids": {
+          "$bid": {
+            ".validate": "newData.hasChildren(['id', 'updatedAt']) && (!data.exists() || !data.hasChild('updatedAt') || newData.child('updatedAt').val() >= data.child('updatedAt').val())"
+          }
+        },
+        "aicpBidsDeleted": {
+          "$bid": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "aicpBidsTrash": {
+          "$bid": {
             ".validate": "newData.hasChildren(['id', 'updatedAt'])"
           }
         }
