@@ -14,6 +14,7 @@ import AicpDetailsPanel from "./AicpDetailsPanel";
 import AicpBidsDialog from "./AicpBidsDialog";
 import AicpPrintView, { defaultPrintConfig, type PrintConfig } from "./AicpPrintView";
 import AicpPrintDialog from "./AicpPrintDialog";
+import AicpHelpDialog from "./AicpHelpDialog";
 import { addVersionColumn } from "@/lib/aicp/mutations";
 
 type View = "bid" | "summary";
@@ -32,6 +33,7 @@ export default function AicpApp() {
   const [printOpen, setPrintOpen] = useState(false);
   const [printConfig, setPrintConfig] = useState<PrintConfig | null>(null);
   const [bidsOpen, setBidsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -106,6 +108,13 @@ export default function AicpApp() {
   // Undo/redo shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+        e.preventDefault();
+        setHelpOpen(true);
+        return;
+      }
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.key === "z" || e.key === "Z") {
         e.preventDefault();
@@ -194,7 +203,10 @@ export default function AicpApp() {
       )}
 
       <footer className="mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
-        AICP Bid — auto-saved {bid.shareId ? "& synced" : "locally"} · ⌘Z undo
+        AICP Bid — auto-saved {bid.shareId ? "& synced" : "locally"} · ⌘Z undo ·{" "}
+        <button className="font-medium underline-offset-2 hover:text-ink-soft hover:underline" onClick={() => setHelpOpen(true)}>
+          ? How it works
+        </button>
       </footer>
       <div className="pb-4 text-center text-[11px] text-ink-faint">©2026. Stolen from Marc Baill.</div>
       </div>
@@ -206,6 +218,7 @@ export default function AicpApp() {
         <AicpPrintDialog config={printConfig} setConfig={setPrintConfig} onClose={() => setPrintOpen(false)} />
       )}
       {bidsOpen && <AicpBidsDialog onClose={() => setBidsOpen(false)} />}
+      {helpOpen && <AicpHelpDialog onClose={() => setHelpOpen(false)} />}
 
       {toast && (
         <div className="no-print fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink px-3.5 py-2 text-[12.5px] font-medium text-paper shadow-lg">
