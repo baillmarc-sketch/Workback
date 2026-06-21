@@ -102,8 +102,8 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
   const prod = productionCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideUnused));
   const post = postCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideUnused));
 
-  const recapRow = (label: string, est: number, act: number, strong?: boolean, letter?: string) => (
-    <tr style={strong ? { borderTop: "1.5px solid #000", fontWeight: 600 } : undefined}>
+  const recapRow = (key: string, label: string, est: number, act: number, strong?: boolean, letter?: string) => (
+    <tr key={key} style={strong ? { borderTop: "1.5px solid #000", fontWeight: 600 } : undefined}>
       <td className="px-2 py-0.5 text-[11.5px]">
         {letter && <span className="mr-1 inline-block w-4 text-[#888]">{letter}</span>}
         {label}
@@ -177,18 +177,18 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
               </tr>
             </thead>
             <tbody>
-              {prod.map((c) => recapRow(c.name, categoryTotal(bid, c.id, estCol), actCol ? categoryTotal(bid, c.id, actCol) : 0, false, c.letter + "."))}
-              {recapRow("Sub-Total A to K", subtotalAtoK(bid, estCol), actCol ? subtotalAtoK(bid, actCol) : 0, true)}
-              {bid.rates.insuranceProdPct > 0 && recapRow("Insurance", productionInsurance(bid, estCol), actCol ? productionInsurance(bid, actCol) : 0)}
-              {bid.rates.productionFeePct > 0 && recapRow("Production Fee", productionFee(bid, estCol), actCol ? productionFee(bid, actCol) : 0)}
-              {recapRow("Production Total", productionTotal(bid, estCol), actCol ? productionTotal(bid, actCol) : 0, true)}
+              {prod.map((c) => recapRow(c.id, c.name, categoryTotal(bid, c.id, estCol), actCol ? categoryTotal(bid, c.id, actCol) : 0, false, c.letter + "."))}
+              {recapRow("subAK", "Sub-Total A to K", subtotalAtoK(bid, estCol), actCol ? subtotalAtoK(bid, actCol) : 0, true)}
+              {bid.rates.insuranceProdPct > 0 && recapRow("ins", "Insurance", productionInsurance(bid, estCol), actCol ? productionInsurance(bid, actCol) : 0)}
+              {bid.rates.productionFeePct > 0 && recapRow("fee", "Production Fee", productionFee(bid, estCol), actCol ? productionFee(bid, actCol) : 0)}
+              {recapRow("prodTotal", "Production Total", productionTotal(bid, estCol), actCol ? productionTotal(bid, actCol) : 0, true)}
               {post.length > 0 && (
-                <>
-                  {post.map((c) => recapRow(c.name, categoryTotal(bid, c.id, estCol), actCol ? categoryTotal(bid, c.id, actCol) : 0, false, c.letter + "."))}
-                  {recapRow("Post-Production Total", postRecap(bid, estCol).total, actCol ? postRecap(bid, actCol).total : 0, true)}
-                </>
+                <Fragment key="post">
+                  {post.map((c) => recapRow(c.id, c.name, categoryTotal(bid, c.id, estCol), actCol ? categoryTotal(bid, c.id, actCol) : 0, false, c.letter + "."))}
+                  {recapRow("postTotal", "Post-Production Total", postRecap(bid, estCol).total, actCol ? postRecap(bid, actCol).total : 0, true)}
+                </Fragment>
               )}
-              {recapRow("Grand Total", grandTotal(bid, estCol), actCol ? grandTotal(bid, actCol) : 0, true)}
+              {recapRow("grand", "Grand Total", grandTotal(bid, estCol), actCol ? grandTotal(bid, actCol) : 0, true)}
             </tbody>
           </table>
         </div>

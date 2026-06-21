@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useBid } from "@/state/aicpStore";
 import { formatCurrency } from "@/lib/estimator/format";
 import {
@@ -256,8 +256,8 @@ function CategoryBlock({
               cat.subSections.map((s) => {
                 const ssub = subSectionSubtotal(bid, s.lineIds, estCol);
                 return (
-                  <>
-                    <tr key={s.id} className="border-t border-hairline-strong bg-surface/40">
+                  <Fragment key={s.id}>
+                    <tr className="border-t border-hairline-strong bg-surface/40">
                       <td colSpan={totalCols} className="py-1 pl-2">
                         <span className="flex items-center justify-between gap-2">
                           <CellInput
@@ -284,7 +284,7 @@ function CategoryBlock({
                       <LineRow key={id} bid={bid} lineId={id} estCol={estCol} amountCols={amountCols} commit={commit} />
                     ))}
                     <AddLineRow cols={totalCols} onAdd={() => commit((b) => addLine(b, cat.id, { subSectionId: s.id }))} />
-                  </>
+                  </Fragment>
                 );
               })
             ) : (
