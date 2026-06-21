@@ -8,6 +8,11 @@ import { syncBids } from "@/lib/aicp/account";
 import { lastOpenId, listBids, loadBid, saveBid, sampleBid } from "@/lib/aicp/storage";
 import AicpHeader from "./AicpHeader";
 import AicpSummary from "./AicpSummary";
+import AicpGrid from "./AicpGrid";
+import AicpRatesBar from "./AicpRatesBar";
+import { addVersionColumn } from "@/lib/aicp/mutations";
+
+type View = "bid" | "summary";
 
 /**
  * AICP Bid app shell: boots a bid (shared link #a= > last open > most recent >
@@ -16,9 +21,10 @@ import AicpSummary from "./AicpSummary";
  * next; the summary already exercises the full recap engine end-to-end.
  */
 export default function AicpApp() {
-  const { bid, open, patch, undo, redo } = useBid();
+  const { bid, open, patch, commit, undo, redo } = useBid();
   const { user, getToken } = useAuth();
   const [toast, setToast] = useState<string | null>(null);
+  const [view, setView] = useState<View>("bid");
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -128,7 +134,44 @@ export default function AicpApp() {
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
       <AicpHeader onShare={onShare} />
-      <AicpSummary />
+
+      <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-md border border-hairline bg-surface p-0.5" role="tablist" aria-label="View">
+          {(["bid", "summary"] as View[]).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`rounded px-3 py-1 text-[12.5px] font-medium capitalize transition-colors ${
+                view === v ? "bg-ink text-paper" : "text-ink-soft hover:text-ink"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        {view === "bid" && (
+          <button
+            onClick={() => commit((b) => addVersionColumn(b))}
+            className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
+          >
+            + Version column
+          </button>
+        )}
+      </div>
+
+      {view === "bid" ? (
+        <>
+          <AicpRatesBar />
+          <AicpGrid />
+          <div className="mt-4">
+            <AicpSummary />
+          </div>
+        </>
+      ) : (
+        <AicpSummary />
+      )}
 
       <footer className="mt-8 hidden pb-1 text-center text-[11px] text-ink-faint sm:block">
         AICP Bid — auto-saved {bid.shareId ? "& synced" : "locally"} · ⌘Z undo

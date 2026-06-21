@@ -18,6 +18,19 @@ const store = new Map<string, string>();
 
 import { createBid, evalCell } from "../src/lib/aicp/builder.ts";
 import { saveBid, loadBid, listBids, duplicateBid, migrate } from "../src/lib/aicp/storage.ts";
+import {
+  addLine,
+  removeLine,
+  setEstimateField,
+  setActualAmount,
+  addSubSection,
+  removeSubSection,
+  addVersionColumn,
+  removeColumn,
+  toggleApplicability,
+  setRate,
+  toggleLineHidden,
+} from "../src/lib/aicp/mutations.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
 import {
   categorySubtotal,
@@ -233,6 +246,83 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   // A bid with no columns at all still gets an Estimate column back.
   const noCols = migrate({ id: "x", title: "t", updatedAt: 1, createdAt: 1 });
   check("missing columns → Estimate column restored", !!estimateColumn(noCols));
+}
+
+// 10. Mutations are immutable and correct
+{
+  const bid = createBid();
+  const col = estimateColumn(bid)!;
+  const A = bid.categories.find((c) => c.letter === "A")!;
+  const before = A.lineIds.length;
+
+  const b1 = addLine(bid, A.id, { label: "Drone Op" });
+  check("addLine does not mutate the original", bid.categories.find((c) => c.letter === "A")!.lineIds.length === before);
+  const A1 = b1.categories.find((c) => c.letter === "A")!;
+  check("addLine appends one line", A1.lineIds.length === before + 1);
+  const newId = A1.lineIds[A1.lineIds.length - 1];
+  check("new line label set", b1.lines[newId].label === "Drone Op");
+
+  const b2 = setEstimateField(b1, newId, col, "rate", "1000");
+  const b3 = setEstimateField(b2, newId, col, "units", "2");
+  const b4 = setEstimateField(b3, newId, col, "qty", "3");
+  check("estimate field edits compute 2×1000×3 = 6000", b4.cells[cellKey(newId, col)].value === 6000, b4.cells[cellKey(newId, col)]?.value);
+
+  const cleared = setEstimateField(setEstimateField(setEstimateField(b4, newId, col, "rate", ""), newId, col, "units", ""), newId, col, "qty", "");
+  check("clearing all fields removes the cell (sparse)", cleared.cells[cellKey(newId, col)] === undefined);
+
+  const removed = removeLine(b4, newId);
+  check("removeLine drops the line", removed.lines[newId] === undefined);
+  check("removeLine drops its cells", removed.cells[cellKey(newId, col)] === undefined);
+
+  const hidden = toggleLineHidden(b1, newId);
+  check("toggleLineHidden sets hidden", hidden.lines[newId].hidden === true);
+}
+
+// 11. Actual amount column + applicability + rates mutations
+{
+  let bid = createBid();
+  const act = actualColumn(bid)!;
+  const D = bid.categories.find((c) => c.letter === "D")!;
+  const line = categoryLineIds(D)[0];
+  bid = setActualAmount(bid, line, act, "5000");
+  check("setActualAmount stores a lump value", bid.cells[cellKey(line, act)].value === 5000, bid.cells[cellKey(line, act)]?.value);
+
+  // Toggle insurance off for A (was on by default) and confirm the recap drops it.
+  const A = bid.categories.find((c) => c.letter === "A")!;
+  bid = setRate(bid, "insuranceProdPct", 10);
+  const est = estimateColumn(bid)!;
+  bid = setEstimateField(bid, categoryLineIds(A)[0], est, "units", "1");
+  bid = setEstimateField(bid, categoryLineIds(A)[0], est, "rate", "1000");
+  const withA = productionInsurance(bid, est);
+  const off = toggleApplicability(bid, "insurance", A.id);
+  check("toggling insurance off A lowers insurance base", productionInsurance(off, est) < withA, {
+    withA,
+    off: productionInsurance(off, est),
+  });
+}
+
+// 12. Sub-sections + version columns
+{
+  let bid = createBid();
+  const X = bid.categories.find((c) => c.letter === "X")!;
+  bid = addSubSection(bid, X.id, "Online Conform");
+  const X1 = bid.categories.find((c) => c.letter === "X")!;
+  check("addSubSection adds a section", (X1.subSections?.length ?? 0) === 2, X1.subSections?.length);
+  const sub = X1.subSections![X1.subSections!.length - 1];
+  bid = addLine(bid, X.id, { subSectionId: sub.id, label: "Conform Artist" });
+  const X2 = bid.categories.find((c) => c.letter === "X")!;
+  check("addLine into sub-section", X2.subSections!.find((s) => s.id === sub.id)!.lineIds.length === 1);
+  bid = removeSubSection(bid, X.id, sub.id);
+  const X3 = bid.categories.find((c) => c.letter === "X")!;
+  check("removeSubSection removes it", !X3.subSections!.some((s) => s.id === sub.id));
+
+  const withV = addVersionColumn(bid, "Option B");
+  check("addVersionColumn adds a version", withV.columns.some((c) => c.kind === "version" && c.name === "Option B"));
+  const vId = withV.columns.find((c) => c.kind === "version")!.id;
+  const withoutV = removeColumn(withV, vId);
+  check("removeColumn drops the version", !withoutV.columns.some((c) => c.id === vId));
+  const estId = withV.columns.find((c) => c.kind === "estimate")!.id;
+  check("removeColumn refuses to drop Estimate", removeColumn(withV, estId).columns.some((c) => c.id === estId));
 }
 
 if (failures > 0) {
