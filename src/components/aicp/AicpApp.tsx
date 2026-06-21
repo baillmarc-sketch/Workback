@@ -10,6 +10,8 @@ import AicpHeader from "./AicpHeader";
 import AicpSummary from "./AicpSummary";
 import AicpGrid from "./AicpGrid";
 import AicpRatesBar from "./AicpRatesBar";
+import AicpPrintView, { defaultPrintConfig, type PrintConfig } from "./AicpPrintView";
+import AicpPrintDialog from "./AicpPrintDialog";
 import { addVersionColumn } from "@/lib/aicp/mutations";
 
 type View = "bid" | "summary";
@@ -25,6 +27,8 @@ export default function AicpApp() {
   const { user, getToken } = useAuth();
   const [toast, setToast] = useState<string | null>(null);
   const [view, setView] = useState<View>("bid");
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printConfig, setPrintConfig] = useState<PrintConfig | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -133,6 +137,7 @@ export default function AicpApp() {
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
+      <div className="no-print">
       <AicpHeader onShare={onShare} />
 
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -151,14 +156,25 @@ export default function AicpApp() {
             </button>
           ))}
         </div>
-        {view === "bid" && (
+        <div className="flex items-center gap-2">
+          {view === "bid" && (
+            <button
+              onClick={() => commit((b) => addVersionColumn(b))}
+              className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
+            >
+              + Version column
+            </button>
+          )}
           <button
-            onClick={() => commit((b) => addVersionColumn(b))}
+            onClick={() => {
+              setPrintConfig((c) => c ?? defaultPrintConfig(bid));
+              setPrintOpen(true);
+            }}
             className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
           >
-            + Version column
+            Print / PDF
           </button>
-        )}
+        </div>
       </div>
 
       {view === "bid" ? (
@@ -177,6 +193,14 @@ export default function AicpApp() {
         AICP Bid — auto-saved {bid.shareId ? "& synced" : "locally"} · ⌘Z undo
       </footer>
       <div className="pb-4 text-center text-[11px] text-ink-faint">©2026. Stolen from Marc Baill.</div>
+      </div>
+
+      {/* Print-only document; rendered always so the browser print dialog has it */}
+      <AicpPrintView config={printConfig ?? defaultPrintConfig(bid)} />
+
+      {printOpen && printConfig && (
+        <AicpPrintDialog config={printConfig} setConfig={setPrintConfig} onClose={() => setPrintOpen(false)} />
+      )}
 
       {toast && (
         <div className="no-print fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink px-3.5 py-2 text-[12.5px] font-medium text-paper shadow-lg">

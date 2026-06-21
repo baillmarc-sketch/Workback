@@ -228,3 +228,31 @@ body {
     break-inside: avoid;
   }
 }
+
+/* ---- Client-ready AICP bid PDF ----
+   Portrait Letter, like the estimate; the detail pages start on a fresh page. */
+@page aicp-page {
+  size: letter portrait;
+  margin: 14mm;
+}
+.aicp-print {
+  page: aicp-page;
+  color: #000;
+}
+@media print {
+  .aicp-print table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .aicp-print tr,
+  .aicp-print h2 {
+    break-inside: avoid;
+  }
+  .aicp-print .aicp-page-break {
+    break-before: page;
+  }
+  .aicp-print img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
