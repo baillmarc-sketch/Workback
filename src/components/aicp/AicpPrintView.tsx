@@ -29,6 +29,8 @@ export interface PrintConfig {
   theme: PrintTheme;
   /** Drop zero-value lines and empty categories from the printed bid. */
   hideUnused: boolean;
+  /** Show the AICP "No." column (the producer's form vs a clean client read). */
+  showLineNumbers: boolean;
   showJobInfo: boolean;
   showSummary: boolean;
   showDetail: boolean;
@@ -40,12 +42,19 @@ export function defaultPrintConfig(bid: Bid): PrintConfig {
   return {
     theme: "classic",
     hideUnused: true,
+    showLineNumbers: true,
     showJobInfo: true,
     showSummary: true,
     showDetail: true,
     showActual: false,
     showNotes: bid.notes.trim().length > 0,
   };
+}
+
+/** Sensible defaults when switching layout: the classic form is numbered like
+    the AICP sheet; the modern client read drops the line numbers. */
+export function presetForTheme(config: PrintConfig, theme: PrintTheme): PrintConfig {
+  return { ...config, theme, showLineNumbers: theme === "classic" };
 }
 
 function lineValue(bid: Bid, lineId: string, colId: string | undefined): number {
@@ -113,6 +122,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
     </tr>
   );
 
+  const nums = config.showLineNumbers;
   const detailTable = (cat: BidCategory, ids: string[]) => {
     const lines = visibleLines(bid, ids, estCol, actCol, config.hideUnused);
     return lines.map((id) => {
@@ -120,6 +130,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
       const c = bid.cells[cellKey(id, estCol)];
       return (
         <tr key={id}>
+          {nums && <td className={`${tdLabel} text-[#999]`}>{line.no ?? ""}</td>}
           <td className={tdLabel}>{line.label || "—"}</td>
           <td className={`${tdLabel} text-[#777]`}>{c?.unitsExpr ? `${c.unitsExpr} ${line.unitType}` : ""}</td>
           <td className={tdNum}>{c?.rate ? fmt(c.rate) : ""}</td>
@@ -131,7 +142,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
     });
   };
 
-  const detailCols = 5 + (actCol ? 1 : 0);
+  const detailCols = (nums ? 1 : 0) + 5 + (actCol ? 1 : 0);
 
   return (
     <div className={`aicp-print print-only ${classic ? "aicp-classic" : "aicp-modern"}`}>
@@ -209,6 +220,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
                       </td>
                     </tr>
                     <tr>
+                      {nums && <th className={th}>No.</th>}
                       <th className={th}>Description</th>
                       <th className={th}>Units</th>
                       <th className={`${th} text-right`}>Rate</th>

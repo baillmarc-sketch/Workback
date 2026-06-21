@@ -91,6 +91,11 @@ export function renameLine(bid: Bid, lineId: string, label: string): Bid {
   return withLine(bid, lineId, (l) => ({ ...l, label }));
 }
 
+/** Set a line's AICP number (the "No." column); blank clears it. */
+export function setLineNo(bid: Bid, lineId: string, no: string): Bid {
+  return withLine(bid, lineId, (l) => ({ ...l, no: no.trim() ? no.trim() : undefined }));
+}
+
 export function setLineUnitType(bid: Bid, lineId: string, unitType: string): Bid {
   return withLine(bid, lineId, (l) => ({ ...l, unitType }));
 }

@@ -34,6 +34,7 @@ import {
   toggleBreakoutIncluded,
   removeBreakoutCategory,
   renameCategory,
+  setLineNo,
 } from "../src/lib/aicp/mutations.ts";
 import { buildBidCsv } from "../src/lib/aicp/exportCsv.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
@@ -376,6 +377,25 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   const removed = removeBreakoutCategory(bid, P.id);
   check("removeBreakoutCategory removes it", !removed.categories.some((c) => c.id === P.id));
   check("removeBreakoutCategory refuses standard categories", removeBreakoutCategory(bid, C.id).categories.some((c) => c.id === C.id));
+}
+
+// 14. AICP line numbers
+{
+  check("template A line 1 carries AICP # 1", AICP_TEMPLATE[0].lines[0].no === "1", AICP_TEMPLATE[0].lines[0].no);
+  check("post category Q lines carry no AICP #", AICP_TEMPLATE.find((c) => c.letter === "Q")!.lines.every((l) => l.no === ""));
+
+  const bid = createBid();
+  const A = bid.categories.find((c) => c.letter === "A")!;
+  const first = bid.lines[categoryLineIds(A)[0]];
+  check("seeded line gets its AICP #", first.no === "1", first.no);
+
+  const added = addLine(bid, A.id, { label: "Custom" });
+  const newId = added.categories.find((c) => c.letter === "A")!.lineIds.slice(-1)[0];
+  check("added line has a blank No.", added.lines[newId].no === undefined);
+
+  const set = setLineNo(added, newId, "49a");
+  check("setLineNo sets the number", set.lines[newId].no === "49a");
+  check("setLineNo blank clears it", setLineNo(set, newId, "").lines[newId].no === undefined);
 }
 
 if (failures > 0) {

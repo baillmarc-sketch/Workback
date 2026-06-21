@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useBid } from "@/state/aicpStore";
 import Modal from "../Modal";
-import type { PrintConfig, PrintTheme } from "./AicpPrintView";
+import { presetForTheme, type PrintConfig, type PrintTheme } from "./AicpPrintView";
 
 /**
  * Configure and launch the printed AICP bid: classic vs modern layout, what to
@@ -37,7 +37,7 @@ export default function AicpPrintDialog({
   const cb = "flex cursor-pointer items-center gap-1.5 text-[12.5px]";
   const themeBtn = (t: PrintTheme, label: string, desc: string) => (
     <button
-      onClick={() => setConfig({ ...config, theme: t })}
+      onClick={() => setConfig(presetForTheme(config, t))}
       className={`flex-1 rounded-md border px-3 py-2 text-left transition-colors ${
         config.theme === t ? "border-ink bg-ink/5" : "border-hairline hover:border-ink-faint"
       }`}
@@ -53,14 +53,18 @@ export default function AicpPrintDialog({
         <div>
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">Layout</div>
           <div className="flex gap-2">
-            {themeBtn("classic", "Classic AICP", "The familiar AICP bid-form look")}
-            {themeBtn("modern", "Modern", "Cleaner, lighter typeset")}
+            {themeBtn("classic", "Classic AICP", "Numbered form for producers")}
+            {themeBtn("modern", "Modern", "Clean client read, no line numbers")}
           </div>
         </div>
 
         <div>
           <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">Include</div>
           <div className="flex flex-col gap-1.5">
+            <label className={cb}>
+              <input type="checkbox" checked={config.showLineNumbers} onChange={(e) => setConfig({ ...config, showLineNumbers: e.target.checked })} />
+              AICP line numbers (No. column)
+            </label>
             <label className={cb}>
               <input type="checkbox" checked={config.hideUnused} onChange={(e) => setConfig({ ...config, hideUnused: e.target.checked })} />
               Hide unused lines &amp; empty sections

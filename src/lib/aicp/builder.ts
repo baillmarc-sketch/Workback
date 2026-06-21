@@ -64,15 +64,15 @@ export function emptyCell(): BidCell {
   return evalCell("", "", "");
 }
 
-function makeLine(label: string, unitType: string, order: number): BidLine {
-  return { id: uid(), label, unitType, order };
+function makeLine(no: string, label: string, unitType: string, order: number): BidLine {
+  return { id: uid(), no: no || undefined, label, unitType, order };
 }
 
 /** Instantiate the AICP categories + their default lines from the template. */
 function buildCategories(): { categories: BidCategory[]; lines: Record<string, BidLine> } {
   const lines: Record<string, BidLine> = {};
   const categories: BidCategory[] = AICP_TEMPLATE.map((tc, ci) => {
-    const made = tc.lines.map((l, i) => makeLine(l.title, l.unitType, i));
+    const made = tc.lines.map((l, i) => makeLine(l.no, l.title, l.unitType, i));
     for (const l of made) lines[l.id] = l;
     const base: BidCategory = {
       id: uid(),

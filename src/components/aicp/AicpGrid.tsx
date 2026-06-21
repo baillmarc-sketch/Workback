@@ -25,6 +25,7 @@ import {
   renameSubSection,
   setActualAmount,
   setEstimateField,
+  setLineNo,
   setLineUnitType,
   toggleLineHidden,
   toggleApplicability,
@@ -73,7 +74,16 @@ function LineRow({
 
   return (
     <tr className="group border-t border-hairline hover:bg-surface/60">
-      <td className={`py-0.5 pl-2 ${dim}`}>
+      <td className={`w-10 py-0.5 pl-2 ${dim}`}>
+        <CellInput
+          value={line.no ?? ""}
+          onCommit={(v) => commit((b) => setLineNo(b, lineId, v))}
+          align="left"
+          className="text-[11px] text-ink-faint"
+          ariaLabel="AICP line number"
+        />
+      </td>
+      <td className={`py-0.5 ${dim}`}>
         <CellInput
           value={line.label}
           onCommit={(v) => commit((b) => renameLine(b, lineId, v))}
@@ -158,7 +168,8 @@ function CategoryBlock({
   commit: (up: (b: Bid) => Bid) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const totalCols = 6 + amountCols.length + 1; // desc, unit, units, rate, qty, est, amounts, actions
+  const totalCols = 7 + amountCols.length + 1; // no, desc, unit, units, rate, qty, est, amounts, actions
+  const preEst = 6; // columns before the Estimate value (no, desc, unit, units, rate, qty)
   const sub = categorySubtotal(bid, cat.id, estCol);
   const fringe = categoryFringe(bid, cat.id, estCol);
   const handling = categoryHandling(bid, cat.id, estCol);
@@ -237,7 +248,8 @@ function CategoryBlock({
         <table className="w-full text-[12px]">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-ink-faint">
-              <th className="py-1 pl-2 text-left font-medium">Description</th>
+              <th className="py-1 pl-2 text-left font-medium">No.</th>
+              <th className="py-1 text-left font-medium">Description</th>
               <th className="py-1 text-left font-medium">Unit</th>
               <th className="py-1 text-right font-medium">Units</th>
               <th className="py-1 text-right font-medium">Rate</th>
@@ -310,7 +322,7 @@ function CategoryBlock({
               </tr>
             )}
             <tr className="border-t border-hairline-strong text-[12px]">
-              <td className="py-1 pl-2 font-medium text-ink-soft" colSpan={5}>
+              <td className="py-1 pl-2 font-medium text-ink-soft" colSpan={preEst}>
                 Sub-total {cat.letter}
               </td>
               <td className="py-1 pr-1 text-right font-semibold tabular-nums">{formatCurrency(sub, bid.currency)}</td>
@@ -318,7 +330,7 @@ function CategoryBlock({
             </tr>
             {cat.fringes && (
               <tr className="text-[12px]">
-                <td className="py-0.5 pl-2 text-ink-soft" colSpan={5}>
+                <td className="py-0.5 pl-2 text-ink-soft" colSpan={preEst}>
                   Fringes ({categoryFringePct(bid, cat)}%)
                 </td>
                 <td className="py-0.5 pr-1 text-right tabular-nums">{formatCurrency(fringe, bid.currency)}</td>
@@ -327,7 +339,7 @@ function CategoryBlock({
             )}
             {cat.handling && (
               <tr className="text-[12px]">
-                <td className="py-0.5 pl-2 text-ink-soft" colSpan={5}>
+                <td className="py-0.5 pl-2 text-ink-soft" colSpan={preEst}>
                   Handling fee
                 </td>
                 <td className="py-0.5 pr-1 text-right tabular-nums">{formatCurrency(handling, bid.currency)}</td>
@@ -336,7 +348,7 @@ function CategoryBlock({
             )}
             {(cat.fringes || cat.handling) && (
               <tr className="border-t border-hairline text-[12px] font-semibold">
-                <td className="py-1 pl-2" colSpan={5}>
+                <td className="py-1 pl-2" colSpan={preEst}>
                   Total {cat.letter}
                 </td>
                 <td className="py-1 pr-1 text-right tabular-nums">{formatCurrency(total, bid.currency)}</td>
