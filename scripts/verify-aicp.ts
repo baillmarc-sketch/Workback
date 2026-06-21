@@ -35,6 +35,8 @@ import {
   removeBreakoutCategory,
   renameCategory,
   setLineNo,
+  addLineBelow,
+  nextSubNumber,
 } from "../src/lib/aicp/mutations.ts";
 import { buildBidCsv } from "../src/lib/aicp/exportCsv.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
@@ -391,11 +393,40 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
 
   const added = addLine(bid, A.id, { label: "Custom" });
   const newId = added.categories.find((c) => c.letter === "A")!.lineIds.slice(-1)[0];
-  check("added line has a blank No.", added.lines[newId].no === undefined);
+  check("added line auto-numbers off the last line (49.1)", added.lines[newId].no === "49.1", added.lines[newId].no);
 
   const set = setLineNo(added, newId, "49a");
-  check("setLineNo sets the number", set.lines[newId].no === "49a");
+  check("setLineNo overrides the number", set.lines[newId].no === "49a");
   check("setLineNo blank clears it", setLineNo(set, newId, "").lines[newId].no === undefined);
+}
+
+// 15. Auto sub-numbering (dot notation) for added lines
+{
+  check('nextSubNumber("193", []) = 193.1', nextSubNumber("193", []) === "193.1");
+  check('nextSubNumber with siblings -> next', nextSubNumber("193", ["193.1", "193.2"]) === "193.3");
+  check('sub-line subs off its base (193.2 -> 193.3)', nextSubNumber("193.2", ["193.1", "193.2"]) === "193.3");
+  check("blank parent yields blank", nextSubNumber("", ["1", "2"]) === "" && nextSubNumber(undefined, []) === "");
+
+  const bid = createBid();
+  const A = bid.categories.find((c) => c.letter === "A")!;
+  const ids = categoryLineIds(A);
+  const seventh = ids[6]; // AICP # 7 (Prop Master)
+  check("parent line is #7", bid.lines[seventh].no === "7", bid.lines[seventh].no);
+  const below = addLineBelow(bid, seventh);
+  const aIds = categoryLineIds(below.categories.find((c) => c.letter === "A")!);
+  const insertedId = aIds[aIds.indexOf(seventh) + 1];
+  check("added line is inserted directly below its parent", !!insertedId && insertedId !== ids[7]);
+  check("added line auto-numbers as 7.1", below.lines[insertedId].no === "7.1", below.lines[insertedId].no);
+  const below2 = addLineBelow(below, seventh);
+  const a2 = categoryLineIds(below2.categories.find((c) => c.letter === "A")!);
+  const inserted2 = a2[a2.indexOf(seventh) + 1];
+  check("a second add below #7 becomes 7.2", below2.lines[inserted2].no === "7.2", below2.lines[inserted2].no);
+
+  // Bottom add subs off the last line in the category.
+  const bottom = addLine(bid, A.id);
+  const bIds = categoryLineIds(bottom.categories.find((c) => c.letter === "A")!);
+  const lastAdded = bIds[bIds.length - 1];
+  check("bottom + Add line subs off last line (49 -> 49.1)", bottom.lines[lastAdded].no === "49.1", bottom.lines[lastAdded].no);
 }
 
 if (failures > 0) {

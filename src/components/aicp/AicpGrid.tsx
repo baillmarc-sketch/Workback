@@ -15,6 +15,7 @@ import {
 } from "@/lib/aicp/totals";
 import {
   addLine,
+  addLineBelow,
   addSubSection,
   addBreakoutCategory,
   removeLine,
@@ -122,6 +123,13 @@ function LineRow({
       ))}
       <td className="w-12 py-0.5 pr-1 text-right">
         <span className="invisible inline-flex gap-1 group-hover:visible">
+          <button
+            title="Add a sub-line below"
+            onClick={() => commit((b) => addLineBelow(b, lineId))}
+            className="text-[12px] font-semibold text-ink-faint hover:text-ink"
+          >
+            +
+          </button>
           <button
             title={line.hidden ? "Show on print" : "Hide on print"}
             onClick={() => commit((b) => toggleLineHidden(b, lineId))}

@@ -63,15 +63,51 @@ export function setActualAmount(bid: Bid, lineId: string, columnId: string, expr
   return { ...bid, cells };
 }
 
-/** Append a new (blank) line to a flat category, or to one of its sub-sections. */
+/** The recognized base code of a line number: everything before the first dot,
+    so a sub-line like "193.2" still subs under "193". */
+function baseCode(no: string): string {
+  const i = no.indexOf(".");
+  return (i === -1 ? no : no.slice(0, i)).trim();
+}
+
+/** The next dot sub-number under a parent line's number, given every number
+    already used in the category. "193" (with 193.1 present) -> "193.2"; a
+    sub-line "193.2" subs off the same base -> "193.3". Returns "" when the parent
+    has no number to sub off (a blank parent yields a blank, editable cell). */
+export function nextSubNumber(parentNo: string | undefined, usedNos: string[]): string {
+  const base = baseCode((parentNo ?? "").trim());
+  if (!base) return "";
+  const esc = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^${esc}\\.(\\d+)$`);
+  let max = 0;
+  for (const n of usedNos) {
+    const m = n.trim().match(re);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `${base}.${max + 1}`;
+}
+
+/** Every line number currently used in a category (to avoid sub-number clashes). */
+function categoryNumbers(bid: Bid, cat: BidCategory): string[] {
+  return categoryLineIds(cat).map((id) => bid.lines[id]?.no ?? "").filter(Boolean);
+}
+
+function newBidLine(cat: BidCategory, no: string, label: string, order: number): BidLine {
+  return { id: uid(), no: no || undefined, label, unitType: cat.kind === "labor" ? "days" : "each", order };
+}
+
+/** Append a new line to a flat category (or one of its sub-sections), auto-
+    numbered as the next sub-line of the LAST line there (e.g. last 210 -> 210.1). */
 export function addLine(bid: Bid, categoryId: string, opts: { subSectionId?: string; label?: string } = {}): Bid {
   const cat = bid.categories.find((c) => c.id === categoryId);
   if (!cat) return bid;
-  const existing = bid.categories.flatMap((c) =>
-    (c.subSections ? c.subSections.flatMap((s) => s.lineIds) : c.lineIds).map((id) => bid.lines[id]?.order ?? 0)
-  );
-  const order = (existing.length ? Math.max(...existing) : 0) + 1;
-  const line: BidLine = { id: uid(), label: opts.label ?? "", unitType: cat.kind === "labor" ? "days" : "each", order };
+  const container = opts.subSectionId
+    ? cat.subSections?.find((s) => s.id === opts.subSectionId)?.lineIds ?? []
+    : cat.lineIds;
+  const lastId = container[container.length - 1];
+  const no = nextSubNumber(bid.lines[lastId]?.no, categoryNumbers(bid, cat));
+  const orderBase = Math.max(0, ...categoryLineIds(cat).map((id) => bid.lines[id]?.order ?? 0));
+  const line = newBidLine(cat, no, opts.label ?? "", orderBase + 1);
   const lines = { ...bid.lines, [line.id]: line };
   const next = withCategory(bid, categoryId, (c) => {
     if (opts.subSectionId && c.subSections) {
@@ -84,6 +120,31 @@ export function addLine(bid: Bid, categoryId: string, opts: { subSectionId?: str
     }
     return { ...c, lineIds: [...c.lineIds, line.id] };
   });
+  return { ...next, lines };
+}
+
+/** Insert a new line directly below `afterLineId`, auto-numbered as the next
+    sub-line of that line (193 -> 193.1) — adding detail under a recognized code.
+    The number stays editable. */
+export function addLineBelow(bid: Bid, afterLineId: string): Bid {
+  const cat = bid.categories.find((c) => categoryLineIds(c).includes(afterLineId));
+  if (!cat) return bid;
+  const no = nextSubNumber(bid.lines[afterLineId]?.no, categoryNumbers(bid, cat));
+  const orderBase = Math.max(0, ...categoryLineIds(cat).map((id) => bid.lines[id]?.order ?? 0));
+  const line = newBidLine(cat, no, "", orderBase + 1);
+  const insertAfter = (ids: string[]) => {
+    const i = ids.indexOf(afterLineId);
+    if (i === -1) return ids;
+    const copy = [...ids];
+    copy.splice(i + 1, 0, line.id);
+    return copy;
+  };
+  const lines = { ...bid.lines, [line.id]: line };
+  const next = withCategory(bid, cat.id, (c) => ({
+    ...c,
+    lineIds: c.subSections ? c.lineIds : insertAfter(c.lineIds),
+    subSections: c.subSections?.map((s) => ({ ...s, lineIds: insertAfter(s.lineIds) })),
+  }));
   return { ...next, lines };
 }
 
