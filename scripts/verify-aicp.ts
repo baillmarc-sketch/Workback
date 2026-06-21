@@ -35,6 +35,7 @@ import {
   removeBreakoutCategory,
   renameCategory,
 } from "../src/lib/aicp/mutations.ts";
+import { buildBidCsv } from "../src/lib/aicp/exportCsv.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
 import {
   categorySubtotal,
@@ -327,6 +328,22 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   check("removeColumn drops the version", !withoutV.columns.some((c) => c.id === vId));
   const estId = withV.columns.find((c) => c.kind === "estimate")!.id;
   check("removeColumn refuses to drop Estimate", removeColumn(withV, estId).columns.some((c) => c.id === estId));
+}
+
+// 13b. CSV export
+{
+  let bid = createBid("Acme Spot");
+  const est = estimateColumn(bid)!;
+  const A = bid.categories.find((c) => c.letter === "A")!;
+  bid = setEstimateField(bid, categoryLineIds(A)[0], est, "units", "2");
+  bid = setEstimateField(bid, categoryLineIds(A)[0], est, "rate", "1000");
+  bid = setEstimateField(bid, categoryLineIds(A)[0], est, "qty", "3");
+  const csv = buildBidCsv(bid);
+  check("CSV includes the bid title", csv.includes("Acme Spot"));
+  check("CSV includes a category band", csv.includes("A. Prep Crew"));
+  check("CSV includes the line value 6000", csv.includes("6000"), csv.split("\n").find((l) => l.includes("6000")));
+  check("CSV includes the Grand Total recap", csv.includes("Grand Total"));
+  check("CSV escapes commas in quotes", buildBidCsv((() => { const b = createBid("Big, Bold"); return b; })()).includes('"Big, Bold"'));
 }
 
 // 13. P breakout sections

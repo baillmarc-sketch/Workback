@@ -16,6 +16,8 @@ import AicpPrintView, { defaultPrintConfig, type PrintConfig } from "./AicpPrint
 import AicpPrintDialog from "./AicpPrintDialog";
 import AicpHelpDialog from "./AicpHelpDialog";
 import { addVersionColumn } from "@/lib/aicp/mutations";
+import { buildBidCsv } from "@/lib/aicp/exportCsv";
+import { downloadFile } from "@/lib/share";
 
 type View = "bid" | "summary";
 
@@ -177,6 +179,16 @@ export default function AicpApp() {
               + Version column
             </button>
           )}
+          <button
+            onClick={() => {
+              const name = `${(bid.title || "aicp-bid").replace(/[^\w.-]+/g, "_")}.csv`;
+              downloadFile(name, buildBidCsv(bid), "text/csv");
+              showToast("CSV downloaded");
+            }}
+            className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-soft hover:text-ink"
+          >
+            CSV
+          </button>
           <button
             onClick={() => {
               setPrintConfig((c) => c ?? defaultPrintConfig(bid));
