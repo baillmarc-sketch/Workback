@@ -8,7 +8,7 @@
     "build:pages": "PAGES_BASE=/Workback next build && rm -rf docs && cp -r out docs && touch docs/.nojekyll",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts && npx -y tsx scripts/verify-bidspecs.ts",
+    "verify": "npx -y tsx scripts/verify-logic.ts && npx -y tsx scripts/verify-persistence.ts && npx -y tsx scripts/verify-estimator.ts && npx -y tsx scripts/verify-bidspecs.ts && npx -y tsx scripts/verify-aicp.ts",
     "stress": "npx -y tsx scripts/stress-estimator.ts",
     "smoke": "npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-ui.tsx && npx -y tsx --tsconfig scripts/tsconfig.smoke.json scripts/smoke-bidspecs.tsx",
     "test:rules": "firebase emulators:exec --only database --project demo-workback \"npx -y tsx scripts/rules-test.ts\"",
