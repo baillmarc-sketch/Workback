@@ -10,6 +10,8 @@ import AicpHeader from "./AicpHeader";
 import AicpSummary from "./AicpSummary";
 import AicpGrid from "./AicpGrid";
 import AicpRatesBar from "./AicpRatesBar";
+import AicpDetailsPanel from "./AicpDetailsPanel";
+import AicpBidsDialog from "./AicpBidsDialog";
 import AicpPrintView, { defaultPrintConfig, type PrintConfig } from "./AicpPrintView";
 import AicpPrintDialog from "./AicpPrintDialog";
 import { addVersionColumn } from "@/lib/aicp/mutations";
@@ -29,6 +31,7 @@ export default function AicpApp() {
   const [view, setView] = useState<View>("bid");
   const [printOpen, setPrintOpen] = useState(false);
   const [printConfig, setPrintConfig] = useState<PrintConfig | null>(null);
+  const [bidsOpen, setBidsOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -138,7 +141,7 @@ export default function AicpApp() {
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
       <div className="no-print">
-      <AicpHeader onShare={onShare} />
+      <AicpHeader onShare={onShare} onOpenBids={() => setBidsOpen(true)} />
 
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-md border border-hairline bg-surface p-0.5" role="tablist" aria-label="View">
@@ -179,6 +182,7 @@ export default function AicpApp() {
 
       {view === "bid" ? (
         <>
+          <AicpDetailsPanel />
           <AicpRatesBar />
           <AicpGrid />
           <div className="mt-4">
@@ -201,6 +205,7 @@ export default function AicpApp() {
       {printOpen && printConfig && (
         <AicpPrintDialog config={printConfig} setConfig={setPrintConfig} onClose={() => setPrintOpen(false)} />
       )}
+      {bidsOpen && <AicpBidsDialog onClose={() => setBidsOpen(false)} />}
 
       {toast && (
         <div className="no-print fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-md bg-ink px-3.5 py-2 text-[12.5px] font-medium text-paper shadow-lg">

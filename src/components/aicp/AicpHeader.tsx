@@ -20,7 +20,7 @@ const SYNC_DOT: Record<string, string> = {
 
 /** Cover header: editable bid title/subtitle, a New action, share, and the
     save-status pill. */
-export default function AicpHeader({ onShare }: { onShare: () => void }) {
+export default function AicpHeader({ onShare, onOpenBids }: { onShare: () => void; onOpenBids: () => void }) {
   const { bid, open, patch, syncState } = useBid();
   if (!bid) return null;
 
@@ -57,6 +57,12 @@ export default function AicpHeader({ onShare }: { onShare: () => void }) {
             <span className={`h-2 w-2 rounded-full ${SYNC_DOT[syncState]}`} />
             {SYNC_LABEL[syncState]}
           </span>
+          <button
+            onClick={onOpenBids}
+            className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
+          >
+            Bids
+          </button>
           <button
             onClick={onNew}
             className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
