@@ -6,7 +6,7 @@
 import { uid } from "../types";
 import { evalCell, emptyCell } from "./builder";
 import type { Bid, BidCategory, BidCell, BidLine } from "./types";
-import { cellKey } from "./types";
+import { cellKey, categoryLineIds } from "./types";
 
 type EstimateField = "units" | "rate" | "qty";
 
@@ -173,6 +173,67 @@ export function toggleApplicability(bid: Bid, which: "productionFee" | "insuranc
       ...bid.applicability,
       [which]: { ...bid.applicability[which], [categoryId]: !cur },
     },
+  };
+}
+
+// --- P breakout sections (additional production estimates) ---
+
+/** Add a P breakout: an extra production category that can be included in or
+    excluded from the production total. Seeded with one empty sub-section like X. */
+export function addBreakoutCategory(bid: Bid, name = "Additional Production Estimate"): Bid {
+  const n = bid.categories.filter((c) => c.breakout).length + 1;
+  const lastProdOrder = Math.max(0, ...bid.categories.filter((c) => c.group === "production").map((c) => c.order));
+  const cat: BidCategory = {
+    id: uid(),
+    letter: `P${n}`,
+    name,
+    kind: "expense",
+    group: "production",
+    fringes: false,
+    handling: false,
+    breakout: true,
+    breakoutIncluded: true,
+    lineIds: [],
+    subSections: [{ id: uid(), name: "Section 1", lineIds: [], order: 0 }],
+    order: lastProdOrder + 0.5,
+  };
+  // Re-pack orders so the breakout sits at the end of the production group.
+  const categories = [...bid.categories, cat].sort((a, b) => a.order - b.order).map((c, i) => ({ ...c, order: i }));
+  return {
+    ...bid,
+    categories,
+    applicability: {
+      productionFee: { ...bid.applicability.productionFee, [cat.id]: false },
+      insurance: { ...bid.applicability.insurance, [cat.id]: false },
+    },
+  };
+}
+
+export function renameCategory(bid: Bid, categoryId: string, name: string): Bid {
+  return withCategory(bid, categoryId, (c) => ({ ...c, name }));
+}
+
+export function toggleBreakoutIncluded(bid: Bid, categoryId: string): Bid {
+  return withCategory(bid, categoryId, (c) =>
+    c.breakout ? { ...c, breakoutIncluded: c.breakoutIncluded === false } : c
+  );
+}
+
+/** Remove a breakout category (never a standard A–X category): drop it, its
+    lines, their cells, and its applicability entries. */
+export function removeBreakoutCategory(bid: Bid, categoryId: string): Bid {
+  const cat = bid.categories.find((c) => c.id === categoryId);
+  if (!cat || !cat.breakout) return bid;
+  let next = bid;
+  for (const id of categoryLineIds(cat)) next = removeLine(next, id);
+  const productionFee = { ...next.applicability.productionFee };
+  const insurance = { ...next.applicability.insurance };
+  delete productionFee[categoryId];
+  delete insurance[categoryId];
+  return {
+    ...next,
+    categories: next.categories.filter((c) => c.id !== categoryId),
+    applicability: { productionFee, insurance },
   };
 }
 

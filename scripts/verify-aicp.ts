@@ -30,6 +30,10 @@ import {
   toggleApplicability,
   setRate,
   toggleLineHidden,
+  addBreakoutCategory,
+  toggleBreakoutIncluded,
+  removeBreakoutCategory,
+  renameCategory,
 } from "../src/lib/aicp/mutations.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
 import {
@@ -323,6 +327,38 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   check("removeColumn drops the version", !withoutV.columns.some((c) => c.id === vId));
   const estId = withV.columns.find((c) => c.kind === "estimate")!.id;
   check("removeColumn refuses to drop Estimate", removeColumn(withV, estId).columns.some((c) => c.id === estId));
+}
+
+// 13. P breakout sections
+{
+  let bid = createBid();
+  const est = estimateColumn(bid)!;
+  // A baseline so production total is non-trivial.
+  const C = bid.categories.find((c) => c.letter === "C")!;
+  bid = setEstimateField(bid, categoryLineIds(C)[0], est, "units", "1");
+  bid = setEstimateField(bid, categoryLineIds(C)[0], est, "rate", "100000");
+  const baseTotal = productionTotal(bid, est);
+
+  bid = addBreakoutCategory(bid, "Overtime Estimate");
+  const P = bid.categories.find((c) => c.breakout)!;
+  check("breakout added with P1 letter", P.letter === "P1", P.letter);
+  check("breakout is a production category", P.group === "production");
+  check("breakout included by default", P.breakoutIncluded !== false);
+  check("renameCategory works on breakout", renameCategory(bid, P.id, "OT").categories.find((c) => c.id === P.id)!.name === "OT");
+
+  // Put a value in the breakout's sub-section and confirm it adds to production.
+  bid = addLine(bid, P.id, { subSectionId: P.subSections![0].id, label: "OT pool" });
+  const pLine = bid.categories.find((c) => c.id === P.id)!.subSections![0].lineIds[0];
+  bid = setEstimateField(bid, pLine, est, "units", "1");
+  bid = setEstimateField(bid, pLine, est, "rate", "20000");
+  check("included breakout adds to production total", productionTotal(bid, est) === baseTotal + 20000, productionTotal(bid, est));
+
+  const excluded = toggleBreakoutIncluded(bid, P.id);
+  check("excluded breakout drops out of production total", productionTotal(excluded, est) === baseTotal, productionTotal(excluded, est));
+
+  const removed = removeBreakoutCategory(bid, P.id);
+  check("removeBreakoutCategory removes it", !removed.categories.some((c) => c.id === P.id));
+  check("removeBreakoutCategory refuses standard categories", removeBreakoutCategory(bid, C.id).categories.some((c) => c.id === C.id));
 }
 
 if (failures > 0) {

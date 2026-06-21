@@ -16,19 +16,40 @@ import {
 import {
   addLine,
   addSubSection,
+  addBreakoutCategory,
   removeLine,
   removeSubSection,
+  removeBreakoutCategory,
   renameLine,
+  renameCategory,
   renameSubSection,
   setActualAmount,
   setEstimateField,
   setLineUnitType,
   toggleLineHidden,
+  toggleApplicability,
+  toggleBreakoutIncluded,
 } from "@/lib/aicp/mutations";
 import { readCell } from "@/lib/aicp/mutations";
 import type { Bid, BidCategory, BidColumn } from "@/lib/aicp/types";
 import { categoryLineIds } from "@/lib/aicp/types";
 import CellInput from "./CellInput";
+
+/** A small toggle chip used in category headers (fee/insurance, include). */
+function Chip({ on, title, onClick, children }: { on: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={on}
+      className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+        on ? "bg-ink text-paper" : "border border-hairline text-ink-faint hover:text-ink"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 /** One editable budget line. Estimate is Units × Rate × QTY; other columns
     (versions, Actual) take a single amount. */
@@ -145,19 +166,72 @@ function CategoryBlock({
 
   return (
     <div className="mb-3 overflow-hidden rounded-lg border border-hairline bg-paper">
-      <button
-        onClick={() => setCollapsed((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 bg-surface px-3 py-2 text-left"
-      >
-        <span className="flex items-center gap-2">
-          <span className="text-[11px] text-ink-faint">{collapsed ? "▸" : "▾"}</span>
-          <span className="inline-block w-5 font-semibold text-ink-soft">{cat.letter}</span>
-          <span className="font-display text-[13px] font-semibold">{cat.name}</span>
+      <div className="flex w-full items-center justify-between gap-2 bg-surface px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            className="text-[11px] text-ink-faint hover:text-ink"
+            aria-label={collapsed ? "Expand category" : "Collapse category"}
+          >
+            {collapsed ? "▸" : "▾"}
+          </button>
+          <span className="inline-block w-7 font-semibold text-ink-soft">{cat.letter}</span>
+          {cat.breakout ? (
+            <span className="w-56">
+              <CellInput
+                value={cat.name}
+                onCommit={(v) => commit((b) => renameCategory(b, cat.id, v))}
+                align="left"
+                className="font-display text-[13px] font-semibold"
+                ariaLabel="Section name"
+              />
+            </span>
+          ) : (
+            <span className="truncate font-display text-[13px] font-semibold">{cat.name}</span>
+          )}
           {cat.fringes && <span className="rounded bg-hairline px-1 text-[10px] text-ink-soft">fringes</span>}
           {cat.handling && <span className="rounded bg-hairline px-1 text-[10px] text-ink-soft">handling</span>}
-        </span>
+
+          {cat.group === "production" && (
+            <span className="ml-1 hidden items-center gap-1 sm:flex">
+              <Chip
+                on={bid.applicability.productionFee[cat.id] === true}
+                title="Subject to production fee"
+                onClick={() => commit((b) => toggleApplicability(b, "productionFee", cat.id))}
+              >
+                Fee
+              </Chip>
+              <Chip
+                on={bid.applicability.insurance[cat.id] === true}
+                title="Subject to insurance"
+                onClick={() => commit((b) => toggleApplicability(b, "insurance", cat.id))}
+              >
+                Ins
+              </Chip>
+            </span>
+          )}
+
+          {cat.breakout && (
+            <span className="ml-1 flex items-center gap-1">
+              <Chip
+                on={cat.breakoutIncluded !== false}
+                title="Include this breakout in the production total"
+                onClick={() => commit((b) => toggleBreakoutIncluded(b, cat.id))}
+              >
+                {cat.breakoutIncluded !== false ? "Included" : "Excluded"}
+              </Chip>
+              <button
+                onClick={() => commit((b) => removeBreakoutCategory(b, cat.id))}
+                title="Remove breakout section"
+                className="text-[11px] text-ink-faint hover:text-danger"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </div>
         <span className="text-[12.5px] font-semibold tabular-nums">{formatCurrency(total, bid.currency)}</span>
-      </button>
+      </div>
 
       {!collapsed && (
         <table className="w-full text-[12px]">
@@ -296,6 +370,12 @@ export default function AicpGrid() {
       {production.map((cat) => (
         <CategoryBlock key={cat.id} bid={bid} cat={cat} estCol={estCol} amountCols={amountCols} commit={commit} />
       ))}
+      <button
+        onClick={() => commit((b) => addBreakoutCategory(b))}
+        className="mb-4 w-full rounded-lg border border-dashed border-hairline-strong bg-surface/40 py-2 text-[12px] font-medium text-ink-faint hover:text-ink"
+      >
+        + Add P breakout section
+      </button>
       {post.length > 0 && (
         <h3 className="mb-2 mt-6 font-display text-[13px] font-semibold uppercase tracking-wide text-ink-faint">
           Post-Production
