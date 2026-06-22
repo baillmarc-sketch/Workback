@@ -2,6 +2,7 @@
 
 import { useBid } from "@/state/aicpStore";
 import { createBid } from "@/lib/aicp/builder";
+import { studioShootSample } from "@/lib/aicp/sample";
 import { saveBid } from "@/lib/aicp/storage";
 import AccountButton from "../AccountButton";
 
@@ -26,6 +27,11 @@ export default function AicpHeader({ onShare, onOpenBids }: { onShare: () => voi
 
   const onNew = () => {
     const b = createBid("Untitled AICP Bid");
+    saveBid(b);
+    open(b);
+  };
+  const onNewTemplate = () => {
+    const b = studioShootSample();
     saveBid(b);
     open(b);
   };
@@ -64,10 +70,18 @@ export default function AicpHeader({ onShare, onOpenBids }: { onShare: () => voi
             Bids
           </button>
           <button
-            onClick={onNew}
+            onClick={onNewTemplate}
+            title="Start a new bid from the studio-shoot template"
             className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
           >
-            New
+            New template
+          </button>
+          <button
+            onClick={onNew}
+            title="Start a new blank AICP form"
+            className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
+          >
+            New blank
           </button>
           <button
             onClick={onShare}

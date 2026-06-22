@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/state/auth";
 import { useBid } from "@/state/aicpStore";
 import { createBid } from "@/lib/aicp/builder";
+import { studioShootSample } from "@/lib/aicp/sample";
 import { deleteBid, duplicateBid, listBids, loadBid, saveBid } from "@/lib/aicp/storage";
 import { deleteRemoteBid } from "@/lib/aicp/account";
 import Modal from "../Modal";
@@ -15,8 +16,7 @@ export default function AicpBidsDialog({ onClose }: { onClose: () => void }) {
   const [, bump] = useState(0);
   const bids = listBids();
 
-  const onNew = () => {
-    const b = createBid("Untitled AICP Bid");
+  const start = (b: ReturnType<typeof createBid>) => {
     saveBid(b);
     open(b);
     onClose();
@@ -25,12 +25,25 @@ export default function AicpBidsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="AICP Bids" onClose={onClose} width={460}>
       <div className="flex flex-col gap-3">
-        <button
-          className="self-start rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
-          onClick={onNew}
-        >
-          + New bid
-        </button>
+        <div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-faint">Start a new bid</div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-md bg-ink px-3 py-1.5 text-[12.5px] font-semibold text-paper hover:opacity-85"
+              onClick={() => start(studioShootSample())}
+              title="A realistic 1-day studio shoot, pre-filled"
+            >
+              + New from template
+            </button>
+            <button
+              className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
+              onClick={() => start(createBid("Untitled AICP Bid"))}
+              title="A blank AICP form to fill in yourself"
+            >
+              + Blank AICP form
+            </button>
+          </div>
+        </div>
 
         {bids.length === 0 ? (
           <div className="py-4 text-center text-[12.5px] text-ink-faint">No saved bids yet.</div>
