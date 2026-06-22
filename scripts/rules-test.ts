@@ -198,6 +198,10 @@ async function run() {
   await deny("user cannot read another's estimates", get(ref(db(memberUid, "member@example.com"), `users/${adminUid}/estimates`)));
   await allow("user stashes own bid spec in trash (recoverable)", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/bidSpecsTrash/bs9`), { id: "bs9", updatedAt: 3 }));
   await deny("bidSpecsTrash entry must have id + updatedAt", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/bidSpecsTrash/bad`), { foo: 1 }));
+  await allow("user writes own AICP bid", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/aicpBids/ab9`), { id: "ab9", updatedAt: 3 }));
+  await deny("user cannot read another's AICP bids", get(ref(db(memberUid, "member@example.com"), `users/${adminUid}/aicpBids`)));
+  await deny("AICP bid stale write rejected (monotonic updatedAt)", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/aicpBids/ab9`), { id: "ab9", updatedAt: 2 }));
+  await deny("aicpBids entry must have id + updatedAt", set(ref(db(memberUid, "member@example.com"), `users/${memberUid}/aicpBids/bad`), { foo: 1 }));
   void estimate;
 
   console.log("\nAnonymous");
@@ -246,6 +250,13 @@ async function run() {
   await allow("shared estimate updatedAt may advance", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 6 }));
   await deny("shared estimate updatedAt may not go backwards", set(ref(db(null), "sharedEstimates/se1"), { id: "se1", updatedAt: 4 }));
   await deny("shared estimate missing updatedAt is rejected", set(ref(db(null), "sharedEstimates/se2"), { id: "se2" }));
+
+  // Shared AICP bids: same open-with-monotonic-guard model as shared estimates.
+  await allow("anon reads a shared AICP bid", get(ref(db(null), "sharedAicpBids/ab1")));
+  await allow("anon writes a valid shared AICP bid", set(ref(db(null), "sharedAicpBids/ab1"), { id: "ab1", updatedAt: 5 }));
+  await allow("shared AICP bid updatedAt may advance", set(ref(db(null), "sharedAicpBids/ab1"), { id: "ab1", updatedAt: 6 }));
+  await deny("shared AICP bid updatedAt may not go backwards", set(ref(db(null), "sharedAicpBids/ab1"), { id: "ab1", updatedAt: 4 }));
+  await deny("shared AICP bid missing updatedAt is rejected", set(ref(db(null), "sharedAicpBids/ab2"), { id: "ab2" }));
 
   console.log("\nProtected-owner guard (pinned owners can't be removed)");
   await env.clearDatabase();
