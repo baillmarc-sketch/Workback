@@ -442,6 +442,14 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   check("sample includes insurance", productionInsurance(s, col) > 0);
   check("sample leaves the production company blank", s.fields.every((f) => f.label !== "Production Co." || f.value === ""));
   check("sample fills the client field", s.fields.some((f) => f.value === "Northwind Beverages"));
+  // Standard lines keep their canonical AICP number while being colored in.
+  const sa = s.categories.find((c) => c.letter === "A")!;
+  const propMaster = categoryLineIds(sa).map((id) => s.lines[id]).find((l) => l.label === "Prop Master");
+  check("colored-in line keeps its AICP number (Prop Master = 7)", propMaster?.no === "7", propMaster?.no);
+  check("colored-in line carries a value", s.cells[cellKey(propMaster!.id, col)]?.value === 1300);
+  // Most lines stay blank with numbers intact (we don't fill the whole form).
+  const aFilled = categoryLineIds(sa).filter((id) => s.cells[cellKey(id, col)]).length;
+  check("only some lines are filled (rest blank)", aFilled > 0 && aFilled < categoryLineIds(sa).length, aFilled);
   // RTDB round-trip via migrate keeps the totals intact.
   const round = migrate(JSON.parse(JSON.stringify(s)));
   check("sample round-trips with the same grand total", grandTotal(round, estimateColumn(round)!) === grandTotal(s, col));

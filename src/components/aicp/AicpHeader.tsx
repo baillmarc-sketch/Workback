@@ -71,10 +71,10 @@ export default function AicpHeader({ onShare, onOpenBids }: { onShare: () => voi
           </button>
           <button
             onClick={onNewTemplate}
-            title="Start a new bid from the studio-shoot template"
+            title="Start a new bid from the studio-shoot sample"
             className="rounded-md border border-hairline bg-surface px-2.5 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
           >
-            New template
+            New sample
           </button>
           <button
             onClick={onNew}

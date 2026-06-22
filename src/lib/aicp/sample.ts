@@ -1,201 +1,209 @@
 /**
- * A realistic starter bid: a one-day, non-union studio shoot that lands around
- * $250k production + $130k post, with fringes, a production fee, insurance and a
- * post markup applied — so a new user sees a believable AICP bid rather than a
- * blank form. Rates are mid-market non-union ballparks (LA/NY), not a quote.
- * Only the lines that carry cost are filled (the rest of the form stays empty),
- * and the production-company name is intentionally left blank.
+ * A realistic starter bid — a one-day, non-union studio shoot landing around
+ * $250k production + $130k post. It is built by "coloring in" the standard AICP
+ * form: every canonical line keeps its AICP number and name, we just put
+ * realistic values on the lines this job uses and leave the rest blank. Rates
+ * are mid-market non-union ballparks (LA/NY), not a quote. The production-company
+ * name is intentionally left blank.
  */
 import { uid } from "../types";
 import { createBid, evalCell } from "./builder";
 import { cellKey } from "./types";
 import type { Bid } from "./types";
 
-/** [label, unitType, units, rate, qty] */
-type Entry = [string, string, number, number, number];
+/** [standard line label, units, rate, qty] — matched against the canonical line. */
+type Fill = [string, number, number, number];
 
-/** First AICP line number of each lettered production category (post has none). */
-const BASE: Record<string, number> = {
-  A: 1, B: 51, C: 101, D: 114, E: 140, F: 151, G: 168, H: 181, I: 193, J: 211, K: 217, L: 227, M: 234, N: 271,
-};
-
-const PRODUCTION: Record<string, Entry[]> = {
+const PRODUCTION: Record<string, Fill[]> = {
   A: [
-    ["Line Producer", "days", 4, 900, 1],
-    ["Production Supervisor", "days", 3, 650, 1],
-    ["Production Coordinator", "days", 3, 550, 1],
-    ["Production Assistant", "days", 3, 350, 2],
-    ["Location Scout", "days", 1, 600, 1],
-    ["Wardrobe Stylist — prep", "days", 2, 650, 1],
-    ["Prop Master — prep", "days", 2, 650, 1],
-    ["Glam test — Make-Up/Hair", "days", 1, 750, 1],
+    ["Line Producer", 4, 900, 1],
+    ["Production Supervisor", 3, 650, 1],
+    ["Assistant Production Supervisor", 3, 550, 1],
+    ["Production Assistant", 3, 350, 2],
+    ["Location Scout", 1, 600, 1],
+    ["Wardrobe Stylist", 2, 650, 1],
+    ["Prop Master", 2, 650, 1],
+    ["Make-Up/Hair", 1, 750, 1],
   ],
   B: [
-    ["Director of Photography", "days", 1, 4000, 1],
-    ["1st Assistant Camera", "days", 1, 850, 1],
-    ["2nd Assistant Camera", "days", 1, 650, 1],
-    ["DIT", "days", 1, 750, 1],
-    ["Camera Operator", "days", 1, 1200, 1],
-    ["Gaffer", "days", 1, 950, 1],
-    ["Best Boy Electric", "days", 1, 750, 1],
-    ["3rd Electric", "days", 1, 600, 2],
-    ["Key Grip", "days", 1, 950, 1],
-    ["Best Boy Grip", "days", 1, 750, 1],
-    ["3rd Grip", "days", 1, 600, 2],
-    ["Sound Mixer", "days", 1, 900, 1],
-    ["Make-Up/Hair", "days", 1, 850, 2],
-    ["Wardrobe Stylist", "days", 1, 850, 1],
-    ["Asst Wardrobe", "days", 1, 550, 1],
-    ["Prop Master", "days", 1, 850, 1],
-    ["Asst Props", "days", 1, 550, 1],
-    ["Script Supervisor", "days", 1, 750, 1],
-    ["Steadicam Operator", "days", 1, 1200, 1],
-    ["Production Assistant", "days", 1, 400, 4],
-    ["Medic / COVID", "days", 1, 650, 1],
-    ["Craft Service", "days", 1, 650, 1],
+    ["Director of Photography", 1, 4000, 1],
+    ["1st Assistant Camera", 1, 850, 1],
+    ["2nd Assistant Camera", 1, 650, 1],
+    ["DIT", 1, 750, 1],
+    ["Camera Op", 1, 1200, 1],
+    ["Steadi Cam Op", 1, 1200, 1],
+    ["Gaffer", 1, 950, 1],
+    ["Best Boy Electric", 1, 750, 1],
+    ["3rd Electric", 1, 600, 2],
+    ["Key Grip", 1, 950, 1],
+    ["Best Boy Grip", 1, 750, 1],
+    ["3rd Grip", 1, 600, 2],
+    ["Sound Mixer", 1, 900, 1],
+    ["Make-Up/Hair", 1, 850, 2],
+    ["Wardrobe Stylist", 1, 850, 1],
+    ["Asst Wardrobe", 1, 550, 1],
+    ["Prop Master", 1, 850, 1],
+    ["Asst Props", 1, 550, 1],
+    ["Script Supervisor", 1, 750, 1],
+    ["Production Assistant", 1, 400, 4],
+    ["Medic", 1, 650, 1],
+    ["Craft Service", 1, 650, 1],
   ],
   C: [
-    ["Casting Director", "days", 2, 400, 1],
-    ["Casting Facility", "days", 1, 1100, 1],
-    ["Scouting Expenses", "allow", 1, 900, 1],
-    ["Working Meals — prep", "allow", 1, 800, 1],
-    ["Car Rental — prep", "each", 1, 500, 1],
-    ["Messengers / Deliveries", "each", 1, 450, 1],
-    ["Telephone & Cable", "each", 1, 400, 1],
-    ["Home Econ / Studio Supplies", "each", 1, 600, 1],
+    ["Casting Director", 2, 400, 1],
+    ["Casting Facility", 1, 1100, 1],
+    ["Scouting Expenses", 1, 900, 1],
+    ["Working Meals", 1, 800, 1],
+    ["Car Rental", 1, 500, 1],
+    ["Messengers", 1, 450, 1],
+    ["Telephone & Cable", 1, 400, 1],
+    ["Home Econ Supplies", 1, 600, 1],
   ],
   D: [
-    ["Breakfast", "ppl", 40, 18, 1],
-    ["Lunch", "ppl", 45, 28, 1],
-    ["Dinner", "ppl", 30, 26, 1],
-    ["Production Trucking", "each", 1, 1500, 1],
-    ["Cargo Van", "each", 2, 175, 1],
-    ["Production MoHo / Dressing Room", "each", 1, 1800, 1],
-    ["Parking / Tolls / Gas", "each", 1, 600, 1],
-    ["Cabs / Ubers", "each", 1, 500, 1],
-    ["Kit Rentals", "each", 1, 1500, 1],
-    ["Sustainable Practices", "allow", 1, 750, 1],
+    ["Breakfast", 40, 18, 1],
+    ["Lunch", 45, 28, 1],
+    ["Dinner", 30, 26, 1],
+    ["Production Trucking", 1, 1500, 1],
+    ["Cargo Van", 2, 175, 1],
+    ["Production MoHo", 1, 1800, 1],
+    ["Parking/Tolls/Gas", 1, 600, 1],
+    ["Cabs/ Ubers/ Lyfts / Other Transportation", 1, 500, 1],
+    ["Kit Rental", 1, 1500, 1],
+    ["Sustainable Practices", 1, 750, 1],
   ],
   E: [
-    ["Prop Rental", "each", 1, 4500, 1],
-    ["Prop Purchase", "each", 1, 3500, 1],
-    ["Wardrobe Rental", "each", 1, 1800, 1],
-    ["Wardrobe Purchase", "each", 1, 2400, 1],
-    ["Product Prep / Color Correct", "each", 1, 1800, 1],
-    ["Greens", "each", 1, 1800, 1],
+    ["Prop Rental", 1, 4500, 1],
+    ["Prop Purchase", 1, 3500, 1],
+    ["Wardrobe Rental", 1, 1800, 1],
+    ["Wardrobe Purchase", 1, 2400, 1],
+    ["Product Prep / Color Correct", 1, 1800, 1],
+    ["Greens", 1, 1800, 1],
   ],
   F: [
-    ["Stage Rental — shoot day", "days", 1, 9000, 1],
-    ["Stage Rental — build days", "days", 2, 3500, 1],
-    ["Stage Rental — pre-light", "days", 1, 4500, 1],
-    ["Power Charges", "days", 1, 1200, 1],
-    ["Stage Manager / Studio Security", "days", 1, 1222, 1],
-    ["Crew Parking", "days", 1, 800, 1],
+    ["Rental for Shoot Days", 1, 9000, 1],
+    ["Rental For Build Days", 2, 3500, 1],
+    ["Rental for Pre-Lite Days", 1, 4500, 1],
+    ["Power Charges", 1, 1200, 1],
+    ["Stage Manager/Studio Security", 1, 1222, 1],
+    ["Crew Parking", 1, 800, 1],
   ],
   G: [
-    ["Production Designer / Art Director", "days", 3, 1000, 1],
-    ["Set Decorator", "days", 2, 850, 1],
-    ["Art Dept Coordinator", "days", 2, 700, 1],
-    ["Leadman", "days", 2, 650, 1],
-    ["Set Dresser", "days", 2, 600, 2],
-    ["Scenics", "days", 1, 750, 2],
-    ["Grips / Riggers — build", "days", 2, 650, 2],
+    ["Production Designer/Art Director", 3, 1000, 1],
+    ["Set Decorator", 2, 850, 1],
+    ["Art Dept Coordinator", 2, 700, 1],
+    ["Leadman", 2, 650, 1],
+    ["Set Dresser", 2, 600, 2],
+    ["Scenics", 1, 750, 2],
+    ["Grips / Riggers", 2, 650, 2],
   ],
   H: [
-    ["Set Dressing Rentals", "each", 1, 4500, 1],
-    ["Set Dressing Purchases", "each", 1, 3800, 1],
-    ["Outside Construction", "each", 1, 5500, 1],
-    ["Special Effects Rental", "each", 1, 2500, 1],
-    ["Art Dept Prod Supplies", "each", 1, 2000, 1],
-    ["Art Dept Kit Rental", "each", 1, 900, 1],
-    ["Art Dept Trucking", "each", 1, 1200, 1],
+    ["Set Dressing Rentals", 1, 4500, 1],
+    ["Set Dressing Purchases", 1, 3800, 1],
+    ["Outside Construction", 1, 5500, 1],
+    ["Special Effects Rental", 1, 2500, 1],
+    ["Art Dept Prod Supplies", 1, 2000, 1],
+    ["Art Dept Kit Rental", 1, 900, 1],
+    ["Art Dept Trucking", 1, 1200, 1],
   ],
   I: [
-    ["Camera Rental — package", "days", 1, 4500, 1],
-    ["Lenses", "days", 1, 1800, 1],
-    ["Additional Camera Body", "days", 1, 2000, 1],
-    ["Lighting Rental", "days", 1, 7500, 1],
-    ["Grip Rental", "days", 1, 5500, 1],
-    ["Generator Rental", "days", 1, 1200, 1],
-    ["Dolly Rental", "days", 1, 850, 1],
-    ["SteadiCam", "days", 1, 1500, 1],
-    ["Jib Arm", "days", 1, 1200, 1],
-    ["Camera Car / Process Trailer", "days", 1, 2500, 1],
-    ["Sound Rental", "days", 1, 650, 1],
-    ["Walkie Talkie Rental", "days", 1, 450, 1],
-    ["VTR Rental", "days", 1, 950, 1],
-    ["Production Supplies / Expendables", "days", 1, 2500, 1],
+    ["Camera Rental", 1, 4500, 1],
+    ["Lenses", 1, 1800, 1],
+    ["Lighting Rental", 1, 7500, 1],
+    ["Grip Rental", 1, 5500, 1],
+    ["Generator Rental", 1, 1200, 1],
+    ["Dolly Rental", 1, 850, 1],
+    ["SteadiCam", 1, 1500, 1],
+    ["Jib Arm", 1, 1200, 1],
+    ["Camera Car", 1, 2500, 1],
+    ["Sound Rental", 1, 650, 1],
+    ["Walkie Talkie Rental", 1, 450, 1],
+    ["VTR Rental", 1, 950, 1],
+    ["Expendables", 1, 2500, 1],
   ],
   J: [
-    ["Media / Drives", "each", 1, 1400, 1],
-    ["Transcode / Transfer", "hrs", 8, 95, 1],
-    ["Dailies", "each", 1, 950, 1],
+    ["Media / Drives", 1, 1400, 1],
+    ["Transcode / Transfer", 8, 95, 1],
+    ["Dailies", 1, 950, 1],
   ],
   K: [
-    ["Petty Cash", "each", 1, 1500, 1],
-    ["Air Shipping & Carriers", "each", 1, 800, 1],
-    ["Cell Phones", "each", 1, 450, 1],
-    ["Special Insurance Rider", "each", 1, 900, 1],
+    ["Petty Cash", 1, 1500, 1],
+    ["Air Shipping and Carriers", 1, 800, 1],
+    ["Cell Phones", 1, 450, 1],
+    ["Special Insurance", 1, 900, 1],
   ],
   L: [
-    ["Director — Prep", "days", 2, 3500, 1],
-    ["Director — Shoot", "days", 1, 6500, 1],
-    ["Director — Post", "days", 1, 2500, 1],
+    ["Director Prep", 2, 3500, 1],
+    ["Director Shoot", 1, 6500, 1],
+    ["Director Post", 1, 2500, 1],
   ],
   M: [
-    ["O/C Principals", "days", 1, 2750, 3],
-    ["Fitting Fees", "days", 1, 400, 3],
-    ["Voice Over", "days", 1, 1500, 1],
+    ["O/C Principals", 1, 2750, 3],
+    ["Fitting Fees", 1, 400, 3],
+    ["Voice Over", 1, 1500, 1],
   ],
   N: [
-    ["Talent Per Diem", "each", 3, 75, 1],
-    ["Talent Gd Transportation", "each", 1, 500, 1],
+    ["Talent Per Diem", 3, 75, 1],
+    ["Talent Gd Transportation", 1, 500, 1],
   ],
 };
 
-const POST: Record<string, Entry[]> = {
+const POST: Record<string, Fill[]> = {
   Q: [
-    ["Editor — Offline", "days", 20, 950, 1],
-    ["Offline Edit System", "days", 20, 450, 1],
-    ["Assistant Editor", "days", 12, 450, 1],
-    ["Conform", "hrs", 8, 250, 1],
-    ["Color Prep", "flat", 1, 1500, 1],
-    ["Stock Footage Search", "allow", 1, 1500, 1],
-    ["Data Backup / Restore", "allow", 1, 800, 1],
-    ["Archiving", "flat", 1, 600, 1],
+    ["Offline Edit System", 20, 450, 1],
+    ["Off-Line Graphics System", 5, 450, 1],
+    ["Conform", 8, 250, 1],
+    ["Hi-Res Conform", 6, 350, 1],
+    ["Color Prep", 1, 1500, 1],
+    ["Stock Footage Search", 6, 250, 1],
+    ["Data Backup / Restore", 1, 800, 1],
+    ["Archiving", 1, 600, 1],
+    ["Digital Media", 1, 1500, 1],
   ],
   R: [
-    ["Social Cutdowns", "each", 6, 900, 1],
-    ["Versioning / Captioning", "each", 1, 2500, 1],
+    ["Reframing 1 x 1", 8, 150, 1],
+    ["Reframing  9 x 16", 8, 150, 1],
+    ["Reformatting 4 x 3", 4, 150, 1],
+    ["File Versioning / Compression", 4, 150, 1],
+    ["Social mixes", 4, 200, 1],
+    ["Postings / Digital Delivery / QC", 1, 1500, 1],
   ],
   S: [
-    ["Sound Design", "flat", 1, 3500, 1],
-    ["Mix", "days", 2, 1800, 1],
-    ["Mix Prep", "flat", 1, 2500, 1],
-    ["VO Record", "flat", 1, 1500, 1],
+    ["Sound Design", 1, 3500, 1],
+    ["Record and Mix", 16, 220, 1],
+    ["Pre-Load, Encode and Mix Prep", 8, 180, 1],
+    ["VO Record", 4, 350, 1],
+    ["Music Licensing (Stock/Original)", 1, 2500, 1],
   ],
   T: [
-    ["Colorist", "days", 3, 3500, 1],
-    ["Online / Conform", "days", 2, 2500, 1],
-    ["Finishing Suite", "days", 3, 1500, 1],
-    ["Titles / Graphics", "flat", 1, 1800, 1],
-    ["Deliverables / Mastering", "flat", 1, 1800, 1],
+    ["Color Grading Prep", 4, 350, 1],
+    ["Color Grading", 16, 450, 1],
+    ["Final Conform", 8, 350, 1],
+    ["Motion Graphics", 8, 250, 1],
+    ["Retouching", 1, 2500, 1],
+    ["Master", 1, 1800, 1],
+    ["Deliverables", 1, 1500, 1],
+    ["Drives / Media", 1, 1500, 1],
   ],
   V: [
-    ["Hard Drives", "each", 1, 1500, 1],
-    ["Music License", "allow", 1, 1500, 1],
+    ["Stock Footage", 1, 1500, 1],
+    ["Storage Devices", 1, 1200, 1],
+    ["Working Meals", 1, 600, 1],
   ],
   W: [
-    ["Post Producer", "days", 12, 750, 1],
-    ["Creative Director — Post", "days", 5, 1200, 1],
-    ["Post Coordinator", "days", 8, 450, 1],
-  ],
-  X: [
-    ["Compositor", "days", 8, 750, 1],
-    ["VFX Supervisor", "days", 3, 1500, 1],
-    ["Cleanup / Roto", "allow", 1, 3500, 1],
+    ["Editor Labor", 20, 950, 1],
+    ["Assistant Labor", 12, 450, 1],
+    ["Producer/ Coordinator", 12, 750, 1],
+    ["Set Supervision", 2, 750, 1],
+    ["Creative Fees", 1, 6000, 1],
   ],
 };
+
+/** X (Visual Effects) has no standard lines — seed a small VFX sub-section. */
+const X_LINES: [string, string, number, number, number][] = [
+  ["VFX Supervisor", "days", 3, 1500, 1],
+  ["Compositor", "days", 8, 750, 1],
+  ["Cleanup / Roto", "allow", 1, 3500, 1],
+];
 
 const FIELDS: Record<string, string> = {
   "Client / Advertiser": "Northwind Beverages",
@@ -207,36 +215,42 @@ const FIELDS: Record<string, string> = {
   Location: "Stage 4, Quixote Studios — Los Angeles",
 };
 
+const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
 export function studioShootSample(): Bid {
   const bid = createBid("1-Day Studio Shoot");
-  bid.subtitle = "Sample bid — non-union";
+  bid.subtitle = "Sample — non-union";
   const col = bid.columns.find((c) => c.kind === "estimate")!.id;
 
-  // Rebuild from scratch so only the filled lines exist (a clean, real-looking bid).
-  bid.lines = {};
-  bid.cells = {};
-
-  const fill = (letter: string, entries: Entry[]) => {
+  // Color in a standard line by its canonical label (keeps its number + name).
+  const setByLabel = (letter: string, label: string, units: number, rate: number, qty: number) => {
     const cat = bid.categories.find((c) => c.letter === letter);
     if (!cat) return;
-    const base = BASE[letter];
-    const ids = entries.map(([label, unitType, units, rate, qty], i) => {
-      const id = uid();
-      bid.lines[id] = { id, no: base !== undefined ? String(base + i) : undefined, label, unitType, order: i };
-      bid.cells[cellKey(id, col)] = evalCell(String(units), String(rate), String(qty));
-      return id;
-    });
-    if (cat.subSections) cat.subSections = [{ id: uid(), name: cat.name, lineIds: ids, order: 0 }];
-    else cat.lineIds = ids;
+    const ids = cat.subSections ? cat.subSections.flatMap((s) => s.lineIds) : cat.lineIds;
+    const target = norm(label);
+    const id = ids.find((i) => bid.lines[i] && norm(bid.lines[i].label) === target);
+    if (id) bid.cells[cellKey(id, col)] = evalCell(String(units), String(rate), String(qty));
   };
 
-  // Empty every category first, then fill the ones with content.
-  for (const cat of bid.categories) {
-    if (cat.subSections) cat.subSections = [{ id: uid(), name: cat.name, lineIds: [], order: 0 }];
-    else cat.lineIds = [];
+  for (const [letter, fills] of Object.entries(PRODUCTION)) {
+    for (const [label, u, r, q] of fills) setByLabel(letter, label, u, r, q);
   }
-  for (const [letter, entries] of Object.entries(PRODUCTION)) fill(letter, entries);
-  for (const [letter, entries] of Object.entries(POST)) fill(letter, entries);
+  for (const [letter, fills] of Object.entries(POST)) {
+    for (const [label, u, r, q] of fills) setByLabel(letter, label, u, r, q);
+  }
+
+  // X: add a VFX sub-section (no canonical lines on the standard form).
+  const X = bid.categories.find((c) => c.letter === "X");
+  if (X?.subSections?.[0]) {
+    const sub = X.subSections[0];
+    sub.name = "Visual Effects";
+    for (const [label, unitType, u, r, q] of X_LINES) {
+      const id = uid();
+      bid.lines[id] = { id, label, unitType, order: sub.lineIds.length };
+      bid.cells[cellKey(id, col)] = evalCell(String(u), String(r), String(q));
+      sub.lineIds.push(id);
+    }
+  }
 
   // Below-the-line: non-union fringes, a 22% production fee, insurance, post markup.
   bid.rates = {
@@ -256,7 +270,7 @@ export function studioShootSample(): Bid {
 
   bid.fields = bid.fields.map((f) => ({ ...f, value: FIELDS[f.label] ?? "" }));
   bid.notes = [
-    "Non-union. One studio shoot day at stage, plus 2 build days and a pre-light.",
+    "Non-union. One studio shoot day, plus 2 build days and a pre-light.",
     "Three non-union on-camera principals; talent buyout per terms.",
     "Production fee 22%; insurance 2.5%; below-the-line fringes 22% on crew.",
     "Post: ~3-week offline, online/color finish, mix, and social cutdowns.",

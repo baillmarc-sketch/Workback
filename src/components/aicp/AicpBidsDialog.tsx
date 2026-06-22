@@ -33,7 +33,7 @@ export default function AicpBidsDialog({ onClose }: { onClose: () => void }) {
               onClick={() => start(studioShootSample())}
               title="A realistic 1-day studio shoot, pre-filled"
             >
-              + New from template
+              + New from sample
             </button>
             <button
               className="rounded-md border border-hairline bg-surface px-3 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
