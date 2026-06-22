@@ -39,6 +39,7 @@ import {
   nextSubNumber,
 } from "../src/lib/aicp/mutations.ts";
 import { buildBidCsv } from "../src/lib/aicp/exportCsv.ts";
+import { studioShootSample } from "../src/lib/aicp/sample.ts";
 import { AICP_TEMPLATE } from "../src/lib/aicp/template.ts";
 import {
   categorySubtotal,
@@ -427,6 +428,23 @@ function setEstimate(bid: Bid, lineId: string, units: string, rate: string, qty:
   const bIds = categoryLineIds(bottom.categories.find((c) => c.letter === "A")!);
   const lastAdded = bIds[bIds.length - 1];
   check("bottom + Add line subs off last line (49 -> 49.1)", bottom.lines[lastAdded].no === "49.1", bottom.lines[lastAdded].no);
+}
+
+// 16. Realistic studio-shoot sample lands near its targets and round-trips
+{
+  const s = studioShootSample();
+  const col = estimateColumn(s)!;
+  const prod = productionTotal(s, col);
+  const post = postRecap(s, col).total;
+  check("sample production total ≈ $250k", Math.abs(prod - 250000) < 12000, Math.round(prod));
+  check("sample post total ≈ $130k", Math.abs(post - 130000) < 8000, Math.round(post));
+  check("sample includes a production fee", productionFee(s, col) > 0);
+  check("sample includes insurance", productionInsurance(s, col) > 0);
+  check("sample leaves the production company blank", s.fields.every((f) => f.label !== "Production Co." || f.value === ""));
+  check("sample fills the client field", s.fields.some((f) => f.value === "Northwind Beverages"));
+  // RTDB round-trip via migrate keeps the totals intact.
+  const round = migrate(JSON.parse(JSON.stringify(s)));
+  check("sample round-trips with the same grand total", grandTotal(round, estimateColumn(round)!) === grandTotal(s, col));
 }
 
 if (failures > 0) {

@@ -27,8 +27,10 @@ export type PrintTheme = "classic" | "modern";
 
 export interface PrintConfig {
   theme: PrintTheme;
-  /** Drop zero-value lines and empty categories from the printed bid. */
-  hideUnused: boolean;
+  /** Drop zero-value lines from the printed bid. */
+  hideEmptyLines: boolean;
+  /** Drop categories whose total is zero from the printed bid. */
+  hideEmptySections: boolean;
   /** Show the AICP "No." column (the producer's form vs a clean client read). */
   showLineNumbers: boolean;
   showJobInfo: boolean;
@@ -41,7 +43,8 @@ export interface PrintConfig {
 export function defaultPrintConfig(bid: Bid): PrintConfig {
   return {
     theme: "classic",
-    hideUnused: true,
+    hideEmptyLines: false,
+    hideEmptySections: false,
     showLineNumbers: true,
     showJobInfo: true,
     showSummary: true,
@@ -62,20 +65,20 @@ function lineValue(bid: Bid, lineId: string, colId: string | undefined): number 
   return bid.cells[cellKey(lineId, colId)]?.value ?? 0;
 }
 
-/** Lines to print for a set of ids, dropping zero rows when hideUnused. */
-function visibleLines(bid: Bid, ids: string[], estCol: string, actCol: string | undefined, hideUnused: boolean): string[] {
+/** Lines to print for a set of ids, dropping zero rows when hideEmptyLines. */
+function visibleLines(bid: Bid, ids: string[], estCol: string, actCol: string | undefined, hideEmptyLines: boolean): string[] {
   return ids.filter((id) => {
     const line = bid.lines[id];
     if (!line || line.hidden) return false;
-    if (!hideUnused) return true;
+    if (!hideEmptyLines) return true;
     return lineValue(bid, id, estCol) !== 0 || lineValue(bid, id, actCol) !== 0;
   });
 }
 
 /** Whether a category has anything to show under the current config. */
-function categoryHasContent(bid: Bid, cat: BidCategory, estCol: string, actCol: string | undefined, hideUnused: boolean): boolean {
+function categoryHasContent(bid: Bid, cat: BidCategory, estCol: string, actCol: string | undefined, hideEmptySections: boolean): boolean {
   if (cat.hidden) return false;
-  if (!hideUnused) return true;
+  if (!hideEmptySections) return true;
   return categoryTotal(bid, cat.id, estCol) !== 0 || (!!actCol && categoryTotal(bid, cat.id, actCol) !== 0);
 }
 
@@ -83,9 +86,9 @@ function categoryHasContent(bid: Bid, cat: BidCategory, estCol: string, actCol: 
  * The printable AICP bid: a cover (job info + summary recap) followed by the
  * lettered category detail pages. Two themes — `classic` reproduces the familiar
  * AICP form look (heavy rules, shaded category bands); `modern` is a cleaner,
- * lighter-typeset version of the same data. `hideUnused` drops zero lines and
- * empty categories so a sparse bid prints tight. Hidden on screen; shown only
- * when printing via `print-only`.
+ * lighter-typeset version of the same data. `hideEmptyLines` / `hideEmptySections`
+ * (off by default) drop zero lines / empty categories so a sparse bid can print
+ * tight. Hidden on screen; shown only when printing via `print-only`.
  */
 export default function AicpPrintView({ config }: { config: PrintConfig }) {
   const { bid } = useBid();
@@ -108,8 +111,8 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
     ? { background: "#eee", WebkitPrintColorAdjust: "exact" as const, printColorAdjust: "exact" as const }
     : undefined;
 
-  const prod = productionCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideUnused));
-  const post = postCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideUnused));
+  const prod = productionCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideEmptySections));
+  const post = postCategories(bid).filter((c) => categoryHasContent(bid, c, estCol, actCol, config.hideEmptySections));
 
   const recapRow = (key: string, label: string, est: number, act: number, strong?: boolean, letter?: string) => (
     <tr key={key} style={strong ? { borderTop: "1.5px solid #000", fontWeight: 600 } : undefined}>
@@ -124,7 +127,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
 
   const nums = config.showLineNumbers;
   const detailTable = (cat: BidCategory, ids: string[]) => {
-    const lines = visibleLines(bid, ids, estCol, actCol, config.hideUnused);
+    const lines = visibleLines(bid, ids, estCol, actCol, config.hideEmptyLines);
     return lines.map((id) => {
       const line = bid.lines[id];
       const c = bid.cells[cellKey(id, estCol)];
@@ -232,7 +235,7 @@ export default function AicpPrintView({ config }: { config: PrintConfig }) {
                   <tbody>
                     {cat.subSections ? (
                       cat.subSections.map((s) => {
-                        const sLines = visibleLines(bid, s.lineIds, estCol, actCol, config.hideUnused);
+                        const sLines = visibleLines(bid, s.lineIds, estCol, actCol, config.hideEmptyLines);
                         if (sLines.length === 0) return null;
                         return (
                           <Fragment key={s.id}>

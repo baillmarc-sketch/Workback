@@ -7,6 +7,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AicpStoreContext } from "../src/state/aicpStore.tsx";
 import { createBid } from "../src/lib/aicp/builder.ts";
+import { studioShootSample } from "../src/lib/aicp/sample.ts";
 import { migrate } from "../src/lib/aicp/storage.ts";
 import {
   addBreakoutCategory,
@@ -75,11 +76,13 @@ function filledBid(): Bid {
   return bid;
 }
 
-const sample = createBid("Untitled AICP Bid");
+const blank = createBid("Untitled AICP Bid");
+const sample = studioShootSample();
 const filled = filledBid();
 const sparse = migrate({ id: "b1", updatedAt: 1 });
 
 for (const [label, bid] of [
+  ["blank", blank],
   ["sample", sample],
   ["filled", filled],
   ["sparse", sparse],

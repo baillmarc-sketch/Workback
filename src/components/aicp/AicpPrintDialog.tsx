@@ -66,8 +66,12 @@ export default function AicpPrintDialog({
               AICP line numbers (No. column)
             </label>
             <label className={cb}>
-              <input type="checkbox" checked={config.hideUnused} onChange={(e) => setConfig({ ...config, hideUnused: e.target.checked })} />
-              Hide unused lines &amp; empty sections
+              <input type="checkbox" checked={config.hideEmptyLines} onChange={(e) => setConfig({ ...config, hideEmptyLines: e.target.checked })} />
+              Hide empty lines
+            </label>
+            <label className={cb}>
+              <input type="checkbox" checked={config.hideEmptySections} onChange={(e) => setConfig({ ...config, hideEmptySections: e.target.checked })} />
+              Hide empty sections
             </label>
             <label className={cb}>
               <input type="checkbox" checked={config.showJobInfo} onChange={(e) => setConfig({ ...config, showJobInfo: e.target.checked })} />

@@ -9,6 +9,7 @@ import { migrateAuthor } from "../author";
 import { bumpVersion } from "../storage";
 import { evalCell } from "./builder";
 import { createBid } from "./builder";
+import { studioShootSample } from "./sample";
 import type {
   Bid,
   BidApplicability,
@@ -92,9 +93,9 @@ export function lastOpenId(): string | null {
   return safeGet(LAST_OPEN_KEY);
 }
 
-/** A starter bid, saved and returned, for an empty workspace. */
+/** A starter bid for an empty workspace: a realistic 1-day studio shoot sample. */
 export function sampleBid(): Bid {
-  return createBid("Untitled AICP Bid");
+  return studioShootSample();
 }
 
 /** Clone a saved bid into an independent copy, bumping the version in the title
